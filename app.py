@@ -193,7 +193,7 @@ US_STATES = {
 from pathlib import Path
 
 SOURCE_CATALOG_FILE = Path(__file__).resolve().parent / 'job_sources.json'
-VALID_SOURCE_GROUPS = ('neogov', 'neoed', 'lever', 'greenhouse', 'ashby', 'smartrecruiters', 'workable')
+VALID_SOURCE_GROUPS = ('neogov', 'neoed', 'lever', 'greenhouse', 'ashby', 'smartrecruiters', 'workable', 'mayo')
 
 
 def read_job_sources(path=SOURCE_CATALOG_FILE):
@@ -246,6 +246,7 @@ GREENHOUSE_BOARDS = JOB_SOURCE_CATALOG['greenhouse']
 ASHBY_BOARDS = JOB_SOURCE_CATALOG['ashby']
 SMARTRECRUITERS_BOARDS = JOB_SOURCE_CATALOG['smartrecruiters']
 WORKABLE_BOARDS = JOB_SOURCE_CATALOG['workable']
+MAYO_BOARDS = JOB_SOURCE_CATALOG['mayo']
 # JSON edits must invalidate cached employer feeds as well as displayed counts.
 SOURCE_CATALOG_VERSION = hashlib.sha256(SOURCE_CATALOG_FILE.read_bytes()).hexdigest()[:16]
 
@@ -874,6 +875,28 @@ def load_usajobs_if_authorized(key, email):
 
 # Cache each upstream separately. When a feed times out, show it in diagnostics
 # but do not suppress jobs from functioning sources.
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_mayo_clinic(catalog_version=None):
+    """Public Mayo Clinic career pages, limited reads; preserve feed diagnostics."""
+    if not MAYO_BOARDS:
+        return []
+    from mayo_source import fetch_mayo_jobs
+    listings = fetch_mayo_jobs()
+    out = []
+    for listing in listings:
+        work_style = listing.get('work_style') or ''
+        if work_style == 'Remote':
+            continue
+        job = standard_job(listing.get('title'), 'Mayo Clinic', listing.get('url'),
+            listing.get('location'), listing.get('description'), 'Mayo Clinic',
+            salary=listing.get('salary'), posted=listing.get('date'),
+            declared_style=work_style, eligible=True)
+        if job:
+            out.append(job)
+    return out
+
+
 def fetch_all_free_jobs(query_terms, state_filter=None):
     tasks={
         'NEOGOV government': lambda: load_neogov_feeds(state_filter, SOURCE_CATALOG_VERSION),
@@ -886,6 +909,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
         'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(SOURCE_CATALOG_VERSION),
         'NEOED education RSS': lambda: load_schooljobs_feeds(state_filter, SOURCE_CATALOG_VERSION),
         'Workable public boards': lambda: load_workable_boards(SOURCE_CATALOG_VERSION),
+        'Mayo Clinic careers': lambda: load_mayo_clinic(SOURCE_CATALOG_VERSION),
     }
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
