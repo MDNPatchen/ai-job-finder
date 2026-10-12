@@ -5,7 +5,7 @@ from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from collections import Counter
 import streamlit as st
 import fitz
@@ -170,6 +170,39 @@ def fetch_json(url):
         return json.load(response)
 
 
+MAX_POSTING_AGE_DAYS = 45
+
+
+def parse_posted_date(value):
+    """Return a date for common API date formats; unknown dates stay unknown."""
+    if value is None or value == '':
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            timestamp = float(value)
+            if timestamp > 1e11:  # Unix milliseconds
+                timestamp /= 1000
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc).date()
+        except (ValueError, OverflowError, OSError):
+            return None
+    raw = str(value).strip()
+    try:
+        return datetime.fromisoformat(raw.replace('Z', '+00:00')).date()
+    except ValueError:
+        pass
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
+def is_recent_posting(job, today=None):
+    """Only accept known publication dates from the last 45 days."""
+    today = today or datetime.now(timezone.utc).date()
+    published = parse_posted_date(job.get('date'))
+    return published is not None and today - timedelta(days=MAX_POSTING_AGE_DAYS) <= published <= today
+
+
 def standard_job(title, company, url, location, description, source,
                  remote=True, salary='', posted='', eligible=True):
     if not (title and company and str(url).startswith('https://')):
@@ -177,7 +210,7 @@ def standard_job(title, company, url, location, description, source,
     return {'title': str(title).strip(), 'company': str(company).strip(),
             'url': str(url), 'location': str(location or 'Not specified'),
             'remote': bool(remote), 'salary': str(salary or ''),
-            'date': str(posted or '')[:10],
+            'date': parse_posted_date(posted).isoformat() if parse_posted_date(posted) else '',
             'description': html_to_text(str(description or ''))[:6000],
             'source': source, 'eligible': eligible}
 
@@ -542,7 +575,7 @@ elif page == 'Career Matches':
 elif page == 'Find Jobs':
     st.title('🔎 Find Real Jobs — Search by State or Remote')
     st.write('Search U.S. location-tagged and remote job postings. State filters use the location provided by the employer; results are not comprehensive.')
-    st.caption('Sources: The Muse (on-site, hybrid and remote), Jobicy, Himalayas, Remotive. Listings may expire or be incomplete.')
+    st.caption('Sources: The Muse (on-site, hybrid and remote), Jobicy, Himalayas, Remotive. Only listings posted within the last 45 days with a verifiable posting date are shown.')
     recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
     with st.form('live_job_search'):
         role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
@@ -560,7 +593,15 @@ elif page == 'Find Jobs':
         state_code = state_choice.rsplit('(', 1)[-1].rstrip(')') if state_choice != 'All states' else None
         query = keywords.strip().lower()
         filtered = []
+        stale_count = 0
+        unknown_date_count = 0
         for job in fetched:
+            if not parse_posted_date(job.get('date')):
+                unknown_date_count += 1
+                continue
+            if not is_recent_posting(job):
+                stale_count += 1
+                continue
             if not us_eligible(job):
                 continue
             if arrangement == 'On-site / hybrid only (hide remote)' and job['remote']:
@@ -589,6 +630,7 @@ elif page == 'Find Jobs':
             filtered.sort(key=lambda j: (j['company'].lower(), -j['rank']))
         else:
             filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
+        st.session_state.date_filter_diagnostics = (stale_count, unknown_date_count)
         st.session_state.search_state_counts = dict(sorted(Counter(
             code for j in filtered for code in j['states']).items()))
         st.session_state.search_results = filtered[:max_results]
@@ -599,12 +641,15 @@ elif page == 'Find Jobs':
         with st.expander('Search diagnostics — see what sources returned'):
             st.write(f'{count} unique postings fetched before career filtering.')
             st.write('Source counts:', counts)
+            stale, undated = st.session_state.get('date_filter_diagnostics', (0, 0))
+            st.write(f'Excluded {stale} postings older than {MAX_POSTING_AGE_DAYS} days or dated in the future; excluded {undated} postings without a usable publication date.')
             for error in errors:
                 st.warning(error)
             st.caption('If a source is blocked or unavailable, its count may be missing. Results are cached for one hour.')
     if 'search_results' in st.session_state:
         results = st.session_state.search_results
         st.subheader(f'{len(results)} jobs displayed')
+        st.caption(f'Posting date filter: last {MAX_POSTING_AGE_DAYS} days only. Undated listings are hidden.')
         state_counts = st.session_state.get('search_state_counts', {})
         if state_counts:
             with st.expander('Job counts by state (before display limit)'):
