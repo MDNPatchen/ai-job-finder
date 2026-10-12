@@ -15,6 +15,7 @@ import streamlit as st
 import fitz
 from docx import Document
 import pandas as pd
+from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 
 st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
@@ -1408,6 +1409,7 @@ elif page == 'Find Jobs':
                                 st.success('Saved')
                             else:
                                 st.info('Already saved')
+                    render_employer_checker(job,n,_secret('SEC_CONTACT_EMAIL'))
             before, middle, after=st.columns([1,2,1],vertical_alignment='center')
             with before:
                 if st.button('← Previous',disabled=page_no==0,use_container_width=True):
