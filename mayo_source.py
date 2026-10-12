@@ -5,6 +5,7 @@ It does not call an unofficial protected JSON endpoint or bypass access blocks.
 Site layout changes or blocked requests are reported as provider errors.
 """
 import re
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -114,8 +115,11 @@ def parse_detail(payload, url):
     salary = re.search(
         r"Compensation Detail\s+(.{0,190}?)(?:Benefits Eligible|Schedule|Hours/Pay Period|$)",
         body, re.I)
+    raw_date = date.group(1)
+    posted = (datetime.strptime(raw_date, "%m/%d/%Y").date().isoformat()
+              if "/" in raw_date else raw_date)
     return {"title": title, "url": url, "location": location,
-            "date": date.group(1), "description": body[:9000],
+            "date": posted, "description": body[:9000],
             "salary": salary.group(1).strip() if salary else "",
             "work_style": style}
 
