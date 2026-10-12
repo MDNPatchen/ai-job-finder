@@ -40,7 +40,7 @@ def render_evidence(report):
     if identity.get('legal_name'):
         st.write('Legal name in registry: ' + identity['legal_name'])
         st.caption('LEI: ' + identity.get('lei','') +
-                   ' · Entity registry status: ' + identity.get('status','Unspecified'))
+                   ' · Registry status: ' + identity.get('entity_status','Unspecified'))
         if identity.get('url'):
             st.markdown('[GLEIF legal entity record](' + identity['url'] + ')')
     st.write('**How long has the employer existed?**')
