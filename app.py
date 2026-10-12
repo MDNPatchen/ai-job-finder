@@ -15,6 +15,7 @@ import streamlit as st
 import fitz
 from docx import Document
 import pandas as pd
+from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 
 st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
 
@@ -38,7 +39,8 @@ VERIFICATION_AREAS = {
 INITIAL_VERIFIED = list(VERIFICATION_AREAS)
 
 for key, default in {'jobs': [], 'resume_text': '', 'confirmed_titles': [], 'analysis': None,
-                     'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy()}.items():
+                     'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy(),
+                     'confirmed_qualifications': []}.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -83,6 +85,7 @@ COMPETENCIES = [
 ]
 
 
+@st.cache_data(show_spinner=False)
 def analyze_locally(resume):
     lines = [line.strip() for line in resume.splitlines() if line.strip()]
     documented, verify, roles, suggestions = [], [], {}, []
@@ -118,7 +121,9 @@ CAREER_PATHS = [
 
 
 def verified_competencies():
-    return set(VERIFICATION_AREAS[duty] for duty in st.session_state.verified_duties)
+    return ({VERIFICATION_AREAS[duty] for duty in st.session_state.verified_duties
+             if duty in VERIFICATION_AREAS}
+            | set(st.session_state.confirmed_qualifications))
 
 
 def verification_editor():
@@ -133,7 +138,9 @@ def verification_editor():
         if st.form_submit_button('Save verified experience'):
             st.session_state.verified_duties = selected
             st.session_state.pop('career_matches', None)
-            st.success('Verified responsibilities updated for this session.')
+            st.session_state.pop('search_results', None)
+            st.session_state.pop('search_stats', None)
+            st.success('Verified responsibilities updated. Search again to refresh job matching.')
     st.caption('Confirmed experience is based on your approval, not inferred from keywords. '
                'It is not automatically added to your resume.')
 
@@ -952,7 +959,7 @@ def normalized_key(job):
     return (title,company)
 
 
-def score_job(job, resume, words=''):
+def score_job(job, resume, words='', qualification_profile=None):
     classified=role_classification(job['title'])
     if not classified:
         return None
@@ -967,17 +974,24 @@ def score_job(job, resume, words=''):
         if not (in_title or in_description>=max(1,len(search_terms)//2)):
             return None
         score+=4 if in_title else 1
-    competencies=job_competency_hits(job,resume)
-    score+=min(4,len(competencies))
-    # Role title is the main signal, competencies are only supporting evidence.
-    # Avoid ranking remote IT/SpaceX director jobs based on generic 'leadership'.
+    profile = qualification_profile or compile_resume_profile(
+        resume, tuple(sorted(verified_competencies())))
+    qualification = assess_job_qualifications(job, profile, resume)
+    # Modestly boost jobs where the resume shows relevant evidence. The boost
+    # is not an eligibility decision or a hiring-success probability.
+    score += qualification['rank_bonus']
+    competencies = ([x['area'] for x in qualification['resume_matches']]
+                    + [x['area'] for x in qualification['confirmed_only']])[:5]
     if job['government']:
-        score+=1
-    return {**job, 'category':category, 'rank':score, 'competency_hits':competencies,
+        score += 1
+    return {**job, 'category':category, 'rank':score,
+            'competency_hits':competencies, 'qualification_match':qualification,
             'states':states_in_location(job['location'])}
 
 
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
+    qualification_profile = compile_resume_profile(
+        resume, tuple(sorted(verified_competencies())))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,'location':0}
     for job in jobs:
@@ -1011,7 +1025,7 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
         if state_code and state_code not in state_ids:
             excluded['location']+=1
             continue
-        ranked=score_job(job,resume,query)
+        ranked=score_job(job,resume,query,qualification_profile)
         if ranked is None:
             excluded['irrelevant']+=1
             continue
@@ -1097,6 +1111,9 @@ elif page == 'My Resume':
                     st.session_state.resume_text = extracted
                     st.session_state.analysis = None
                     st.session_state.pop('career_matches', None)
+                    # Old search results were ranked with an earlier resume.
+                    st.session_state.pop('search_results', None)
+                    st.session_state.pop('search_stats', None)
                     st.session_state.approved_suggestions = []
                 st.success('Resume uploaded successfully!')
             else:
@@ -1111,6 +1128,22 @@ elif page == 'My Resume':
         matches = keyword_matches(text, SKILLS)
         st.write(', '.join(matches) if matches else 'No matches from the starter list.')
         st.caption('These are keyword matches, not verified skill assessments.')
+        evidence_profile = compile_resume_profile(
+            text, tuple(sorted(verified_competencies())))
+        st.subheader('Qualification evidence identified in your resume')
+        st.write(f"{len(evidence_profile['evidence'])} transferable qualification areas referenced in your resume.")
+        st.caption('These are quoted resume references, not a claim that an employer would find you qualified. Job-specific minimum requirements are checked separately.')
+        with st.expander('Review the resume evidence used for matching'):
+            for area, snippets in evidence_profile['evidence'].items():
+                st.write('**' + area + '**')
+                for excerpt in snippets:
+                    st.caption('Your resume: ' + excerpt)
+            if not evidence_profile['evidence']:
+                st.write('No matches in the current transferable-skills library. You can still review job requirements individually.')
+            undoc = sorted(evidence_profile['confirmed'] - set(evidence_profile['evidence']))
+            if undoc:
+                st.write('**Confirmed separately, but not identified in resume:** ' + ', '.join(undoc))
+        st.info('Next: go to Find Jobs and search again to see a qualification review for each opening.')
         st.subheader('Confirm your actual job titles')
         found = keyword_matches(text, TITLES)
         if not st.session_state.confirmed_titles:
@@ -1131,6 +1164,20 @@ elif page == 'Career Analysis':
     actual_title = st.text_input('Your actual position', value='Group Newspaper Publisher')
     st.caption('Your real job title stays separate from transferable job categories.')
     verification_editor()
+    with st.expander('Confirm additional qualifications not shown in your resume'):
+        st.caption('These are optional self-confirmations, kept separate from the uploaded resume. Select only experience you can substantiate; they do not establish licenses, degrees or years of experience.')
+        with st.form('additional_qualification_form'):
+            areas = [name for name, _ in CAPABILITIES]
+            extras = st.multiselect(
+                'Additional transferable experience I can personally confirm',
+                options=areas,
+                default=[x for x in st.session_state.confirmed_qualifications if x in areas])
+            if st.form_submit_button('Save my additional qualifications'):
+                st.session_state.confirmed_qualifications = list(extras)
+                st.session_state.pop('career_matches', None)
+                st.session_state.pop('search_results', None)
+                st.session_state.pop('search_stats', None)
+                st.success('Qualifications saved for this session. Run Find Jobs again to update matches.')
     if not st.session_state.resume_text:
         st.warning('First upload your resume on the My Resume page.')
     else:
@@ -1279,6 +1326,8 @@ elif page == 'Find Jobs':
 
     if 'search_results' not in st.session_state:
         st.info('Search for leadership, management and public-sector openings across the United States. Leave the keyword blank to use your career profile.')
+        if not st.session_state.resume_text.strip():
+            st.caption('Upload a resume under My Resume for detailed job-by-job qualification evidence.')
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
@@ -1291,6 +1340,8 @@ elif page == 'Find Jobs':
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
         st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        if not st.session_state.resume_text.strip():
+            st.info('For a detailed match review of each vacancy, upload a resume on My Resume and search again.')
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
@@ -1314,10 +1365,42 @@ elif page == 'Find Jobs':
                             st.write('Pay listed: '+job['salary'])
                         if job.get('reference'):
                             st.caption(job['reference'])
-                        if job.get('competency_hits'):
-                            with st.expander('How this relates to your experience'):
-                                st.write('Resume or user-confirmed competencies mentioned in the listing: '+', '.join(job['competency_hits']))
-                                st.caption('Check minimum education, licensing, public-service eligibility, and experience requirements yourself.')
+                        qualification = job.get('qualification_match')
+                        if qualification and qualification['resume_present']:
+                            st.caption('**Resume alignment:** ' + qualification['label'])
+                            with st.expander('Qualification breakdown — why I match, and what to check'):
+                                st.write(
+                                    f"Resume evidence in {len(qualification['resume_matches'])} "
+                                    f"of {qualification['total_areas']} relevant areas mentioned in this listing.")
+                                st.caption('A job mentioning a topic does not necessarily make it a minimum requirement. This is an evidence review, not a hiring probability.')
+                                if qualification['resume_matches']:
+                                    st.write('**Matches supported by your uploaded resume**')
+                                    for item in qualification['resume_matches'][:7]:
+                                        st.write('**' + item['area'] + '**')
+                                        st.caption('Job posting: ' + item['listing_excerpt'])
+                                        for excerpt in item['resume_evidence'][:2]:
+                                            st.caption('Your resume: ' + excerpt)
+                                if qualification['confirmed_only']:
+                                    st.write('**Experience you confirmed separately, not identified in your resume**')
+                                    for item in qualification['confirmed_only'][:6]:
+                                        st.write('• ' + item['area'])
+                                        st.caption('Job posting: ' + item['listing_excerpt'])
+                                if qualification['not_documented']:
+                                    st.write('**Experience to confirm or document**')
+                                    for item in qualification['not_documented'][:7]:
+                                        st.write('• ' + item['area'])
+                                        st.caption('Job posting: ' + item['listing_excerpt'])
+                                    st.caption('Not mentioned in your resume does NOT mean you lack the experience.')
+                                if qualification['screeners']:
+                                    st.write('**Education, credentials and years to verify against the full posting**')
+                                    for requirement in qualification['screeners']:
+                                        st.write('**' + requirement['type'] + '** — ' + requirement['priority'])
+                                        st.caption('Job posting: ' + requirement['listing_excerpt'])
+                                        st.caption('Your resume: ' + requirement['resume_status'])
+                                if not qualification['total_areas'] and not qualification['screeners']:
+                                    st.info('The public feed has limited job requirements. Read the full employer posting before deciding.')
+                                st.write('**Resume focus:** ' + qualification['resume_focus'])
+                                st.caption('Confirmations never rewrite your resume. Update Career Analysis to confirm experience you have but did not include. Verify employer screening criteria directly.')
                     with right:
                         st.link_button('Search NYC by ID' if job.get('reference') else 'View / Apply',job['url'],use_container_width=True)
                         if st.button('Save job',key=f'clean_save_{n}',use_container_width=True):
