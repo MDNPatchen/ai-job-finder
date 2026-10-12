@@ -1,4 +1,8 @@
 import re
+import json
+import html
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from io import BytesIO
 from datetime import date
 import streamlit as st
@@ -145,6 +149,105 @@ def get_career_matches(resume):
                         'unconfirmed': unconfirmed, 'evidence': evidence_by_skill,
                         'verified': [skill for skill in matched if skill in verified]})
     return sorted(results, key=lambda x: (-x['score'], x['title']))
+
+
+# Public endpoints; no account, API key, or paid service required.
+# Remotive requests are cached for 6 hours to respect its rate guidance.
+@st.cache_data(ttl=21600, show_spinner=False)
+def load_public_jobs():
+    jobs, errors = [], []
+    sources = [
+        ('Remotive', 'https://remotive.com/api/remote-jobs'),
+        ('Arbeitnow', 'https://www.arbeitnow.com/api/job-board-api'),
+    ]
+    for source, endpoint in sources:
+        try:
+            request = Request(endpoint, headers={'User-Agent': 'AIJobFinder/1.0 (personal career search)', 'Accept': 'application/json'})
+            with urlopen(request, timeout=18) as response:
+                payload = json.load(response)
+            records = payload.get('jobs', []) if source == 'Remotive' else payload.get('data', [])
+            for record in records:
+                if source == 'Remotive':
+                    location = str(record.get('candidate_required_location') or 'Not specified')
+                    remote = True
+                    salary = str(record.get('salary') or '')
+                    posted = str(record.get('publication_date') or '')[:10]
+                else:
+                    location = str(record.get('location') or 'Not specified')
+                    remote = record.get('remote') is True
+                    salary = ''
+                    posted = ''
+                title = str(record.get('title') or '').strip()
+                company = str(record.get('company_name') or '').strip()
+                url = str(record.get('url') or '').strip()
+                if not (title and company and url.startswith('https://')):
+                    continue
+                description = html_to_text(str(record.get('description') or ''))[:5000]
+                jobs.append({'title': title, 'company': company, 'url': url,
+                             'location': location, 'remote': remote, 'salary': salary,
+                             'date': posted, 'description': description, 'source': source})
+        except (HTTPError, URLError, TimeoutError, ValueError, OSError) as exc:
+            errors.append(f'{source} is unavailable right now ({type(exc).__name__}). Try again later.')
+    unique = {}
+    for job in jobs:
+        unique.setdefault(job['url'], job)
+    return list(unique.values()), errors
+
+
+def html_to_text(value):
+    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
+
+
+def us_eligible(job):
+    loc = job['location'].lower()
+    if job['source'] == 'Remotive':
+        # Remote listings can restrict applicants by country or time zone.
+        # Unknown/multi-region restrictions are excluded rather than assumed eligible.
+        return any(t in loc for t in ['usa', 'united states', 'u.s.', 'us only', 'north america', 'worldwide', 'anywhere', 'global'])
+    if job['remote']:
+        return any(t in loc for t in ['usa', 'united states', 'u.s.', 'north america', 'worldwide'])
+    # Arbeitnow mostly lists European jobs. Do not mislabel them as U.S. openings.
+    return bool(re.search(r'\b(usa|united states|u\.s\.|new york|california|texas|florida|chicago|seattle|boston|denver|minneapolis|atlanta|washington dc)\b', loc))
+
+
+ROLE_ALIASES = {
+    'Chief Operating Officer (smaller organization)': ['chief operating officer', 'coo', 'head of operations', 'vp operations', 'vice president operations'],
+    'Distribution Operations Director': ['distribution director', 'director of distribution', 'logistics director', 'director of logistics', 'supply chain director'],
+    'Regional Operations Director': ['regional operations', 'regional director', 'director of operations', 'operations director', 'area manager'],
+    'Digital Business Director': ['digital director', 'director of digital', 'digital business', 'digital strategy director', 'digital operations'],
+    'Director of Community Partnerships': ['partnerships director', 'director of partnerships', 'community relations director', 'community engagement director'],
+    'Director of Business Development': ['business development director', 'director of business development', 'head of business development', 'commercial director'],
+    'Director of Marketing': ['marketing director', 'director of marketing', 'head of marketing'],
+    'General Manager': ['general manager', 'business unit manager', 'managing director'],
+}
+
+
+def role_similarity(title, role):
+    value = re.sub(r'[^a-z0-9 ]', ' ', title.lower())
+    value = re.sub(r'\s+', ' ', value).strip()
+    aliases = ROLE_ALIASES.get(role, [role.lower()])
+    for phrase in aliases:
+        clean = re.sub(r'[^a-z0-9 ]', ' ', phrase.lower())
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        if re.search(r'\b' + re.escape(clean) + r'\b', value):
+            return 3
+    # Broader but still meaningful leadership-title signals.
+    if role in ['Regional Operations Director', 'Distribution Operations Director'] and 'operations' in value and any(t in value for t in ['director', 'head', 'vp']):
+        return 1
+    return 0
+
+
+def job_competency_hits(job, resume):
+    # Uses verified experience or phrases in the resume; compares to job description.
+    confirmed = verified_competencies()
+    if resume.strip():
+        confirmed |= {item['skill'] for item in analyze_locally(resume)['documented']}
+    job_text = job['title'] + ' ' + job['description']
+    matches = []
+    for area, phrases, *_ in COMPETENCIES:
+        if area in confirmed and any(re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', job_text, re.I) for term in phrases):
+            matches.append(area)
+    return matches[:5]
 
 
 st.sidebar.title('💼 AI Job Finder')
@@ -321,11 +424,76 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Jobs')
-    st.text_input('Job title or keywords', placeholder='Regional Director')
-    st.text_input('Location', placeholder='Rochester, MN or Remote')
-    if st.button('Search Jobs'):
-        st.info('Live job search is not connected yet.')
+    st.title('🔎 Find Real Jobs — Nationwide + Remote')
+    st.write('Free public job feeds. Search across the U.S. where location eligibility is clear, plus remote jobs open to U.S. applicants.')
+    st.caption('Sources: Remotive (remote positions) and Arbeitnow (limited U.S. / remote listings). These do not cover every job board, and listings can expire.')
+    recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
+    with st.form('live_job_search'):
+        role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
+        keywords = st.text_input('Optional extra search terms', placeholder='operations, publisher, general manager')
+        arrangement = st.selectbox('Work arrangement', ['Nationwide + remote', 'Remote only', 'On-site / hybrid in the U.S.'])
+        max_results = st.slider('Maximum displayed jobs', 5, 60, 25, step=5)
+        search = st.form_submit_button('Search Live Jobs', type='primary')
+    if search:
+        with st.spinner('Loading public job feeds...'):
+            fetched, errors = load_public_jobs()
+        if errors:
+            for error in errors:
+                st.warning(error)
+        query = keywords.strip()
+        selected_roles = recommended if role == 'All recommended career paths' else [role]
+        filtered = []
+        for job in fetched:
+            if arrangement == 'Remote only' and not job['remote']:
+                continue
+            if arrangement == 'On-site / hybrid in the U.S.' and job['remote']:
+                continue
+            if not us_eligible(job):
+                continue
+            title = job['title'].lower()
+            description = job['description'].lower()
+            title_score = max((role_similarity(job['title'], r) for r in selected_roles), default=0)
+            # A strong role-title match is required; extra keywords can widen matching.
+            extra = bool(query and query.lower() in (title + ' ' + description))
+            if title_score == 0 and not extra:
+                continue
+            competency_hits = job_competency_hits(job, st.session_state.resume_text)
+            score = title_score * 3 + len(competency_hits)
+            filtered.append({**job, 'rank': score, 'role_score': title_score, 'competency_hits': competency_hits})
+        filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
+        st.session_state.search_results = filtered[:max_results]
+        st.session_state.search_total = len(filtered)
+        st.session_state.search_timestamp = str(date.today())
+    if 'search_results' in st.session_state:
+        results = st.session_state.search_results
+        st.subheader(f'{len(results)} jobs displayed')
+        st.caption(f'{st.session_state.get("search_total", len(results))} matching postings in fetched feeds • Searched {st.session_state.get("search_timestamp", "today")}. No guaranteed vacancies or hiring fit.')
+        if not results:
+            st.info('No matching U.S.-eligible jobs were found in these limited feeds. Try a broader career path or keywords. This does not mean no such jobs exist.')
+        for i, job in enumerate(results):
+            with st.container(border=True):
+                st.markdown(f"**{job['title']}** — {job['company']}")
+                st.write(f"📍 {job['location']} | {'Remote' if job['remote'] else 'On-site / hybrid'} | {job['source']}")
+                if job['salary']:
+                    st.write('**Salary (as listed):**', job['salary'])
+                st.caption('Potential experience overlap: ' + (', '.join(job['competency_hits']) if job['competency_hits'] else 'Not enough detail to identify overlaps'))
+                st.caption('This is a simple title and phrase comparison, not a hiring probability or full requirements assessment.')
+                if job['date']:
+                    st.caption('Posted: ' + job['date'])
+                st.link_button('View original posting / Apply', job['url'])
+                if st.button('Save to Job Tracker', key=f'save_live_{i}'):
+                    if any(j.get('Job URL') == job['url'] for j in st.session_state.jobs):
+                        st.info('Already in your Job Tracker.')
+                    else:
+                        st.session_state.jobs.append({
+                            'Company': job['company'], 'Job Title': job['title'],
+                            'Location': job['location'], 'Job URL': job['url'],
+                            'Salary': job['salary'], 'Status': 'Saved',
+                            'Date Recorded': str(date.today()), 'Interview Date': '',
+                            'Notes': f"Found via {job['source']}. Verify eligibility and job requirements before applying."
+                        })
+                        st.success('Saved to Job Tracker for this session.')
+    st.warning('Job Tracker entries are not permanently stored yet. Export your CSV before ending your session.')
 
 elif page == 'Job Tracker':
     st.title('📋 Job Application Tracker')
