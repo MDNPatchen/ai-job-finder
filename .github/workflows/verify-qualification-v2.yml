@@ -1,0 +1,29 @@
+name: Verify qualification matching v2
+
+on:
+  pull_request:
+    paths:
+      - "app.py"
+      - "qualification_v2.py"
+      - "qualification_matcher.py"
+      - "ranked_breakdowns.py"
+      - "mayo_source.py"
+      - "test_qualification_v2.py"
+      - "test_qualification_matcher.py"
+      - "test_ranked_breakdowns.py"
+      - "test_nyc_qualification_data.py"
+      - ".github/workflows/verify-qualification-v2.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile updated modules
+        run: python -m py_compile app.py qualification_v2.py qualification_matcher.py ranked_breakdowns.py mayo_source.py
+      - name: Qualification and export unit tests
+        run: python -m unittest -v test_qualification_v2 test_qualification_matcher test_ranked_breakdowns test_nyc_qualification_data test_mayo_source
