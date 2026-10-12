@@ -31,8 +31,8 @@ class QualificationV2Tests(unittest.TestCase):
                     'Six years progressively responsible experience in the operational '
                     'management and strategic direction of a public transportation '
                     'organization providing oversight of total fleet operations. '
-                    'Must possess and maintain a valid Florida Driver\\'s License. '
-                    'Requires a Bachelor\\'s degree in transportation or business. '
+                    'Must possess and maintain a valid Florida Driver\'s License. '
+                    'Requires a Bachelor\'s degree in transportation or business. '
                     'Responsibilities: budgeting, financial operations, leadership, '
                     'strategic planning, distribution, vendors and stakeholder engagement.')}
         generic={'title':'Chief Operating Officer',
