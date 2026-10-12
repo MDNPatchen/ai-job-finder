@@ -1,0 +1,24 @@
+name: Verify ranked qualification exports
+
+on:
+  pull_request:
+    paths:
+      - "app.py"
+      - "qualification_matcher.py"
+      - "ranked_breakdowns.py"
+      - "test_ranked_breakdowns.py"
+      - ".github/workflows/verify-ranked-breakdowns.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python modules
+        run: python -m py_compile app.py qualification_matcher.py ranked_breakdowns.py
+      - name: Run offline qualification rank and export tests
+        run: python -m unittest -v test_ranked_breakdowns

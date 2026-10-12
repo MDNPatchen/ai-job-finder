@@ -15,6 +15,7 @@ import streamlit as st
 import fitz
 from docx import Document
 import pandas as pd
+from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 
@@ -987,6 +988,7 @@ def score_job(job, resume, words='', qualification_profile=None):
         score += 1
     return {**job, 'category':category, 'rank':score,
             'competency_hits':competencies, 'qualification_match':qualification,
+            'evidence_index':evidence_index(qualification),
             'states':states_in_location(job['location'])}
 
 
@@ -1033,8 +1035,15 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
         key=normalized_key(job)
         if key not in unique or unique[key]['rank']<ranked['rank']:
             unique[key]=ranked
-    # Keep all credible results; diversify within the top pages, not just 25.
-    sorted_jobs=sorted(unique.values(),key=lambda j:(-j['rank'],-int(j['date'].replace('-','')),j['title'].lower()))
+    # With an uploaded resume, strict descending *documented qualification*
+    # overlap takes priority over titles, provider familiarity and posting date.
+    # Without a resume, preserve the existing title/relevance ranking.
+    if resume.strip():
+        sorted_jobs=sorted(unique.values(),key=evidence_sort_key)
+    else:
+        sorted_jobs=sorted(unique.values(),key=lambda j:(
+            -j['rank'],-int(j['date'].replace('-','')),j['title'].lower()))
+    # Keep a limited number per employer without disturbing sorted order.
     company_counts=Counter()
     diverse=[]
     for job in sorted_jobs:
@@ -1046,7 +1055,10 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
             continue
         company_counts[company]+=1
         diverse.append(job)
-    # Interleave government and commercial results so one type cannot dominate.
+    if resume.strip():
+        # No sector interleaving: that would break best-to-worst ordering.
+        return diverse, excluded
+    # Preserve previous government/private variety when a resume isn't loaded.
     government=[j for j in diverse if j['government']]
     private=[j for j in diverse if not j['government']]
     interleaved=[]
@@ -1346,17 +1358,43 @@ elif page == 'Find Jobs':
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
+            if st.session_state.resume_text.strip():
+                st.write('**Sorted by documented resume qualification match: highest to lowest.**')
+                st.caption('The evidence overlap index is a transparent 0–100 comparison of resume-supported areas against topics mentioned in the posting. Separately confirmed experience counts half; a five-area baseline prevents short ads from looking like perfect matches. This is not a hiring probability or formal eligibility assessment.')
+                all_breakdowns = breakdowns_json(all_results)
+                flat_breakdowns = breakdowns_csv_rows(all_results)
+                export_csv = pd.DataFrame(flat_breakdowns).to_csv(index=False)
+                export_json = json.dumps(all_breakdowns, indent=2, ensure_ascii=False)
+                export_left, export_right = st.columns(2)
+                with export_left:
+                    st.download_button(
+                        '⬇️ Export ranked match breakdowns (CSV)', export_csv,
+                        'job_qualification_breakdowns_ranked.csv', 'text/csv',
+                        use_container_width=True)
+                with export_right:
+                    st.download_button(
+                        '⬇️ Export full evidence breakdowns (JSON)', export_json,
+                        'job_qualification_breakdowns_detailed.json', 'application/json',
+                        use_container_width=True)
+                st.caption('Downloads include job links, qualification checks and relevant resume excerpts. Files stay in your browser until you download them; no resume is uploaded to an outside service by this feature.')
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
             page_total=(len(all_results)+PAGE_SIZE-1)//PAGE_SIZE
             page_no=min(max(page_no,0),page_total-1)
             st.session_state.search_page=page_no
-            st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(all_results))} of {len(all_results)} results · Government and private listings mixed for variety')
+            st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(all_results))} of {len(all_results)} results · '+('Ranked by qualification evidence' if st.session_state.resume_text.strip() else 'Government and private listings mixed for variety'))
             for n,job in enumerate(all_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE], start=page_no*PAGE_SIZE):
                 with st.container(border=True):
                     left,right=st.columns([5,1.7],vertical_alignment='top')
                     with left:
-                        st.markdown('**'+job['title']+'**')
+                        st.markdown('**#'+str(n+1)+' · '+job['title']+'**')
+                        if st.session_state.resume_text.strip():
+                            q = job.get('qualification_match') or {}
+                            st.write(f"**Resume evidence overlap: {evidence_index(q)}/100**")
+                            st.caption(
+                                f"{len(q.get('resume_matches') or [])} areas supported by resume · "
+                                f"{len(q.get('confirmed_only') or [])} confirmed separately · "
+                                f"{len(q.get('not_documented') or [])} to investigate")
                         st.caption(' · '.join([
                             job['company'],job['location'],
                             job.get('work_style') or 'Not specified',
