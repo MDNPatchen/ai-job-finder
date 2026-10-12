@@ -432,6 +432,52 @@ def load_usajobs(api_key, email):
     return jobs, errors, {'USAJOBS': len(jobs)}
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_adzuna_jobs(app_id, app_key, search_terms):
+    """Search Adzuna US jobs. Requires user-provided developer credentials."""
+    if not app_id or not app_key:
+        return [], [], {'Adzuna': 0}
+    jobs, errors = [], []
+    for term in search_terms[:6]:
+        for page in (1, 2):
+            try:
+                url = 'https://api.adzuna.com/v1/api/jobs/us/search/' + str(page) + '?' + urlencode({
+                    'app_id': app_id, 'app_key': app_key, 'results_per_page': 50,
+                    'what': term, 'sort_by': 'date', 'max_days_old': MAX_POSTING_AGE_DAYS})
+                payload = fetch_json(url)
+                for rec in payload.get('results', []):
+                    location_data = rec.get('location') or {}
+                    location = location_data.get('display_name') or ', '.join(location_data.get('area', []))
+                    employer = rec.get('company') or {}
+                    company = employer.get('display_name', '') if isinstance(employer, dict) else str(employer)
+                    salary = ''
+                    if rec.get('salary_min'):
+                        salary = '$' + format(float(rec['salary_min']), ',.0f')
+                        if rec.get('salary_max'):
+                            salary += '–$' + format(float(rec['salary_max']), ',.0f')
+                    job = standard_job(rec.get('title'), company, rec.get('redirect_url'),
+                        location, rec.get('description'), 'Adzuna US',
+                        muse_remote(location) or muse_remote(rec.get('title', '')),
+                        salary, rec.get('created'), True)
+                    if job: jobs.append(job)
+            except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
+                errors.append(f'Adzuna {term} page {page}: {type(exc).__name__}')
+                break
+    return jobs, errors, {'Adzuna': len(jobs)}
+
+
+def external_board_urls(keywords, state_name):
+    """Legitimate interactive searches; never present as imported postings."""
+    query = keywords.strip() or 'operations director OR general manager OR chief operating officer'
+    location = '' if state_name == 'All states' else state_name
+    return {
+        'Indeed': 'https://www.indeed.com/jobs?' + urlencode({'q': query, 'l': location, 'fromage': 45}),
+        'LinkedIn': 'https://www.linkedin.com/jobs/search/?' + urlencode({'keywords': query, 'location': location or 'United States', 'f_TPR': 'r3888000'}),
+        'GovernmentJobs': 'https://www.governmentjobs.com/jobs?' + urlencode({'keyword': query, 'location': location}),
+        'USAJOBS': 'https://www.usajobs.gov/Search/Results?' + urlencode({'k': query, 'l': location}),
+    }
+
+
 def parse_board_tokens(value):
     tokens = [x.strip().lower() for x in re.split(r'[,\n;]+', value or '')]
     return tuple(dict.fromkeys(x for x in tokens if re.fullmatch(r'[a-z0-9_-]{2,80}', x)))
@@ -766,9 +812,9 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Real Jobs — Focused Search')
+    st.title('🔎 Find Real Jobs — Expanded Search')
     st.write('Search U.S. location-tagged and remote job postings. State filters use the location provided by the employer; results are not comprehensive.')
-    st.caption('Automatic sources: public job feeds, optional employer boards, USAJOBS, and selected agency-specific NEOGOV RSS feeds. Listings must be dated within 45 days.')
+    st.caption('Automatic sources: public feeds, optional Adzuna US, employer boards, USAJOBS and configured NEOGOV agencies. Indeed and LinkedIn are external searches, not imported results. All imported jobs must be dated within 45 days.')
     recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
     with st.form('live_job_search'):
         role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
@@ -776,20 +822,20 @@ elif page == 'Find Jobs':
         arrangement = st.selectbox('Work arrangement', ['On-site / hybrid only (hide remote)', 'Nationwide + remote', 'Remote only'], index=0)
         state_choice = st.selectbox('State', ['All states'] + [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda item: item[1])])
         sort_choice = st.selectbox('Sort results', ['Best career match', 'State (A–Z)', 'Newest posting', 'Company (A–Z)'])
-        strict_match = st.checkbox('Require a closely related management job title', value=True)
+        strict_match = st.checkbox('Require a closely related management job title (uncheck to broaden)', value=False)
         exclude_companies = st.text_input('Exclude employers (comma-separated)', value='SpaceX', help='Example: SpaceX, Tesla')
         company_limit = st.slider('Maximum listings per employer', 1, 10, 3)
         max_results = st.slider('Maximum displayed jobs', 5, 60, 25, step=5)
         with st.expander('More sources — optional, no paid API required'):
             greenhouse_input = st.text_area('Greenhouse employer board tokens (comma-separated)', help='Use the employer token from boards.greenhouse.io/EMPLOYER. Not a general cross-employer search.')
             lever_input = st.text_area('Lever employer board tokens (comma-separated)', help='Use the employer token from jobs.lever.co/EMPLOYER.')
-            st.caption('USAJOBS offers a free API key, but requires registration. Put USAJOBS_API_KEY and USAJOBS_EMAIL in Streamlit Secrets to enable automatic federal results.')
+            st.caption('Adzuna offers a developer jobs API; request credentials at developer.adzuna.com and set ADZUNA_APP_ID / ADZUNA_APP_KEY in Streamlit Secrets. USAJOBS requires USAJOBS_API_KEY and USAJOBS_EMAIL. Neither uses OpenAI credits.')
         with st.expander('Government RSS feeds — city and county employers'):
             use_gov_feeds = st.checkbox('Include NEOGOV government RSS feeds', value=True)
             gov_agencies = st.text_area('GovernmentJobs agency names or career URLs (comma/newline-separated)',
                 value='hennepin, minneapolismn, kingcounty',
                 help='Example: https://www.governmentjobs.com/careers/hennepin. Only entered agencies are checked; this is not a nationwide NEOGOV index.')
-            st.caption('Agency feeds are checked individually, cached for one hour, and may be unavailable. Missing dates are excluded by the 45-day rule.')
+            st.caption('These three starter agencies are in MN and WA, not nationwide. Add verified GovernmentJobs career URLs from any state. The app cannot discover every NEOGOV employer automatically. Missing dates are excluded.')
         search = st.form_submit_button('Search Live Jobs', type='primary')
     if search:
         with st.spinner('Searching public job sources (may take up to a minute)...'):
@@ -808,6 +854,19 @@ elif page == 'Find Jobs':
             fetched.extend(federal)
             errors.extend(federal_errors)
             counts.update(federal_counts)
+            try:
+                adzuna_id = st.secrets.get('ADZUNA_APP_ID', '')
+                adzuna_key = st.secrets.get('ADZUNA_APP_KEY', '')
+            except (FileNotFoundError, KeyError):
+                adzuna_id, adzuna_key = '', ''
+            adzuna_terms = (keywords.strip(),) if keywords.strip() else (
+                'operations director', 'general manager', 'business development director',
+                'regional operations', 'executive director', 'city administrator')
+            adzuna, adzuna_errors, adzuna_counts = load_adzuna_jobs(
+                adzuna_id, adzuna_key, adzuna_terms)
+            fetched.extend(adzuna)
+            errors.extend(adzuna_errors)
+            counts.update(adzuna_counts)
             if use_gov_feeds:
                 agency_map = parse_neogov_agencies(gov_agencies)
                 agency_rows = tuple((token, name, state) for token, (name, state) in agency_map.items())
@@ -924,6 +983,19 @@ elif page == 'Find Jobs':
                             'Notes': f"Found via {job['source']}. Confirm eligibility and requirements before applying."
                         })
                         st.success('Saved to Job Tracker for this session.')
+    st.subheader('🌐 Search Indeed, LinkedIn and government job boards')
+    st.caption('These open official searches in another tab. They are NOT imported into the app, and their results are not included in the 45-day filtered counts. Check dates and qualifications on each board.')
+    external_location = st.selectbox('Location for external job board searches',
+        ['All states'] + [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda kv: kv[1])],
+        key='external_search_state')
+    external_state = external_location.split(' (')[0] if external_location != 'All states' else 'All states'
+    external_query = st.text_input('Keywords for Indeed / LinkedIn / GovernmentJobs',
+        value='operations director OR general manager OR chief operating officer',
+        key='external_search_query')
+    for board, link in external_board_urls(external_query, external_state).items():
+        st.link_button('Search ' + board, link)
+    st.caption('The 45-day preference is sent to external sites where supported, but each site controls its own filters.')
+
     st.subheader('🏛️ Government jobs — all 50 states')
     st.caption('The state selector covers every U.S. state. Direct state-employer links are provided where configured; public-sector search links are available for all 50 states. External search results are NOT included in the 45-day filtered count; check dates and eligibility on the original website.')
     state_portal = st.selectbox('Select a state for government vacancies',
@@ -942,7 +1014,7 @@ elif page == 'Find Jobs':
     st.link_button('50-state career portal directory (UW–Madison)', 'https://career.lafollette.wisc.edu/resources/state-job-homepages-for-all-50-states/')
     st.link_button('Search federal government vacancies (USAJOBS)', 'https://www.usajobs.gov/Search/Results')
     st.link_button('Browse all local government jobs', 'https://www.governmentjobs.com/jobs')
-    st.caption('NEOGOV auto-search works only for agency tokens entered in the search form, when those RSS feeds are accessible. It does not automatically cover every city or county nationwide.')
+    st.caption('The All states setting does not discover all state and county agency feeds. NEOGOV imports only the configured agency tokens. Add more agency career URLs from across the country to expand government coverage.')
     st.caption('For automatic federal listings, add USAJOBS_API_KEY and USAJOBS_EMAIL to Streamlit Secrets after requesting a free USAJOBS API key. No OpenAI key is needed.')
     st.warning('Job Tracker entries are not permanently stored yet. Export your CSV before ending your session.')
 
