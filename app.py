@@ -187,86 +187,64 @@ US_STATES = {
     'DC':'District of Columbia',
 }
 
-# Agency tokens below were checked against GovernmentJobs career-page URLs,
-# not against live feed availability. RSS availability is tested on every load.
-# Deliberately distributed across regions, rather than Minnesota-only.
-GOVERNMENT_AGENCIES = (
-    ('hennepin', 'Hennepin County', 'MN'),
-    ('minneapolismn', 'City of Minneapolis', 'MN'),
-    ('polkia', 'Polk County', 'IA'),
-    ('iowa', 'State of Iowa', 'IA'),
-    ('siouxfallssd', 'City of Sioux Falls', 'SD'),
-    ('dupageco', 'DuPage County', 'IL'),
-    ('lakecountyil', 'Lake County', 'IL'),
-    ('washington', 'State of Washington', 'WA'),
-    ('kingcounty', 'King County', 'WA'),
-    ('seattle', 'City of Seattle', 'WA'),
-    ('portlandor', 'City of Portland', 'OR'),
-    ('sandiego', 'City of San Diego', 'CA'),
-    ('clarkcounty', 'Clark County', 'NV'),
-    ('pinalcounty', 'Pinal County', 'AZ'),
-    ('mohavecountyaz', 'Mohave County', 'AZ'),
-    ('centennial', 'City of Centennial', 'CO'),
-    ('harriscountytx', 'Harris County', 'TX'),
-    ('colubbocktx', 'Lubbock County', 'TX'),
-    ('gwinnett', 'Gwinnett County', 'GA'),
-    ('seminolecountyfl', 'Seminole County', 'FL'),
-    ('flaglercounty', 'Flagler County', 'FL'),
-    ('durhamnc', 'City of Durham', 'NC'),
-    ('wichita', 'City of Wichita', 'KS'),
-    ('utah', 'State of Utah', 'UT'),
-    ('LOUISIANA', 'State of Louisiana', 'LA'),
-    ('Pittsburgh', 'City of Pittsburgh', 'PA'),
-    ('cabq', 'City of Albuquerque', 'NM'),
-    ('boiseid', 'City of Boise', 'ID'),
-    ('fairfaxcounty', 'Fairfax County', 'VA'),
-    # Additional employer tokens confirmed from public NEOGOV career pages.
-    ('colorado', 'State of Colorado', 'CO'),
-    ('newjersey', 'New Jersey Civil Service Commission', 'NJ'),
-    ('greenvillesc', 'City of Greenville', 'SC'),
-    ('njjudiciary', 'New Jersey Judiciary', 'NJ'),
-    ('saginawmi', 'City of Saginaw', 'MI'),
-    ('charlevoix', 'City of Charlevoix', 'MI'),
-    ('deschutes', 'Deschutes County', 'OR'),
-    # Additional government employer identifiers verified from actual NEOGOV
-    # career pages in October 2026. Page exists != live RSS works; the loader
-    # tests each feed, and unavailable sources appear in diagnostics.
-    # Minnesota / Upper Midwest
-    ('olmsted', 'Olmsted County', 'MN'),
-    ('dakota', 'Dakota County', 'MN'),
-    ('duluthmn', 'City of Duluth', 'MN'),
-    ('countyofdane', 'Dane County', 'WI'),
-    ('madisonwi', 'City of Madison', 'WI'),
-    ('sheboygancounty', 'Sheboygan County', 'WI'),
-    ('eauclaire', 'Eau Claire County', 'WI'),
-    ('juneauwi', 'Juneau County', 'WI'),
-    # Pacific / West Coast
-    ('oc', 'Orange County', 'CA'),
-    ('lacounty', 'Los Angeles County', 'CA'),
-    ('sdcounty', 'San Diego County', 'CA'),
-    ('riverside', 'Riverside County', 'CA'),
-    ('santaclara', 'Santa Clara County', 'CA'),
-    ('saccity', 'City of Sacramento', 'CA'),
-    # Southeast / East Coast
-    ('broward', 'Broward County', 'FL'),
-    ('miamifl', 'City of Miami', 'FL'),
-    ('alachua', 'Alachua County', 'FL'),
-    ('charlottecountyfl', 'Charlotte County', 'FL'),
-    ('volusiaco', 'Volusia County', 'FL'),
-    ('raleighnc', 'City of Raleigh', 'NC'),
-    ('nashville', 'Metro Nashville and Davidson County', 'TN'),
-    # Northeast / Mid-Atlantic
-    ('waynecountyny', 'Wayne County', 'NY'),
-    ('livingstoncounty', 'Livingston County', 'NY'),
-    ('nassaucountyny', 'Nassau County', 'NY'),
-    ('erieco', 'Erie County', 'NY'),
-    ('boston', 'City of Boston', 'MA'),
-    ('montgomerycountymd', 'Montgomery County', 'MD'),
-    # Ohio and Hawaii
-    ('columbusoh', 'City of Columbus', 'OH'),
-    ('cleveland', 'City of Cleveland', 'OH'),
-    ('honolulu', 'City and County of Honolulu', 'HI'),
-)
+# Catalog is maintained in job_sources.json, not in this Python file.
+# Adding / disabling source boards requires changing only that JSON file.
+from pathlib import Path
+
+SOURCE_CATALOG_FILE = Path(__file__).resolve().parent / 'job_sources.json'
+VALID_SOURCE_GROUPS = ('neogov', 'neoed', 'lever', 'greenhouse', 'ashby', 'smartrecruiters', 'workable')
+
+
+def read_job_sources(path=SOURCE_CATALOG_FILE):
+    if not path.is_file():
+        raise FileNotFoundError('job_sources.json is missing. Upload it next to app.py in your GitHub repository.')
+    with path.open(encoding='utf-8') as handle:
+        config = json.load(handle)
+    if config.get('schema_version') != 1:
+        raise ValueError('job_sources.json requires schema_version: 1')
+    cleaned = {}
+    for provider in VALID_SOURCE_GROUPS:
+        records = config.get(provider, [])
+        if not isinstance(records, list):
+            raise ValueError(f'{provider} must be a list in job_sources.json')
+        seen, entries = set(), []
+        for number, record in enumerate(records, 1):
+            if not isinstance(record, dict):
+                raise ValueError(f'{provider} item {number} must be an object')
+            if record.get('enabled', True) is False:
+                continue
+            token, name = str(record.get('id', '')).strip(), str(record.get('name', '')).strip()
+            if not token or not name or len(token) > 120 or not re.fullmatch(r'[A-Za-z0-9._ -]+', token):
+                raise ValueError(f'{provider} item {number}: invalid id or name')
+            if token.lower() in seen:
+                continue
+            seen.add(token.lower())
+            state = str(record.get('state', '')).upper().strip()
+            if provider in ('neogov', 'neoed'):
+                if state not in US_STATES:
+                    raise ValueError(f'{provider} item {number}: expected a valid two-letter state')
+                entries.append((token, name, state))
+            elif provider == 'smartrecruiters':
+                entries.append((token, name, bool(record.get('government', False))))
+            else:
+                entries.append((token, name))
+        cleaned[provider] = tuple(entries)
+    return cleaned
+
+
+try:
+    JOB_SOURCE_CATALOG = read_job_sources()
+except (OSError, ValueError, json.JSONDecodeError) as exc:
+    st.error('Job source configuration needs attention: ' + str(exc))
+    st.stop()
+
+GOVERNMENT_AGENCIES = JOB_SOURCE_CATALOG['neogov']
+SCHOOLJOBS_AGENCIES = JOB_SOURCE_CATALOG['neoed']
+LEVER_BOARDS = JOB_SOURCE_CATALOG['lever']
+GREENHOUSE_BOARDS = JOB_SOURCE_CATALOG['greenhouse']
+ASHBY_BOARDS = JOB_SOURCE_CATALOG['ashby']
+SMARTRECRUITERS_BOARDS = JOB_SOURCE_CATALOG['smartrecruiters']
+WORKABLE_BOARDS = JOB_SOURCE_CATALOG['workable']
 
 # Jobs from government boards may contain unusual occupational titles. These
 # patterns cover publisher-adjacent operations, business and civic management.
@@ -429,7 +407,7 @@ def us_remote_eligible(raw):
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_neogov_feeds():
+def load_neogov_feeds(state_filter=None):
     """Best-effort agency RSS. Career page URL ≠ guarantee of working RSS."""
     def one_agency(agency):
         token, employer, state = agency
@@ -451,7 +429,7 @@ def load_neogov_feeds():
         return jobs, len(items)
     jobs, failures, counts = [], [], {}
     with ThreadPoolExecutor(max_workers=12) as pool:
-        tasks = {pool.submit(one_agency, a): a for a in GOVERNMENT_AGENCIES}
+        tasks = {pool.submit(one_agency, a): a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter}
         for task in as_completed(tasks):
             token, employer, state = tasks[task]
             try:
@@ -561,13 +539,6 @@ def load_himalayas(query_terms):
 
 # Public Lever ATS boards found from actual employer career pages; no API key.
 # We query only these verified employer IDs, not an imaginary cross-employer API.
-LEVER_BOARDS = (
-    ('momentshospice-2','Moments Hospice'),
-    ('networkconnex','Network Connex'),
-    ('billboarder','Billboarder'),
-    ('kcasbio','KCAS Bio'),
-)
-
 
 @st.cache_data(ttl=7200, show_spinner=False)
 def load_lever_employers():
@@ -597,80 +568,13 @@ def load_lever_employers():
 # Public job-board URLs identified on employer-hosted posting pages.
 # These provider APIs are per employer: there is no universal search endpoint.
 # Tokens are not guaranteed to remain active; failures appear in diagnostics.
-GREENHOUSE_BOARDS = (
-    ('boldbusiness', 'Bold Business'),
-    ('riseamg', 'Rise Association Management Group'),
-    ('spsnorthamerica', 'SPS North America'),
-    ('clear', 'CLEAR'),
-    ('wpp', 'WPP'),
-    ('unitedveincenters', 'United Vein & Vascular Centers'),
-    ('powerdigitalmarketing', 'Power Digital'),
-    ('brph', 'BRPH'),
-    ('amn', 'ARCO/Murray National Construction'),
-    ('sbusa', 'S&B USA'),
-    ('industrialelectricmanufacturing', 'Industrial Electric Manufacturing'),
-    ('courtyardinc', 'Courtyard'),
-    ('energyprojectsolutionsllc', 'Energy Project Solutions'),
-    ('aksengineeringforestryllc', 'AKS Engineering'),
-    ('winnerscirclegroupoftexas1', 'Winners Circle Group'),
-    ('imaginepediatrics', 'Imagine Pediatrics'),
-)
-ASHBY_BOARDS = (
-    ('imprint', 'Imprint'),
-    ('tensec', 'Tensec'),
-    ('alternativepayments', 'Alternative Payments'),
-    ('talkiatry', 'Talkiatry'),
-    ('redesign health', 'Redesign Health'),
-    ('cardless', 'Cardless'),
-    ('encord', 'Encord'),
-    ('ember-life-sciences', 'Ember Life Sciences'),
-    ('partly.com', 'Partly'),
-    ('claylabs', 'Clay'),
-    ('rain', 'Rain'),
-    ('remodelboom', 'RemodelBoom'),
-)
-SMARTRECRUITERS_BOARDS = (
-    ('CityAndCountyOfSanFrancisco1', 'City and County of San Francisco', True),
-    ('InternationalDairyQueen', 'International Dairy Queen', False),
-    ('Bertelsmann-Jobs', 'Bertelsmann / Arvato', False),
-    ('MadeByFernLLC', 'Made by Fern', False),
-    ('PSICRO', 'PSI CRO', False),
-    ('Dexterra', 'Dexterra', False),
-    ('prosidianconsulting', 'ProSidian Consulting', False),
-    ('KIPP', 'KIPP', False),
-)
 # NEOGOV also powers education and public school districts under schooljobs.com.
-SCHOOLJOBS_AGENCIES = (
-    ('palmdalesd', 'Palmdale School District', 'CA'),
-    ('duvalschools', 'Duval County Public Schools', 'FL'),
-    ('ggusd', 'Garden Grove Unified', 'CA'),
-    ('sdlancaster', 'School District of Lancaster', 'PA'),
-    ('pasadenaedu', 'Pasadena City College', 'CA'),
-    ('laneedu', 'Eugene School District 4J', 'OR'),
-    ('cccd', 'Coast Community College District', 'CA'),
-    ('venturausd', 'Ventura Unified School District', 'CA'),
-    ('sewanee', 'University of the South', 'TN'),
-)
 
 
 # Public Workable employer job feeds. These board slugs were checked against
 # public apply.workable.com career pages in October 2026; they are not a national
 # Workable index, and current job availability may change.
 # Curated for US non-remote leadership, publishing, distribution and management.
-WORKABLE_BOARDS = (
-    ('the-common-market', 'The Common Market'),
-    ('futureplc', 'Future Publishing'),
-    ('yugo', 'Yugo'),
-    ('hoa-talent', 'HOA Talent'),
-    ('johnson-mark-pc', 'Johnson Mark P.C.'),
-    ('keller-executive-search', 'Keller Executive Search'),
-    ('lv-petroleum', 'LV Petroleum'),
-    # Additional verified public Workable employer career pages.
-    ('agcp', 'AG Consulting Partners'),
-    ('pj-fitz', 'P.J. Fitzpatrick'),
-    ('atria-health', 'Atria Health and Research Institute'),
-    ('nakedmd', 'NakedMD'),
-)
 
 
 @st.cache_data(ttl=14400, show_spinner=False)
@@ -853,7 +757,7 @@ def load_smartrecruiters_boards():
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_schooljobs_feeds():
+def load_schooljobs_feeds(state_filter=None):
     """NEOED schooljobs RSS, per official 2025 NEOGOV feed documentation."""
     def fetch(board):
         token,employer,state=board
@@ -870,7 +774,7 @@ def load_schooljobs_feeds():
                 posted=f('pubDate') or f('date'),gov=True)
             if job:jobs.append(job)
         return jobs
-    return retrieve_boards(SCHOOLJOBS_AGENCIES,fetch)
+    return retrieve_boards(tuple(a for a in SCHOOLJOBS_AGENCIES if state_filter is None or a[2] == state_filter),fetch)
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
@@ -952,9 +856,9 @@ def load_usajobs_if_authorized(key, email):
 
 # Cache each upstream separately. When a feed times out, show it in diagnostics
 # but do not suppress jobs from functioning sources.
-def fetch_all_free_jobs(query_terms):
+def fetch_all_free_jobs(query_terms, state_filter=None):
     tasks={
-        'NEOGOV government': lambda: load_neogov_feeds(),
+        'NEOGOV government': lambda: load_neogov_feeds(state_filter),
         'NYC government': lambda: load_nyc_jobs(),
         # Remote-only providers are deliberately NOT queried for this search.
         'Arbeitnow': lambda: load_arbeitnow(),
@@ -962,7 +866,7 @@ def fetch_all_free_jobs(query_terms):
         'Greenhouse public boards': lambda: load_greenhouse_boards(),
         'Ashby public boards': lambda: load_ashby_boards(),
         'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(),
-        'NEOED education RSS': lambda: load_schooljobs_feeds(),
+        'NEOED education RSS': lambda: load_schooljobs_feeds(state_filter),
         'Workable public boards': lambda: load_workable_boards(),
     }
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
@@ -979,7 +883,7 @@ def fetch_all_free_jobs(query_terms):
                     records,failures,agency_counts=result
                     jobs.extend(records)
                     counts[label]=len(records)
-                    counts['Government agency feeds configured']=len(GOVERNMENT_AGENCIES)
+                    counts['Government agency feeds in location']=sum(state_filter is None or a[2] == state_filter for a in GOVERNMENT_AGENCIES)
                     counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
                     errors.extend(failures)
                 elif label in ('Greenhouse public boards','Ashby public boards',
@@ -1289,7 +1193,7 @@ elif page == 'Career Matches':
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
-    st.caption('Search recent U.S. government and private-sector jobs across free public feeds. Fully remote positions are excluded. No paid API required.')
+    st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Fully remote positions are excluded. No paid API required.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
@@ -1313,8 +1217,8 @@ elif page == 'Find Jobs':
             'business development director','marketing director',
             'regional director','partnerships director']
         with st.spinner('Searching free job boards and government employer feeds…'):
-            raw, errors, source_counts = fetch_all_free_jobs(tuple(terms))
             code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
+            raw, errors, source_counts = fetch_all_free_jobs(tuple(terms), code)
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
                 search_text,st.session_state.resume_text)
         st.session_state.search_results=matches
@@ -1386,7 +1290,12 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
-            st.caption(f'Searches {len(GOVERNMENT_AGENCIES)} configured government agencies, {len(SCHOOLJOBS_AGENCIES)} education agencies, NYC open data, and selected Greenhouse, Ashby, SmartRecruiters, Lever and Workable employers. Career pages are verified; the app independently tests live feed availability. Fully remote-only boards are skipped. Government coverage is not comprehensive nationwide.')
+            configured_states = sorted({a[2] for a in GOVERNMENT_AGENCIES} | {a[2] for a in SCHOOLJOBS_AGENCIES})
+            returned_states = sorted({code for job in all_results if job['government'] for code in states_in_location(job.get('location', ''))})
+            st.caption(f'{len(GOVERNMENT_AGENCIES)} government agency feeds and {len(SCHOOLJOBS_AGENCIES)} education feeds are configured in job_sources.json, plus private employer boards and NYC Open Data. These cover {len(configured_states)} states by employer location (not guaranteed live jobs).')
+            st.write(f'**Government states configured:** {", ".join(configured_states) or "None"}')
+            st.write(f'**States with matching government results:** {", ".join(returned_states) or "None in this search"}')
+            st.caption('A configured agency does not guarantee that its RSS is available or that a relevant opening exists. You can maintain and disable boards in job_sources.json without changing app.py.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
