@@ -80,6 +80,11 @@ class RankedBreakdownTests(unittest.TestCase):
         q["resume_present"]=False
         self.assertEqual(evidence_index(q),0)
 
+    def test_untrusted_csv_fields_are_not_excel_formulas(self):
+        fake=make_job(title='=HYPERLINK("https://evil.example")',documented=1)
+        result=breakdowns_csv_rows([fake])
+        self.assertTrue(result[0]['Job title'].startswith("'="))
+
     def test_csv_contains_rank_and_resume_quotes(self):
         rows=breakdowns_csv_rows([make_job(documented=2)])
         self.assertEqual(rows[0]["Rank"],1)
