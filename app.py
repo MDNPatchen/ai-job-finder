@@ -615,6 +615,81 @@ SCHOOLJOBS_AGENCIES = (
 )
 
 
+# Public Workable employer job feeds. These board slugs were checked against
+# public apply.workable.com career pages in October 2026; they are not a national
+# Workable index, and current job availability may change.
+# Curated for US non-remote leadership, publishing, distribution and management.
+WORKABLE_BOARDS = (
+    ('the-common-market', 'The Common Market'),
+    ('futureplc', 'Future Publishing'),
+    ('yugo', 'Yugo'),
+    ('hoa-talent', 'HOA Talent'),
+    ('johnson-mark-pc', 'Johnson Mark P.C.'),
+    ('keller-executive-search', 'Keller Executive Search'),
+    ('lv-petroleum', 'LV Petroleum'),
+)
+
+
+@st.cache_data(ttl=14400, show_spinner=False)
+def load_workable_boards():
+    """Official public Workable jobs endpoint; no key needed.
+
+    Publication date comes from published_on, not last updated. Keep only jobs
+    with a confirmed US location. Feed errors are surfaced under diagnostics.
+    Throttle concurrency to reduce the chance of provider rate limiting.
+    """
+    def us_location(obj):
+        if not isinstance(obj, dict):
+            return False
+        country = str(obj.get('country') or obj.get('country_name') or
+                      obj.get('country_code') or '').strip().lower()
+        return (country in ('us', 'usa', 'united states', 'united states of america')
+                or bool(states_in_location(str(obj.get('state') or obj.get('state_code') or ''))))
+
+    def fetch(board):
+        token, fallback_employer = board
+        payload = fetch_json('https://www.workable.com/api/accounts/' +
+                             quote(token) + '?details=true', timeout=11)
+        if not isinstance(payload, dict):
+            raise ValueError('Workable returned an unexpected response')
+        employer = str(payload.get('name') or fallback_employer)
+        out = []
+        for entry in payload.get('jobs') or []:
+            if not isinstance(entry, dict):
+                continue
+            primary = {
+                'city': entry.get('city'),
+                'state': entry.get('state'),
+                'country': entry.get('country'),
+            }
+            candidates = [primary] + [x for x in (entry.get('locations') or [])
+                                      if isinstance(x, dict)]
+            place = next((x for x in candidates if us_location(x)), None)
+            if not place:
+                continue
+            city = str(place.get('city') or '').strip()
+            state = str(place.get('state') or place.get('state_code') or '').strip()
+            loc = ', '.join(p for p in (city, state, 'United States') if p)
+            style = str(entry.get('workplace_type') or '').replace('_', '-')
+            # Some boards include the label in a nested location object.
+            if not style and isinstance(entry.get('location'), dict):
+                style = str(entry['location'].get('workplace_type') or '').replace('_', '-')
+            job = standard_job(
+                entry.get('title'), employer,
+                entry.get('url') or entry.get('shortlink') or entry.get('application_url'),
+                loc,
+                entry.get('description') or entry.get('full_description') or '',
+                'Workable employer',
+                remote=bool(entry.get('telecommuting')),
+                posted=entry.get('published_on'), eligible=True,
+                declared_style=style,
+            )
+            if job:
+                out.append(job)
+        return out
+    return retrieve_boards(WORKABLE_BOARDS, fetch, max_workers=2)
+
+
 def retrieve_boards(boards, worker, max_workers=8):
     """Small bounded parallelism; return failures rather than silently hiding them."""
     jobs, failures = [], []
@@ -845,6 +920,7 @@ def fetch_all_free_jobs(query_terms):
         'Ashby public boards': lambda: load_ashby_boards(),
         'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(),
         'NEOED education RSS': lambda: load_schooljobs_feeds(),
+        'Workable public boards': lambda: load_workable_boards(),
     }
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
@@ -863,7 +939,8 @@ def fetch_all_free_jobs(query_terms):
                     counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
                     errors.extend(failures)
                 elif label in ('Greenhouse public boards','Ashby public boards',
-                               'SmartRecruiters public boards','NEOED education RSS'):
+                               'SmartRecruiters public boards','NEOED education RSS',
+                               'Workable public boards'):
                     records, failures=result
                     jobs.extend(records)
                     counts[label]=len(records)
@@ -1265,7 +1342,7 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
-            st.caption('Searches NEOGOV and NEOED RSS, NYC public data, Greenhouse, Ashby, SmartRecruiters, and Lever employer boards. Each ATS is searched at curated employers, not universally. Fully remote-only boards are skipped. Employer dates and work labels may be incomplete; government coverage remains partial nationwide.')
+            st.caption('Searches NEOGOV and NEOED RSS, NYC public data, and selected Greenhouse, Ashby, SmartRecruiters, Lever and Workable employer boards. Each ATS is searched at curated employers, not universally. Fully remote-only boards are skipped. Employer dates and work labels may be incomplete; government coverage remains partial nationwide.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
