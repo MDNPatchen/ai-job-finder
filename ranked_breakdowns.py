@@ -22,6 +22,8 @@ def evidence_index(qualification):
     """0–100 index measuring explained resume overlap, NOT job eligibility."""
     if not qualification or not qualification.get('resume_present'):
         return 0
+    if isinstance(qualification.get('fit_index'), (int, float)):
+        return max(0, min(96, round(qualification['fit_index'])))
     documented = len(qualification.get('resume_matches') or [])
     confirmed = len(qualification.get('confirmed_only') or [])
     total = max(5, int(qualification.get('total_areas') or 0))
@@ -58,9 +60,14 @@ def breakdowns_json(jobs):
             'job_url': job.get('url') or '',
             'source': job.get('source') or '',
             'evidence_match_index': evidence_index(q),
-            'index_explanation': ('Resume evidence overlap, 0–100; minimum five-area '
-                                  'baseline and half credit for separately confirmed '
-                                  'experience. Not an eligibility score or a hiring probability.'),
+            'role_alignment_index': q.get('role_alignment_index'),
+            'specialized_experience_to_verify': q.get('specialized_requirements') or [],
+            'important_cautions': q.get('cautions') or [],
+            'description_completeness': q.get('description_completeness') or 'Not assessed',
+            'index_explanation': ('Comparative fit index, 0–96: resume evidence plus role '
+                                  'alignment, with caution for specialized requirements '
+                                  'and credentials not verified from the resume. '
+                                  'Not an eligibility score or hiring probability.'),
             'alignment_label': q.get('label') or 'Not assessed',
             'total_relevant_areas_detected': int(q.get('total_areas') or 0),
             'documented_resume_matches': q.get('resume_matches') or [],
@@ -92,6 +99,12 @@ def breakdowns_csv_rows(jobs):
             'Rank': item['rank'],
             'Evidence overlap index (0-100, not hiring probability)': item['evidence_match_index'],
             'Alignment': item['alignment_label'],
+            'Role-family alignment index': item['role_alignment_index'],
+            'Specialized experience to verify': '; '.join(
+                x.get('area') or '' for x in item['specialized_experience_to_verify']
+                if x.get('needs_verification')),
+            'Important qualification cautions': ' | '.join(item['important_cautions']),
+            'Job-description completeness': item['description_completeness'],
             'Employer': item['employer'],
             'Job title': item['job_title'],
             'Location': item['location'],
