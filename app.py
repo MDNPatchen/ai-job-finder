@@ -1,8 +1,14 @@
 import streamlit as st
 import re
 import fitz
+import pandas as pd
 from docx import Document
 from io import BytesIO
+from datetime import date
+
+# ---------------------------------
+# APP SETTINGS
+# ---------------------------------
 
 st.set_page_config(
     page_title="AI Job Finder",
@@ -10,14 +16,22 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("💼 AI Job Finder")
-st.write(
-    "Upload your resume to identify your skills and job titles. "
-    "We'll use this information to help improve your resume "
-    "and find matching jobs."
-)
+# ---------------------------------
+# SESSION DATA
+# ---------------------------------
 
-# --- Resume Text Extraction ---
+if "jobs" not in st.session_state:
+    st.session_state.jobs = []
+
+if "resume_text" not in st.session_state:
+    st.session_state.resume_text = ""
+
+if "confirmed_titles" not in st.session_state:
+    st.session_state.confirmed_titles = []
+
+# ---------------------------------
+# RESUME READER
+# ---------------------------------
 
 def extract_resume_text(uploaded_file):
     file_bytes = uploaded_file.getvalue()
@@ -34,7 +48,6 @@ def extract_resume_text(uploaded_file):
         document = Document(BytesIO(file_bytes))
         paragraphs = [p.text for p in document.paragraphs]
 
-        # Include text from tables
         for table in document.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -43,12 +56,17 @@ def extract_resume_text(uploaded_file):
         return "\n".join(paragraphs)
 
     elif filename.endswith(".txt"):
-        return file_bytes.decode("utf-8-sig", errors="replace")
+        return file_bytes.decode(
+            "utf-8-sig",
+            errors="replace"
+        )
 
     return ""
 
 
-# --- Skills Recognition ---
+# ---------------------------------
+# SKILL RECOGNITION
+# ---------------------------------
 
 SKILLS = [
     "Project Management",
@@ -86,20 +104,20 @@ SKILLS = [
     "CRM"
 ]
 
-
 def detect_skills(text):
-    found = []
+    return [
+        skill for skill in SKILLS
+        if re.search(
+            r"\b" + re.escape(skill) + r"\b",
+            text,
+            re.IGNORECASE
+        )
+    ]
 
-    for skill in SKILLS:
-        pattern = r"\b" + re.escape(skill) + r"\b"
 
-        if re.search(pattern, text, re.IGNORECASE):
-            found.append(skill)
-
-    return found
-
-
-# --- Job Title Recognition ---
+# ---------------------------------
+# JOB TITLE RECOGNITION
+# ---------------------------------
 
 JOB_TITLES = [
     "Chief Executive Officer",
@@ -132,86 +150,184 @@ JOB_TITLES = [
     "Specialist"
 ]
 
-
 def detect_job_titles(text):
-    found = []
+    return [
+        title for title in JOB_TITLES
+        if re.search(
+            r"\b" + re.escape(title) + r"\b",
+            text,
+            re.IGNORECASE
+        )
+    ]
 
-    for title in JOB_TITLES:
-        pattern = r"\b" + re.escape(title) + r"\b"
 
-        if re.search(pattern, text, re.IGNORECASE):
-            found.append(title)
+# ---------------------------------
+# NAVIGATION
+# ---------------------------------
 
-    return found
+st.sidebar.title("💼 AI Job Finder")
 
-
-# --- Upload Resume ---
-
-uploaded_file = st.file_uploader(
-    "Upload your resume",
-    type=["pdf", "docx", "txt"]
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "Dashboard",
+        "My Resume",
+        "Find Jobs",
+        "Job Tracker"
+    ]
 )
 
-if uploaded_file is not None:
+st.sidebar.divider()
 
-    try:
-        text = extract_resume_text(uploaded_file)
+st.sidebar.caption(
+    "Build your resume, find opportunities, "
+    "and track your job search."
+)
 
-        if not text.strip():
-            st.warning(
-                "No readable text was found. "
-                "If your PDF is scanned, it may need OCR."
+# ---------------------------------
+# DASHBOARD
+# ---------------------------------
+
+if page == "Dashboard":
+
+    st.title("📊 Job Search Dashboard")
+
+    jobs = st.session_state.jobs
+
+    total = len(jobs)
+
+    applied = sum(
+        job["Status"] == "Applied"
+        for job in jobs
+    )
+
+    interviews = sum(
+        job["Status"] == "Interviewing"
+        for job in jobs
+    )
+
+    offers = sum(
+        job["Status"] == "Offer"
+        for job in jobs
+    )
+
+    saved = sum(
+        job["Status"] == "Saved"
+        for job in jobs
+    )
+
+    skipped = sum(
+        job["Status"] == "Skipped"
+        for job in jobs
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Total Jobs", total)
+    col2.metric("Applied", applied)
+    col3.metric("Interviews", interviews)
+
+    col4, col5, col6 = st.columns(3)
+
+    col4.metric("Offers", offers)
+    col5.metric("Saved", saved)
+    col6.metric("Skipped", skipped)
+
+    st.divider()
+
+    st.subheader("Recent Job Activity")
+
+    if jobs:
+        st.dataframe(
+            pd.DataFrame(jobs),
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info(
+            "No jobs tracked yet. "
+            "Go to Job Tracker to add your first job."
+        )
+
+    st.caption(
+        "Counts reflect each job's current status."
+    )
+
+
+# ---------------------------------
+# MY RESUME
+# ---------------------------------
+
+elif page == "My Resume":
+
+    st.title("📄 My Resume")
+
+    st.write(
+        "Upload your resume to identify your skills "
+        "and previous job titles."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Upload your resume",
+        type=["pdf", "docx", "txt"]
+    )
+
+    if uploaded_file is not None:
+
+        try:
+            text = extract_resume_text(
+                uploaded_file
             )
-            st.stop()
 
-        st.success("Resume uploaded successfully!")
+            if not text.strip():
+                st.warning(
+                    "No readable text found in this file."
+                )
+                st.stop()
 
-        # --- Display Resume ---
+            st.session_state.resume_text = text
 
-        with st.expander("📄 View Your Resume Text"):
+            st.success(
+                "Resume uploaded successfully!"
+            )
+
+        except Exception as error:
+            st.error(
+                f"Unable to read resume: {error}"
+            )
+
+    text = st.session_state.resume_text
+
+    if text:
+
+        with st.expander("View Your Resume Text"):
             st.text_area(
                 "Extracted resume text",
                 value=text,
-                height=350
+                height=300
             )
 
-        # --- Display Skills ---
+        st.subheader("🛠️ Skills Found")
 
-        st.subheader("🛠️ Skills Found in Your Resume")
+        skills = detect_skills(text)
 
-        detected_skills = detect_skills(text)
-
-        if detected_skills:
-            st.write(", ".join(detected_skills))
+        if skills:
+            st.write(", ".join(skills))
         else:
-            st.info(
-                "No skills from our current list were detected."
-            )
+            st.info("No listed skills detected.")
 
-        # --- Display Job Titles ---
-
-        st.subheader("💼 Job Titles Found in Your Resume")
+        st.subheader("💼 Job Titles Found")
 
         detected_titles = detect_job_titles(text)
 
-        if detected_titles:
-            st.write(
-                "Review these possible job titles. "
-                "Uncheck any that you have not held."
-            )
-        else:
-            st.info(
-                "No common job titles were detected automatically."
-            )
-
         confirmed_titles = st.multiselect(
-            "Select your actual previous job titles:",
+            "Confirm your previous job titles",
             options=detected_titles,
             default=detected_titles
         )
 
         additional_titles = st.text_input(
-            "Add missing job titles (separate with commas):"
+            "Add missing titles, separated by commas"
         )
 
         if additional_titles.strip():
@@ -221,21 +337,243 @@ if uploaded_file is not None:
                 if title and title not in confirmed_titles:
                     confirmed_titles.append(title)
 
-        st.markdown("### Your Confirmed Job Titles")
+        st.session_state.confirmed_titles = confirmed_titles
+
+        st.markdown("### Confirmed Job Titles")
 
         if confirmed_titles:
             for title in confirmed_titles:
                 st.write("✓", title)
         else:
-            st.write("No job titles confirmed yet.")
+            st.info("No titles confirmed yet.")
 
         st.info(
-            "Next feature: Resume improvement suggestions "
-            "that you can review and approve."
+            "Coming next: Resume improvement "
+            "suggestions you can approve."
         )
 
-    except Exception as error:
-        st.error(f"Unable to read the resume: {error}")
 
-else:
-    st.info("Upload your resume to get started.")
+# ---------------------------------
+# FIND JOBS
+# ---------------------------------
+
+elif page == "Find Jobs":
+
+    st.title("🔎 Find Jobs")
+
+    st.write(
+        "This section will search real job listings "
+        "and compare them with your resume."
+    )
+
+    keyword = st.text_input(
+        "Job title or keywords",
+        placeholder="Operations Director"
+    )
+
+    location = st.text_input(
+        "Location",
+        placeholder="Rochester, MN or Remote"
+    )
+
+    if st.button("Search Jobs"):
+        st.info(
+            "Live job search is not connected yet. "
+            "We'll add this feature next."
+        )
+
+
+# ---------------------------------
+# JOB TRACKER
+# ---------------------------------
+
+elif page == "Job Tracker":
+
+    st.title("📋 Job Application Tracker")
+
+    st.write(
+        "Keep track of jobs you've saved, applied to, "
+        "skipped, interviewed for, and more."
+    )
+
+    statuses = [
+        "Saved",
+        "Applied",
+        "Interviewing",
+        "Offer",
+        "Rejected",
+        "Skipped",
+        "Withdrawn"
+    ]
+
+    with st.expander(
+        "➕ Add a New Job",
+        expanded=True
+    ):
+
+        with st.form("add_job_form"):
+
+            company = st.text_input(
+                "Company Name"
+            )
+
+            title = st.text_input(
+                "Job Title"
+            )
+
+            location = st.text_input(
+                "Location"
+            )
+
+            job_url = st.text_input(
+                "Job Posting URL"
+            )
+
+            salary = st.text_input(
+                "Salary or Salary Range"
+            )
+
+            status = st.selectbox(
+                "Application Status",
+                statuses
+            )
+
+            applied_date = st.date_input(
+                "Date Recorded",
+                value=date.today()
+            )
+
+            interview_date = st.date_input(
+                "Interview Date (if applicable)",
+                value=None
+            )
+
+            notes = st.text_area(
+                "Notes / Follow-up Details"
+            )
+
+            submitted = st.form_submit_button(
+                "Save Job"
+            )
+
+            if submitted:
+
+                if not company.strip() or not title.strip():
+                    st.warning(
+                        "Please enter a company and job title."
+                    )
+
+                else:
+
+                    new_job = {
+                        "Company": company.strip(),
+                        "Job Title": title.strip(),
+                        "Location": location.strip(),
+                        "Job URL": job_url.strip(),
+                        "Salary": salary.strip(),
+                        "Status": status,
+                        "Date Recorded": str(applied_date),
+                        "Interview Date": (
+                            str(interview_date)
+                            if interview_date
+                            else ""
+                        ),
+                        "Notes": notes.strip()
+                    }
+
+                    st.session_state.jobs.append(
+                        new_job
+                    )
+
+                    st.success(
+                        "Job added successfully!"
+                    )
+
+    st.divider()
+
+    st.subheader("Your Tracked Jobs")
+
+    jobs = st.session_state.jobs
+
+    if jobs:
+
+        status_filter = st.selectbox(
+            "Filter by status",
+            ["All"] + statuses
+        )
+
+        filtered_jobs = [
+            job for job in jobs
+            if status_filter == "All"
+            or job["Status"] == status_filter
+        ]
+
+        st.dataframe(
+            pd.DataFrame(filtered_jobs),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.subheader("Update a Job")
+
+        job_options = [
+            f"{i + 1}. {job['Company']} - {job['Job Title']}"
+            for i, job in enumerate(jobs)
+        ]
+
+        selected_job = st.selectbox(
+            "Choose a job to update",
+            range(len(job_options)),
+            format_func=lambda i: job_options[i]
+        )
+
+        current_job = jobs[selected_job]
+
+        new_status = st.selectbox(
+            "New Status",
+            statuses,
+            index=statuses.index(
+                current_job["Status"]
+            )
+        )
+
+        new_notes = st.text_area(
+            "Update Notes",
+            value=current_job["Notes"],
+            key=f"notes_{selected_job}"
+        )
+
+        if st.button("Save Changes"):
+
+            st.session_state.jobs[
+                selected_job
+            ]["Status"] = new_status
+
+            st.session_state.jobs[
+                selected_job
+            ]["Notes"] = new_notes
+
+            st.success(
+                "Job updated successfully!"
+            )
+
+            st.rerun()
+
+        st.divider()
+
+        csv_data = pd.DataFrame(
+            st.session_state.jobs
+        ).to_csv(index=False)
+
+        st.download_button(
+            "⬇️ Download Job Tracker (CSV)",
+            data=csv_data,
+            file_name="job_tracker.csv",
+            mime="text/csv"
+        )
+
+    else:
+        st.info(
+            "No jobs added yet. "
+            "Use the form above to track your first job."
+        )
