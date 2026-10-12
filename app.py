@@ -228,6 +228,44 @@ GOVERNMENT_AGENCIES = (
     ('saginawmi', 'City of Saginaw', 'MI'),
     ('charlevoix', 'City of Charlevoix', 'MI'),
     ('deschutes', 'Deschutes County', 'OR'),
+    # Additional government employer identifiers verified from actual NEOGOV
+    # career pages in October 2026. Page exists != live RSS works; the loader
+    # tests each feed, and unavailable sources appear in diagnostics.
+    # Minnesota / Upper Midwest
+    ('olmsted', 'Olmsted County', 'MN'),
+    ('dakota', 'Dakota County', 'MN'),
+    ('duluthmn', 'City of Duluth', 'MN'),
+    ('countyofdane', 'Dane County', 'WI'),
+    ('madisonwi', 'City of Madison', 'WI'),
+    ('sheboygancounty', 'Sheboygan County', 'WI'),
+    ('eauclaire', 'Eau Claire County', 'WI'),
+    ('juneauwi', 'Juneau County', 'WI'),
+    # Pacific / West Coast
+    ('oc', 'Orange County', 'CA'),
+    ('lacounty', 'Los Angeles County', 'CA'),
+    ('sdcounty', 'San Diego County', 'CA'),
+    ('riverside', 'Riverside County', 'CA'),
+    ('santaclara', 'Santa Clara County', 'CA'),
+    ('saccity', 'City of Sacramento', 'CA'),
+    # Southeast / East Coast
+    ('broward', 'Broward County', 'FL'),
+    ('miamifl', 'City of Miami', 'FL'),
+    ('alachua', 'Alachua County', 'FL'),
+    ('charlottecountyfl', 'Charlotte County', 'FL'),
+    ('volusiaco', 'Volusia County', 'FL'),
+    ('raleighnc', 'City of Raleigh', 'NC'),
+    ('nashville', 'Metro Nashville and Davidson County', 'TN'),
+    # Northeast / Mid-Atlantic
+    ('waynecountyny', 'Wayne County', 'NY'),
+    ('livingstoncounty', 'Livingston County', 'NY'),
+    ('nassaucountyny', 'Nassau County', 'NY'),
+    ('erieco', 'Erie County', 'NY'),
+    ('boston', 'City of Boston', 'MA'),
+    ('montgomerycountymd', 'Montgomery County', 'MD'),
+    # Ohio and Hawaii
+    ('columbusoh', 'City of Columbus', 'OH'),
+    ('cleveland', 'City of Cleveland', 'OH'),
+    ('honolulu', 'City and County of Honolulu', 'HI'),
 )
 
 # Jobs from government boards may contain unusual occupational titles. These
@@ -627,6 +665,11 @@ WORKABLE_BOARDS = (
     ('johnson-mark-pc', 'Johnson Mark P.C.'),
     ('keller-executive-search', 'Keller Executive Search'),
     ('lv-petroleum', 'LV Petroleum'),
+    # Additional verified public Workable employer career pages.
+    ('agcp', 'AG Consulting Partners'),
+    ('pj-fitz', 'P.J. Fitzpatrick'),
+    ('atria-health', 'Atria Health and Research Institute'),
+    ('nakedmd', 'NakedMD'),
 )
 
 
@@ -936,6 +979,7 @@ def fetch_all_free_jobs(query_terms):
                     records,failures,agency_counts=result
                     jobs.extend(records)
                     counts[label]=len(records)
+                    counts['Government agency feeds configured']=len(GOVERNMENT_AGENCIES)
                     counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
                     errors.extend(failures)
                 elif label in ('Greenhouse public boards','Ashby public boards',
@@ -1342,7 +1386,7 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
-            st.caption('Searches NEOGOV and NEOED RSS, NYC public data, and selected Greenhouse, Ashby, SmartRecruiters, Lever and Workable employer boards. Each ATS is searched at curated employers, not universally. Fully remote-only boards are skipped. Employer dates and work labels may be incomplete; government coverage remains partial nationwide.')
+            st.caption(f'Searches {len(GOVERNMENT_AGENCIES)} configured government agencies, {len(SCHOOLJOBS_AGENCIES)} education agencies, NYC open data, and selected Greenhouse, Ashby, SmartRecruiters, Lever and Workable employers. Career pages are verified; the app independently tests live feed availability. Fully remote-only boards are skipped. Government coverage is not comprehensive nationwide.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
