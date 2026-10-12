@@ -943,11 +943,15 @@ elif page == 'Find Jobs':
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
+        # Use the same deduplicated, filtered jobs for all three metrics.
+        government_total=sum(1 for job in all_results if job['government'])
+        private_total=len(all_results)-government_total
+        employer_total=len({job['company'].strip().casefold() for job in all_results})
         c1,c2,c3=st.columns(3)
-        c1.metric('Relevant openings',len(all_results))
-        c2.metric('Government',stats['government'])
-        c3.metric('Employers',len({x['company'].casefold() for x in all_results}))
-        st.caption(f"Updated {stats['searched']} · Posted within 45 days · Every job is a potential match, not a qualifications guarantee.")
+        c1.metric('Total jobs',len(all_results))
+        c2.metric('Government jobs',government_total)
+        c3.metric('Private-sector jobs',private_total)
+        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Every job is a potential match, not a qualifications guarantee.")
         if not all_results:
             st.warning('No recent openings matched those choices in the available feeds. Try All states, Any work style, or a different search term. Source diagnostics below show any feed failures.')
         else:
