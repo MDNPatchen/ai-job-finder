@@ -1,5 +1,6 @@
 import re
 import json
+import hashlib
 import html
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode, quote
@@ -245,6 +246,8 @@ GREENHOUSE_BOARDS = JOB_SOURCE_CATALOG['greenhouse']
 ASHBY_BOARDS = JOB_SOURCE_CATALOG['ashby']
 SMARTRECRUITERS_BOARDS = JOB_SOURCE_CATALOG['smartrecruiters']
 WORKABLE_BOARDS = JOB_SOURCE_CATALOG['workable']
+# JSON edits must invalidate cached employer feeds as well as displayed counts.
+SOURCE_CATALOG_VERSION = hashlib.sha256(SOURCE_CATALOG_FILE.read_bytes()).hexdigest()[:16]
 
 # Jobs from government boards may contain unusual occupational titles. These
 # patterns cover publisher-adjacent operations, business and civic management.
@@ -406,8 +409,23 @@ def us_remote_eligible(raw):
     return bool(re.search(r'\b(US|USA|United States|United States of America|North America|Worldwide|Anywhere|Global)\b', s, re.I))
 
 
+def parse_public_rss(payload):
+    """Distinguish actual RSS from an HTML block page or malformed XML."""
+    prefix = payload.lstrip()[:180].lower()
+    if prefix.startswith(b'<!doctype html') or prefix.startswith(b'<html') or b'<html ' in prefix:
+        raise ValueError('HTML response instead of RSS; agency feed may be unavailable')
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError as exc:
+        raise ValueError('Malformed RSS XML: ' + str(exc)[:80]) from exc
+    tag = str(root.tag).rsplit('}', 1)[-1].lower()
+    if tag not in ('rss', 'rdf', 'feed'):
+        raise ValueError('Unexpected RSS response root: ' + tag[:55])
+    return root
+
+
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_neogov_feeds(state_filter=None):
+def load_neogov_feeds(state_filter=None, catalog_version=None):
     """Best-effort agency RSS. Career page URL ≠ guarantee of working RSS."""
     def one_agency(agency):
         token, employer, state = agency
@@ -416,7 +434,7 @@ def load_neogov_feeds(state_filter=None):
                                     'Accept':'application/rss+xml, application/xml, text/xml, */*'})
         with urlopen(req, timeout=7) as response:
             raw = response.read(3_000_000)
-        root = ET.fromstring(raw)
+        root = parse_public_rss(raw)
         items = root.findall('.//item')
         jobs = []
         for item in items[:350]:
@@ -437,7 +455,7 @@ def load_neogov_feeds(state_filter=None):
                 jobs.extend(records)
                 counts[f'{employer} ({state})'] = count
             except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
-                failures.append(f'{employer} ({state}): {type(exc).__name__}')
+                failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
                 counts[f'{employer} ({state})'] = 0
     return jobs, failures, counts
 
@@ -541,7 +559,7 @@ def load_himalayas(query_terms):
 # We query only these verified employer IDs, not an imaginary cross-employer API.
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_lever_employers():
+def load_lever_employers(catalog_version=None):
     jobs=[]
     for token, employer in LEVER_BOARDS:
         try:
@@ -578,7 +596,7 @@ def load_lever_employers():
 
 
 @st.cache_data(ttl=14400, show_spinner=False)
-def load_workable_boards():
+def load_workable_boards(catalog_version=None):
     """Official public Workable jobs endpoint; no key needed.
 
     Publication date comes from published_on, not last updated. Keep only jobs
@@ -652,7 +670,7 @@ def retrieve_boards(boards, worker, max_workers=8):
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_greenhouse_boards():
+def load_greenhouse_boards(catalog_version=None):
     """Greenhouse documents first_published in its public job-board API.
     Never substitute updated_at: it is not the posting date.
     """
@@ -676,7 +694,7 @@ def load_greenhouse_boards():
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_ashby_boards():
+def load_ashby_boards(catalog_version=None):
     """Public Ashby Posting API explicitly provides publishedAt and workplaceType."""
     def fetch(board):
         token, employer=board
@@ -709,7 +727,7 @@ def load_ashby_boards():
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_smartrecruiters_boards():
+def load_smartrecruiters_boards(catalog_version=None):
     """Public company postings; releasedDate is supplied by SmartRecruiters."""
     def fetch(board):
         token, employer, gov=board
@@ -757,7 +775,7 @@ def load_smartrecruiters_boards():
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
-def load_schooljobs_feeds(state_filter=None):
+def load_schooljobs_feeds(state_filter=None, catalog_version=None):
     """NEOED schooljobs RSS, per official 2025 NEOGOV feed documentation."""
     def fetch(board):
         token,employer,state=board
@@ -765,7 +783,7 @@ def load_schooljobs_feeds(state_filter=None):
         req=Request(url,headers={'User-Agent':'Mozilla/5.0 (personal job research)',
                                  'Accept':'application/rss+xml, application/xml, text/xml, */*'})
         with urlopen(req,timeout=9) as response:
-            root=ET.fromstring(response.read(3_000_000))
+            root=parse_public_rss(response.read(3_000_000))
         jobs=[]
         for entry in root.findall('.//item')[:250]:
             f=lambda name:(entry.findtext(name) or '').strip()
@@ -858,16 +876,16 @@ def load_usajobs_if_authorized(key, email):
 # but do not suppress jobs from functioning sources.
 def fetch_all_free_jobs(query_terms, state_filter=None):
     tasks={
-        'NEOGOV government': lambda: load_neogov_feeds(state_filter),
+        'NEOGOV government': lambda: load_neogov_feeds(state_filter, SOURCE_CATALOG_VERSION),
         'NYC government': lambda: load_nyc_jobs(),
         # Remote-only providers are deliberately NOT queried for this search.
         'Arbeitnow': lambda: load_arbeitnow(),
-        'Lever employer boards': lambda: load_lever_employers(),
-        'Greenhouse public boards': lambda: load_greenhouse_boards(),
-        'Ashby public boards': lambda: load_ashby_boards(),
-        'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(),
-        'NEOED education RSS': lambda: load_schooljobs_feeds(state_filter),
-        'Workable public boards': lambda: load_workable_boards(),
+        'Lever employer boards': lambda: load_lever_employers(SOURCE_CATALOG_VERSION),
+        'Greenhouse public boards': lambda: load_greenhouse_boards(SOURCE_CATALOG_VERSION),
+        'Ashby public boards': lambda: load_ashby_boards(SOURCE_CATALOG_VERSION),
+        'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(SOURCE_CATALOG_VERSION),
+        'NEOED education RSS': lambda: load_schooljobs_feeds(state_filter, SOURCE_CATALOG_VERSION),
+        'Workable public boards': lambda: load_workable_boards(SOURCE_CATALOG_VERSION),
     }
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
@@ -885,6 +903,8 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                     counts[label]=len(records)
                     counts['Government agency feeds in location']=sum(state_filter is None or a[2] == state_filter for a in GOVERNMENT_AGENCIES)
                     counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
+                    counts['Government feeds empty']=sum(n == 0 for n in agency_counts.values())-len(failures)
+                    counts['Government feeds failed']=len(failures)
                     errors.extend(failures)
                 elif label in ('Greenhouse public boards','Ashby public boards',
                                'SmartRecruiters public boards','NEOED education RSS',
@@ -1295,6 +1315,7 @@ elif page == 'Find Jobs':
             st.caption(f'{len(GOVERNMENT_AGENCIES)} government agency feeds and {len(SCHOOLJOBS_AGENCIES)} education feeds are configured in job_sources.json, plus private employer boards and NYC Open Data. These cover {len(configured_states)} states by employer location (not guaranteed live jobs).')
             st.write(f'**Government states configured:** {", ".join(configured_states) or "None"}')
             st.write(f'**States with matching government results:** {", ".join(returned_states) or "None in this search"}')
+            st.caption('Feed status separates agencies returning items, empty feeds, and unavailable feeds. A catalog edit invalidates cached results for affected source types.')
             st.caption('A configured agency does not guarantee that its RSS is available or that a relevant opening exists. You can maintain and disable boards in job_sources.json without changing app.py.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
