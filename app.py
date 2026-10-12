@@ -886,8 +886,7 @@ def load_mayo_clinic(catalog_version=None):
     out = []
     for listing in listings:
         work_style = listing.get('work_style') or ''
-        if work_style == 'Remote':
-            continue
+        # Mayo Clinic alone may include fully remote positions.
         job = standard_job(listing.get('title'), 'Mayo Clinic', listing.get('url'),
             listing.get('location'), listing.get('description'), 'Mayo Clinic',
             salary=listing.get('salary'), posted=listing.get('date'),
@@ -901,7 +900,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
     tasks={
         'NEOGOV government': lambda: load_neogov_feeds(state_filter, SOURCE_CATALOG_VERSION),
         'NYC government': lambda: load_nyc_jobs(),
-        # Remote-only providers are deliberately NOT queried for this search.
+        # General remote-only providers are excluded; Mayo Clinic is the sole remote exception.
         'Arbeitnow': lambda: load_arbeitnow(),
         'Lever employer boards': lambda: load_lever_employers(SOURCE_CATALOG_VERSION),
         'Greenhouse public boards': lambda: load_greenhouse_boards(SOURCE_CATALOG_VERSION),
@@ -993,12 +992,13 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
             continue
         if 'spacex' in job['company'].casefold():
             continue
-        # Exclude every posting identified as fully remote, regardless of state.
-        # Combined mode retains explicitly on-site, hybrid, and unidentified jobs;
-        # the latter are labeled 'Not specified' instead of guessed on-site.
+        # Only Mayo Clinic remote postings can appear in the combined search.
+        # On-site only and Hybrid only remain strictly restricted to their labels.
+        # Unspecified arrangements remain labeled for verification.
         arrangement=job.get('work_style') or (
             'Remote' if job.get('remote') else 'Not specified')
-        if arrangement == 'Remote':
+        mayo_remote=(arrangement == 'Remote' and job.get('source') == 'Mayo Clinic')
+        if arrangement == 'Remote' and not mayo_remote:
             excluded['location']+=1
             continue
         if work_style == 'On-site only' and arrangement != 'On-site':
@@ -1024,7 +1024,10 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
     diverse=[]
     for job in sorted_jobs:
         company=job['company'].casefold()
-        if company_counts[company]>=3:
+        # Allow a wider Mayo Clinic mix so remote roles are not crowded out
+        # by that employer's on-site and hybrid management postings.
+        employer_limit = 10 if company == 'mayo clinic' else 3
+        if company_counts[company] >= employer_limit:
             continue
         company_counts[company]+=1
         diverse.append(job)
@@ -1250,7 +1253,7 @@ elif page == 'Find Jobs':
         with col_type:
             chosen_work=st.selectbox('Work arrangement',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
-                help='Fully remote positions are always excluded. On-site + Hybrid also shows jobs that do not specify their work arrangement, clearly labeled for verification.')
+                help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
         submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
 
     if submitted:
@@ -1287,7 +1290,7 @@ elif page == 'Find Jobs':
         c1.metric('Total jobs',len(all_results))
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
-        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Fully remote excluded · Jobs with unspecified work arrangements require verification.")
+        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
