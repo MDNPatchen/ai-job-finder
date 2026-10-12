@@ -5,6 +5,9 @@ from urllib.request import Request, urlopen
 from urllib.parse import urlencode, quote
 from urllib.error import HTTPError, URLError
 from io import BytesIO
+from xml.etree import ElementTree as ET
+from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter
 import streamlit as st
@@ -193,6 +196,10 @@ def parse_posted_date(value):
     try:
         return date.fromisoformat(raw[:10])
     except ValueError:
+        pass
+    try:
+        return parsedate_to_datetime(raw).date()
+    except (ValueError, TypeError, OverflowError):
         return None
 
 
@@ -477,6 +484,101 @@ def role_similarity(title, role):
     return 0
 
 
+# GovernmentJobs/NEOGOV supports agency-specific RSS feeds, not a single
+# nationwide feed. Agency identifiers below were established from actual
+# GovernmentJobs career-page URLs; availability of their RSS is checked live.
+VERIFIED_NEOGOV_AGENCIES = {
+    'hennepin': ('Hennepin County', 'MN'),
+    'minneapolismn': ('City of Minneapolis', 'MN'),
+    'kingcounty': ('King County', 'WA'),
+}
+
+# Links below lead to state employer career sites where known. The remaining
+# states are covered by a 50-state public-sector search and an official
+# government directory; no unverified state-agency URLs are invented.
+STATE_CAREER_PORTALS = {
+    'AL': 'https://www.personnel.alabama.gov/',
+    'AZ': 'https://www.azstatejobs.gov/',
+    'AR': 'https://arcareers.arkansas.gov/',
+    'CA': 'https://calcareers.ca.gov/',
+    'CO': 'https://www.colorado.gov/jobs',
+    'FL': 'https://jobs.myflorida.com/',
+    'GA': 'https://careers.georgia.gov/',
+    'HI': 'https://jobs.hawaii.gov/',
+    'MN': 'https://mn.gov/mmb/careers/search-for-jobs/',
+    'NY': 'https://statejobs.ny.gov/',
+    'NC': 'https://www.governmentjobs.com/careers/northcarolina',
+    'OH': 'https://careers.ohio.gov/',
+    'OR': 'https://oregon.wd5.myworkdayjobs.com/SOR_External_Career_Site',
+    'PA': 'https://www.employment.pa.gov/',
+    'TX': 'https://www.workintexas.com/',
+    'VA': 'https://www.jobs.virginia.gov/',
+    'WA': 'https://www.careers.wa.gov/',
+    'WI': 'https://wisc.jobs/',
+}
+
+
+def parse_neogov_agencies(raw):
+    """Accept agency tokens or GovernmentJobs agency career URLs only."""
+    found = {}
+    for token in re.split(r'[,\n;]+', raw or ''):
+        token = token.strip()
+        if not token:
+            continue
+        if token.startswith('http'):
+            parsed = urlparse(token)
+            if parsed.hostname not in ('governmentjobs.com', 'www.governmentjobs.com'):
+                continue
+            match = re.match(r'^/careers/([A-Za-z0-9_-]+)', parsed.path)
+            if not match:
+                continue
+            agency = match.group(1).lower()
+        else:
+            agency = token.lower()
+        if re.fullmatch(r'[a-z0-9_-]{2,70}', agency):
+            found[agency] = VERIFIED_NEOGOV_AGENCIES.get(agency, (agency, ''))
+    return dict(list(found.items())[:35])
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_neogov_feeds(agencies):
+    """Use documented NEOGOV RSS endpoint, never scrape career pages."""
+    jobs, errors, counts = [], [], {}
+    for agency, employer, state in agencies:
+        url = 'https://www.governmentjobs.com/SearchEngine/JobsFeed?' + urlencode({'agency': agency})
+        try:
+            req = Request(url, headers={'User-Agent': 'AIJobFinder/1.0 (personal job search)', 'Accept': 'application/rss+xml, application/xml, text/xml'})
+            with urlopen(req, timeout=10) as response:
+                payload = response.read(2_000_000)
+            root = ET.fromstring(payload)
+            items = root.findall('.//item')
+            if not items:
+                # Some agencies don't expose RSS or have no current openings.
+                errors.append(f'NEOGOV {employer}: feed returned no RSS items (check the agency career page).')
+            count = 0
+            for item in items[:250]:
+                def field(name):
+                    value = item.findtext(name)
+                    return (value or '').strip()
+                title = field('title')
+                link = field('link')
+                posted = field('pubDate') or field('date')
+                description = field('description')
+                # RSS does not consistently contain city/state. Use a verified
+                # agency's known state only; do not assign states to user tokens.
+                location = f'{employer}, {state}' if state else employer
+                job = standard_job(title, employer, link, location, description,
+                                   'NEOGOV RSS', remote=False, posted=posted)
+                if job:
+                    jobs.append(job)
+                    count += 1
+            counts[f'NEOGOV: {employer}'] = count
+        except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError) as exc:
+            errors.append(f'NEOGOV {employer}: feed unavailable ({type(exc).__name__}). Use its official careers page.')
+            counts[f'NEOGOV: {employer}'] = 0
+    return jobs, errors, counts
+
+
 def job_competency_hits(job, resume):
     # Uses verified experience or phrases in the resume; compares to job description.
     confirmed = verified_competencies()
@@ -666,7 +768,7 @@ elif page == 'Career Matches':
 elif page == 'Find Jobs':
     st.title('🔎 Find Real Jobs — Focused Search')
     st.write('Search U.S. location-tagged and remote job postings. State filters use the location provided by the employer; results are not comprehensive.')
-    st.caption('Automatic sources: The Muse, Jobicy, Himalayas, Remotive; optional USAJOBS and employer Greenhouse/Lever boards. Only listings dated within 45 days are shown.')
+    st.caption('Automatic sources: public job feeds, optional employer boards, USAJOBS, and selected agency-specific NEOGOV RSS feeds. Listings must be dated within 45 days.')
     recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
     with st.form('live_job_search'):
         role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
@@ -682,6 +784,12 @@ elif page == 'Find Jobs':
             greenhouse_input = st.text_area('Greenhouse employer board tokens (comma-separated)', help='Use the employer token from boards.greenhouse.io/EMPLOYER. Not a general cross-employer search.')
             lever_input = st.text_area('Lever employer board tokens (comma-separated)', help='Use the employer token from jobs.lever.co/EMPLOYER.')
             st.caption('USAJOBS offers a free API key, but requires registration. Put USAJOBS_API_KEY and USAJOBS_EMAIL in Streamlit Secrets to enable automatic federal results.')
+        with st.expander('Government RSS feeds — city and county employers'):
+            use_gov_feeds = st.checkbox('Include NEOGOV government RSS feeds', value=True)
+            gov_agencies = st.text_area('GovernmentJobs agency names or career URLs (comma/newline-separated)',
+                value='hennepin, minneapolismn, kingcounty',
+                help='Example: https://www.governmentjobs.com/careers/hennepin. Only entered agencies are checked; this is not a nationwide NEOGOV index.')
+            st.caption('Agency feeds are checked individually, cached for one hour, and may be unavailable. Missing dates are excluded by the 45-day rule.')
         search = st.form_submit_button('Search Live Jobs', type='primary')
     if search:
         with st.spinner('Searching public job sources (may take up to a minute)...'):
@@ -700,6 +808,13 @@ elif page == 'Find Jobs':
             fetched.extend(federal)
             errors.extend(federal_errors)
             counts.update(federal_counts)
+            if use_gov_feeds:
+                agency_map = parse_neogov_agencies(gov_agencies)
+                agency_rows = tuple((token, name, state) for token, (name, state) in agency_map.items())
+                govt, govt_errors, govt_counts = load_neogov_feeds(agency_rows)
+                fetched.extend(govt)
+                errors.extend(govt_errors)
+                counts.update(govt_counts)
             fetched = list({j['url'].split('?')[0]: j for j in fetched}.values())
         st.session_state.feed_diagnostics = (len(fetched), counts, errors)
         selected_roles = recommended if role == 'All recommended career paths' else [role]
@@ -809,18 +924,26 @@ elif page == 'Find Jobs':
                             'Notes': f"Found via {job['source']}. Confirm eligibility and requirements before applying."
                         })
                         st.success('Saved to Job Tracker for this session.')
-    st.subheader('Government and other job boards — official search portals')
-    st.caption('These are links to search the original websites, not automatically fetched vacancies. Their results are not included in the 45-day-filtered count above; check dates on each site.')
-    gov_state = st.selectbox('State government search location',
-        ['Minnesota'] + [name for name in US_STATES.values() if name != 'Minnesota'],
+    st.subheader('🏛️ Government jobs — all 50 states')
+    st.caption('The state selector covers every U.S. state. Direct state-employer links are provided where configured; public-sector search links are available for all 50 states. External search results are NOT included in the 45-day filtered count; check dates and eligibility on the original website.')
+    state_portal = st.selectbox('Select a state for government vacancies',
+        [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda kv: kv[1]) if code != 'DC'],
+        index=next((i for i, (code, name) in enumerate(sorted(((c, n) for c, n in US_STATES.items() if c != 'DC'), key=lambda kv: kv[1])) if code == 'MN'), 0),
         key='government_state')
-    st.link_button('Search Minnesota state government jobs', 'https://mn.gov/mmb/careers/search-for-jobs/')
-    st.link_button('Search federal jobs (USAJOBS)', 'https://www.usajobs.gov/Search/Results')
-    st.link_button('Search state and local government jobs (GovernmentJobs)', 'https://www.governmentjobs.com/jobs')
-    st.link_button('Search Minnesota CareerForce', 'https://careerforce.mn.gov/')
-    st.link_button(f'Find {gov_state} state government careers',
-        'https://www.google.com/search?' + urlencode({'q': gov_state + ' state government official careers jobs'}))
-    st.caption('For federal automatic results: request a USAJOBS API key at https://developer.usajobs.gov/apirequest/ and add USAJOBS_API_KEY and USAJOBS_EMAIL to Streamlit Secrets. No OpenAI key is needed.')
+    selected_code = state_portal.rsplit('(', 1)[-1].rstrip(')')
+    selected_name = US_STATES[selected_code]
+    st.link_button(f'Search public-sector jobs in {selected_name}',
+        'https://www.governmentjobs.com/jobs?' + urlencode({'location': selected_name}))
+    if selected_code in STATE_CAREER_PORTALS:
+        st.link_button(f'Open {selected_name} state government career portal', STATE_CAREER_PORTALS[selected_code])
+    else:
+        st.info('A direct state-employer portal has not been verified for this state in the app. Use the official 50-state directory to locate it; the public-sector search link above remains available.')
+    st.link_button('Official 50-state government directory (USAGov)', 'https://www.usa.gov/state-governments')
+    st.link_button('50-state career portal directory (UW–Madison)', 'https://career.lafollette.wisc.edu/resources/state-job-homepages-for-all-50-states/')
+    st.link_button('Search federal government vacancies (USAJOBS)', 'https://www.usajobs.gov/Search/Results')
+    st.link_button('Browse all local government jobs', 'https://www.governmentjobs.com/jobs')
+    st.caption('NEOGOV auto-search works only for agency tokens entered in the search form, when those RSS feeds are accessible. It does not automatically cover every city or county nationwide.')
+    st.caption('For automatic federal listings, add USAJOBS_API_KEY and USAJOBS_EMAIL to Streamlit Secrets after requesting a free USAJOBS API key. No OpenAI key is needed.')
     st.warning('Job Tracker entries are not permanently stored yet. Export your CSV before ending your session.')
 
 elif page == 'Job Tracker':
