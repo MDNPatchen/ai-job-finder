@@ -1240,7 +1240,7 @@ elif page == 'Career Matches':
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
-    st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Fully remote positions are excluded. No paid API required.')
+    st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Remote Mayo Clinic jobs are allowed; other fully remote jobs are excluded. No paid API required.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
