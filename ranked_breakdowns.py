@@ -8,6 +8,15 @@ contribute. The conservative five-area baseline prevents a one-sentence
 description mentioning one common skill from scoring 100/100.
 """
 
+import re
+
+
+def _safe_spreadsheet_value(value):
+    """Keep untrusted job/resume excerpts from being Excel formula cells."""
+    if isinstance(value, str) and re.match(r'^[\s\ufeff]*[=+@-]', value):
+        return "'" + value
+    return value
+
 
 def evidence_index(qualification):
     """0–100 index measuring explained resume overlap, NOT job eligibility."""
@@ -100,4 +109,5 @@ def breakdowns_csv_rows(jobs):
                 item['formal_requirements_to_verify']),
             'Resume tailoring focus': item['resume_tailoring_focus']
         })
-    return rows
+    return [{key:_safe_spreadsheet_value(value) for key,value in row.items()}
+            for row in rows]
