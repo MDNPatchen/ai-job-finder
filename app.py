@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from io import BytesIO
 from datetime import date
+from collections import Counter
 import streamlit as st
 import fitz
 from docx import Document
@@ -181,9 +182,88 @@ def standard_job(title, company, url, location, description, source,
             'source': source, 'eligible': eligible}
 
 
+US_STATES = {
+    'AL':'Alabama','AK':'Alaska','AZ':'Arizona','AR':'Arkansas','CA':'California',
+    'CO':'Colorado','CT':'Connecticut','DE':'Delaware','FL':'Florida','GA':'Georgia',
+    'HI':'Hawaii','ID':'Idaho','IL':'Illinois','IN':'Indiana','IA':'Iowa','KS':'Kansas',
+    'KY':'Kentucky','LA':'Louisiana','ME':'Maine','MD':'Maryland','MA':'Massachusetts',
+    'MI':'Michigan','MN':'Minnesota','MS':'Mississippi','MO':'Missouri','MT':'Montana',
+    'NE':'Nebraska','NV':'Nevada','NH':'New Hampshire','NJ':'New Jersey','NM':'New Mexico',
+    'NY':'New York','NC':'North Carolina','ND':'North Dakota','OH':'Ohio','OK':'Oklahoma',
+    'OR':'Oregon','PA':'Pennsylvania','RI':'Rhode Island','SC':'South Carolina',
+    'SD':'South Dakota','TN':'Tennessee','TX':'Texas','UT':'Utah','VT':'Vermont',
+    'VA':'Virginia','WA':'Washington','WV':'West Virginia','WI':'Wisconsin','WY':'Wyoming',
+    'DC':'District of Columbia'
+}
+
+
+def states_in_location(location):
+    """Identify explicit U.S. states only; do not guess from vague locations."""
+    text = str(location or '')
+    found = set()
+    for code, name in US_STATES.items():
+        if re.search(r'(?<![A-Za-z])' + re.escape(name) + r'(?![A-Za-z])', text, re.I):
+            found.add(code)
+        # Abbreviations only after a comma, or as a standalone location.
+        if re.search(r',\s*' + code + r'(?:\b|$)', text) or text.strip() == code:
+            found.add(code)
+    return sorted(found)
+
+
+def muse_location(locations):
+    names = [x.get('name','') for x in (locations or []) if isinstance(x, dict)]
+    return ' / '.join(n for n in names if n) or 'Not specified'
+
+
+def muse_remote(location):
+    return bool(re.search(r'\b(remote|flexible|work from home|anywhere|virtual)\b', location, re.I))
+
+
+def muse_us_eligible(location):
+    return bool(states_in_location(location) or re.search(
+        r'\b(United States|USA|U\.S\.|US Remote|Remote - US)\b', location, re.I))
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_muse_jobs():
+    """The Muse offers public location-tagged jobs, including non-remote roles."""
+    jobs, errors = [], []
+    # Public API: management and senior-level pages; small bounded request count.
+    for level in ('management', 'Senior Level'):
+        for page in range(0, 8):
+            try:
+                url = 'https://www.themuse.com/api/public/jobs?' + urlencode(
+                    {'page': page, 'level': level})
+                payload = fetch_json(url)
+                records = payload.get('results', [])
+                if not records:
+                    break
+                for rec in records:
+                    location = muse_location(rec.get('locations'))
+                    is_remote = muse_remote(location)
+                    eligible = muse_us_eligible(location)
+                    company = rec.get('company') or {}
+                    company_name = company.get('name', '') if isinstance(company, dict) else str(company)
+                    refs = rec.get('refs') or {}
+                    link = refs.get('landing_page') or refs.get('external_apply_url') or ''
+                    job = standard_job(rec.get('name'), company_name, link,
+                        location, rec.get('contents', ''), 'The Muse', is_remote,
+                        '', rec.get('publication_date'), eligible)
+                    if job:
+                        jobs.append(job)
+            except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
+                errors.append(f'The Muse {level} page {page}: {type(exc).__name__}')
+                break
+    return jobs, errors
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_public_jobs():
     jobs, errors, counts = [], [], {}
+    muse_jobs, muse_errors = load_muse_jobs()
+    jobs.extend(muse_jobs)
+    errors.extend(muse_errors)
+    counts['The Muse'] = len(muse_jobs)
     # Jobicy publishes recent remote jobs. Its USA filter is supplied by Jobicy.
     try:
         payload = fetch_json('https://jobicy.com/api/v2/remote-jobs?count=200&geo=usa')
@@ -460,15 +540,16 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Real Jobs — Nationwide + Remote')
-    st.write('Searches free public job feeds for remote opportunities accepting U.S. applicants. '
-             'Nationwide on-site roles are not comprehensively covered by these sources.')
-    st.caption('Sources: Jobicy, Himalayas and Remotive. Listings can expire and some sources update with a delay.')
+    st.title('🔎 Find Real Jobs — Search by State or Remote')
+    st.write('Search U.S. location-tagged and remote job postings. State filters use the location provided by the employer; results are not comprehensive.')
+    st.caption('Sources: The Muse (on-site, hybrid and remote), Jobicy, Himalayas, Remotive. Listings may expire or be incomplete.')
     recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
     with st.form('live_job_search'):
         role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
         keywords = st.text_input('Optional keywords (try operations, leadership, business development)')
-        arrangement = st.selectbox('Work arrangement', ['Nationwide + remote', 'Remote only'])
+        arrangement = st.selectbox('Work arrangement', ['On-site / hybrid only (hide remote)', 'Nationwide + remote', 'Remote only'], index=0)
+        state_choice = st.selectbox('State', ['All states'] + [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda item: item[1])])
+        sort_choice = st.selectbox('Sort results', ['Best career match', 'State (A–Z)', 'Newest posting', 'Company (A–Z)'])
         max_results = st.slider('Maximum displayed jobs', 5, 60, 25, step=5)
         search = st.form_submit_button('Search Live Jobs', type='primary')
     if search:
@@ -476,10 +557,18 @@ elif page == 'Find Jobs':
             fetched, errors, counts = load_public_jobs()
         st.session_state.feed_diagnostics = (len(fetched), counts, errors)
         selected_roles = recommended if role == 'All recommended career paths' else [role]
+        state_code = state_choice.rsplit('(', 1)[-1].rstrip(')') if state_choice != 'All states' else None
         query = keywords.strip().lower()
         filtered = []
         for job in fetched:
             if not us_eligible(job):
+                continue
+            if arrangement == 'On-site / hybrid only (hide remote)' and job['remote']:
+                continue
+            if arrangement == 'Remote only' and not job['remote']:
+                continue
+            job_states = states_in_location(job['location'])
+            if state_code and state_code not in job_states:
                 continue
             title = job['title'].lower()
             description = job['description'].lower()
@@ -491,8 +580,17 @@ elif page == 'Find Jobs':
                 continue
             competency_hits = job_competency_hits(job, st.session_state.resume_text)
             rank = title_score * 4 + len(competency_hits) + (2 if extra else 0)
-            filtered.append({**job, 'rank': rank, 'role_score': title_score, 'competency_hits': competency_hits})
-        filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
+            filtered.append({**job, 'states': job_states, 'rank': rank, 'role_score': title_score, 'competency_hits': competency_hits})
+        if sort_choice == 'State (A–Z)':
+            filtered.sort(key=lambda j: (US_STATES.get(j['states'][0], 'ZZZ') if j['states'] else 'ZZZ', -j['rank']))
+        elif sort_choice == 'Newest posting':
+            filtered.sort(key=lambda j: (j['date'] or '0000-00-00', j['rank']), reverse=True)
+        elif sort_choice == 'Company (A–Z)':
+            filtered.sort(key=lambda j: (j['company'].lower(), -j['rank']))
+        else:
+            filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
+        st.session_state.search_state_counts = dict(sorted(Counter(
+            code for j in filtered for code in j['states']).items()))
         st.session_state.search_results = filtered[:max_results]
         st.session_state.search_total = len(filtered)
         st.session_state.search_timestamp = str(date.today())
@@ -507,14 +605,19 @@ elif page == 'Find Jobs':
     if 'search_results' in st.session_state:
         results = st.session_state.search_results
         st.subheader(f'{len(results)} jobs displayed')
+        state_counts = st.session_state.get('search_state_counts', {})
+        if state_counts:
+            with st.expander('Job counts by state (before display limit)'):
+                st.write(', '.join(f'{US_STATES.get(code, code)}: {count}' for code, count in state_counts.items()))
+        else:
+            st.caption('No explicit U.S. state locations in the current filtered results.')
         st.caption(f'{st.session_state.get("search_total", len(results))} broad career-related postings • Searched {st.session_state.get("search_timestamp", "today")}. This is not a hiring-fit score.')
         if not results:
-            st.info('No matches in the available free feeds. Check Search diagnostics for provider errors. '
-                    'Try the keyword “operations” or a broader career path.')
+            st.info('No matching jobs for these filters in the available feeds. Try All states, Nationwide + remote, or a broader career path. Check Search diagnostics for source errors.')
         for i, job in enumerate(results):
             with st.container(border=True):
                 st.markdown(f"**{job['title']}** — {job['company']}")
-                st.write(f"📍 {job['location']} | Remote | {job['source']}")
+                st.write(f"📍 {job['location']} | {'Remote' if job['remote'] else 'On-site / hybrid (verify)' } | {job['source']}")
                 if job['salary']:
                     st.write('**Salary (as listed):**', job['salary'])
                 st.caption('Potential experience overlap: ' + (', '.join(job['competency_hits']) if job['competency_hits'] else 'No explicit competency phrase matches'))
