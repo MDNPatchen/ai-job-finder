@@ -1,0 +1,5 @@
+```text
+streamlit
+PyMuPDF
+python-docx
+```
