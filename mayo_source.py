@@ -90,8 +90,11 @@ def read_html(url, timeout=8):
 def parse_detail(payload, url):
     page = parse_page(payload)
     body = " ".join(page.words)
-    # Exclude recommended-job links below the actual job page.
-    body = re.split(r"\bJobs for you\b", body, maxsplit=1, flags=re.I)[0]
+    # Stop before sidebar recommendations: those can contain nursing/RN
+    # job names that are NOT requirements of this individual posting.
+    body = re.split(r"\b(?:Jobs for you|Similar Jobs|Recently Viewed Jobs|"
+                    r"Insights from previous hires|Top Matches for You)\b",
+                    body, maxsplit=1, flags=re.I)[0]
     title = next(iter(page.titles), "").strip()
     date = re.search(
         r"(?:Date posted|Posting Date)\s*[:\-]?\s*(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})",
@@ -110,8 +113,16 @@ def parse_detail(payload, url):
         r"\b(?:hybrid\s+(?:position|role|schedule|work|arrangement)|"
         r"(?:position|role|schedule|work)\s+(?:is\s+)?hybrid|"
         r"Flexibility of both remote and on-site work)\b", body, re.I))
+    explicit = re.search(
+        r'\bRemote Eligible\s*[:\-]?\s*(On Site|On-Site|Hybrid|Remote)\b',
+        body[:4500], re.I)
     remote = bool(re.search(r"\bRemote\s*:\s*(?:Yes|True)\b", body[:2500], re.I))
-    style = "Hybrid" if hybrid else "Remote" if remote else ""
+    if explicit:
+        response = explicit.group(1).lower().replace('-', ' ')
+        style = ('On-site' if response == 'on site' else
+                 'Hybrid' if response == 'hybrid' else 'Remote')
+    else:
+        style = 'Hybrid' if hybrid else 'Remote' if remote else ''
     salary = re.search(
         r"Compensation Detail\s+(.{0,190}?)(?:Benefits Eligible|Schedule|Hours/Pay Period|$)",
         body, re.I)

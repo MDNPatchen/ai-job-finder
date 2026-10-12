@@ -380,7 +380,7 @@ def standard_job(title, company, url, location, description, source,
     return {
         'title': str(title).strip(), 'company': str(company).strip(),
         'url': url, 'location': str(location or 'Location not specified'),
-        'description': html_to_text(description)[:6500], 'source': source,
+        'description': html_to_text(description)[:12500], 'source': source,
         'remote': arrangement == 'Remote', 'work_style': arrangement,
         'salary': str(salary or ''),
         'date': posted_date.isoformat() if posted_date else '',
@@ -485,7 +485,11 @@ def load_nyc_jobs():
         jobid = str(rec.get('job_id') or '').strip()
         if not jobid:
             continue
-        url = 'https://cityjobs.nyc.gov/jobs'  # Verified official portal; individual URLs require slugs.
+        # Honor a stated closing date if the Socrata row supplies one.
+        deadline = parse_posted_date(rec.get('post_until'))
+        if deadline and deadline < datetime.now(timezone.utc).date():
+            continue
+        url = 'https://cityjobs.nyc.gov/jobs'  # Generic portal; not an individual job URL.
         # The dataset's To Apply field sometimes has a specific application URL.
         apply_field = str(rec.get('to_apply') or '')
         explicit = re.search(r'https://[^\s<>"\']+', apply_field)
@@ -497,12 +501,28 @@ def load_nyc_jobs():
         salary = ''
         if rec.get('salary_range_from') and rec.get('salary_range_to'):
             salary = f"${rec['salary_range_from']}–${rec['salary_range_to']} ({rec.get('salary_frequency','')})"
+        # The official NYC Open Data has SEPARATE minimum qualifications.
+        # Formerly we passed only job_description, silently dropping them.
+        # Keep the minimum/preferred headings so screening is transparent.
+        text_blocks = [
+            ('MINIMUM QUALIFICATIONS', rec.get('minimum_qual_requirements')),
+            ('JOB DESCRIPTION', rec.get('job_description')),
+            ('PREFERRED SKILLS', rec.get('preferred_skills')),
+            ('ADDITIONAL INFORMATION', rec.get('additional_information')),
+            ('HOURS AND SHIFT', rec.get('hours_shift')),
+        ]
+        detailed = ' '.join(
+            heading + ': ' + str(value).strip()
+            for heading,value in text_blocks if value)
         job = standard_job(rec.get('business_title'),
             'City of New York · ' + str(rec.get('agency') or 'City agency'),
-            url, location, rec.get('job_description') or rec.get('minimum_qual_requirements'),
+            url, location, detailed,
             'NYC Open Data', salary=salary, posted=rec.get('posting_date'), gov=True)
         if job:
             job['reference'] = f'NYC Job ID {jobid}; search this ID at the official portal'
+            job['posting_link_kind'] = ('Official NYC job directory (search by ID)' if
+                                        url == 'https://cityjobs.nyc.gov/jobs'
+                                        else 'URL provided in NYC application instructions')
             jobs.append(job)
     return jobs
 
@@ -1033,7 +1053,11 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
             excluded['irrelevant']+=1
             continue
         key=normalized_key(job)
-        if key not in unique or unique[key]['rank']<ranked['rank']:
+        # Keep the stronger *qualification* match when multiple feeds list
+        # the same title and employer, instead of using broad title rank only.
+        if (key not in unique or
+                (ranked['evidence_index'], ranked['rank']) >
+                (unique[key]['evidence_index'], unique[key]['rank'])):
             unique[key]=ranked
     # With an uploaded resume, strict descending *documented qualification*
     # overlap takes priority over titles, provider familiarity and posting date.
@@ -1360,7 +1384,7 @@ elif page == 'Find Jobs':
         else:
             if st.session_state.resume_text.strip():
                 st.write('**Sorted by documented resume qualification match: highest to lowest.**')
-                st.caption('The evidence overlap index is a transparent 0–100 comparison of resume-supported areas against topics mentioned in the posting. Separately confirmed experience counts half; a five-area baseline prevents short ads from looking like perfect matches. This is not a hiring probability or formal eligibility assessment.')
+                st.caption('The comparative fit index weighs resume evidence, role-family alignment, and important industry or licensing requirements that are not documented. It is a research ordering tool, NOT a hiring probability, eligibility determination or substitute for checking the complete employer notice.')
                 all_breakdowns = breakdowns_json(all_results)
                 flat_breakdowns = breakdowns_csv_rows(all_results)
                 export_csv = pd.DataFrame(flat_breakdowns).to_csv(index=False)
@@ -1376,7 +1400,7 @@ elif page == 'Find Jobs':
                         '⬇️ Export full evidence breakdowns (JSON)', export_json,
                         'job_qualification_breakdowns_detailed.json', 'application/json',
                         use_container_width=True)
-                st.caption('Downloads include job links, qualification checks and relevant resume excerpts. Files stay in your browser until you download them; no resume is uploaded to an outside service by this feature.')
+                st.caption('Downloads contain job links, cited resume excerpts, specific industry cautions and requirements to verify. Nothing is sent to an outside AI service. The comparisons are not licensing or hiring decisions.')
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
             page_total=(len(all_results)+PAGE_SIZE-1)//PAGE_SIZE
@@ -1390,7 +1414,7 @@ elif page == 'Find Jobs':
                         st.markdown('**#'+str(n+1)+' · '+job['title']+'**')
                         if st.session_state.resume_text.strip():
                             q = job.get('qualification_match') or {}
-                            st.write(f"**Resume evidence overlap: {evidence_index(q)}/100**")
+                            st.write(f"**Comparative qualification fit: {evidence_index(q)}/96**")
                             st.caption(
                                 f"{len(q.get('resume_matches') or [])} areas supported by resume · "
                                 f"{len(q.get('confirmed_only') or [])} confirmed separately · "
@@ -1404,6 +1428,7 @@ elif page == 'Find Jobs':
                             st.write('Pay listed: '+job['salary'])
                         if job.get('reference'):
                             st.caption(job['reference'])
+                            st.caption(job.get('posting_link_kind', 'Check the official NYC jobs site for the position; a direct job URL was not supplied.'))
                         qualification = job.get('qualification_match')
                         if qualification and qualification['resume_present']:
                             st.caption('**Resume alignment:** ' + qualification['label'])
@@ -1411,7 +1436,7 @@ elif page == 'Find Jobs':
                                 st.write(
                                     f"Resume evidence in {len(qualification['resume_matches'])} "
                                     f"of {qualification['total_areas']} relevant areas mentioned in this listing.")
-                                st.caption('A job mentioning a topic does not necessarily make it a minimum requirement. This is an evidence review, not a hiring probability.')
+                                st.caption('These are topics visible in the listing, not necessarily formal minimum criteria. The fit index is not an employment prediction. Some feeds omit the full requirements.')
                                 if qualification['resume_matches']:
                                     st.write('**Matches supported by your uploaded resume**')
                                     for item in qualification['resume_matches'][:7]:
@@ -1430,18 +1455,29 @@ elif page == 'Find Jobs':
                                         st.write('• ' + item['area'])
                                         st.caption('Job posting: ' + item['listing_excerpt'])
                                     st.caption('Not mentioned in your resume does NOT mean you lack the experience.')
+                                if qualification.get('specialized_requirements'):
+                                    st.write('**Industry-specific experience to examine**')
+                                    for specialization in qualification['specialized_requirements'][:5]:
+                                        st.write('• ' + specialization['area'])
+                                        st.caption('Job posting: ' + specialization['listing_excerpt'])
+                                        st.caption(specialization['resume_status'])
                                 if qualification['screeners']:
-                                    st.write('**Education, credentials and years to verify against the full posting**')
+                                    st.write('**Education, credentials, eligibility and years to verify**')
                                     for requirement in qualification['screeners']:
                                         st.write('**' + requirement['type'] + '** — ' + requirement['priority'])
                                         st.caption('Job posting: ' + requirement['listing_excerpt'])
                                         st.caption('Your resume: ' + requirement['resume_status'])
+                                if qualification.get('cautions'):
+                                    st.write('**Important qualification cautions**')
+                                    for warning in qualification['cautions'][:6]:
+                                        st.caption('• ' + warning)
+                                st.caption(qualification.get('description_completeness',''))
                                 if not qualification['total_areas'] and not qualification['screeners']:
                                     st.info('The public feed has limited job requirements. Read the full employer posting before deciding.')
                                 st.write('**Resume focus:** ' + qualification['resume_focus'])
                                 st.caption('Confirmations never rewrite your resume. Update Career Analysis to confirm experience you have but did not include. Verify employer screening criteria directly.')
                     with right:
-                        st.link_button('Search NYC by ID' if job.get('reference') else 'View / Apply',job['url'],use_container_width=True)
+                        st.link_button('Open NYC jobs; use Job ID' if job.get('reference') else 'View / Apply',job['url'],use_container_width=True)
                         if st.button('Save job',key=f'clean_save_{n}',use_container_width=True):
                             if save_result_to_tracker(job):
                                 st.success('Saved')
