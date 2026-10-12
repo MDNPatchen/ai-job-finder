@@ -294,16 +294,58 @@ def html_to_text(value):
     return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', str(value or '')))).strip()
 
 
+def classify_work_arrangement(location, description, declared_remote=False, declared_style=''):
+    """Only label on-site or hybrid when the posting explicitly says so.
+
+    Employer descriptions can omit workplace details. Those postings are shown
+    as 'Not specified' in the combined search, rather than mislabeled on-site.
+    """
+    location_and_style = str(location or '') + ' ' + str(declared_style or '')
+    details = html_to_text(description)[:6500]
+
+    # Employer-provided workplace labels are stronger than text in a job ad.
+    if re.search(r'\bhybrid\b', location_and_style, re.I):
+        return 'Hybrid'
+    if declared_remote or re.search(r'\bremote\b|\bwork from (?:home|anywhere)\b',
+                                    location_and_style, re.I):
+        return 'Remote'
+    if re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',
+                 location_and_style, re.I):
+        return 'On-site'
+
+    # Check explicit arrangements in descriptions without assuming a city means on-site.
+    if re.search(r'\bhybrid\s+(?:work|schedule|position|role|arrangement|model)\b|'
+                 r'\b(?:work|schedule|position|role|arrangement)\s+(?:is\s+)?hybrid\b',
+                 details, re.I):
+        return 'Hybrid'
+    if re.search(r'\b(?:fully|100%|entirely|completely|full[- ]time)\s+remote\b|'
+                 r'\bremote[- ]only\b|\bwork from anywhere\b|'
+                 r'\b(?:position|role|job)\s+is\s+(?:fully\s+)?remote\b|'
+                 r'\b100%\s+telework\b', details, re.I):
+        # Avoid treating 'not a fully remote job' as an affirmative remote label.
+        if not re.search(r'\b(?:not|isn.t|no)\s+(?:a\s+)?(?:fully\s+)?remote\b',
+                         details, re.I):
+            return 'Remote'
+    if re.search(r'\b(?:on[- ]site|onsite)\s+(?:position|work|role|attendance|required|schedule)\b|'
+                 r'\b(?:position|role|work)\s+(?:is\s+)?(?:on[- ]site|onsite)\b',
+                 details, re.I):
+        return 'On-site'
+    return 'Not specified'
+
+
 def standard_job(title, company, url, location, description, source,
-                 remote=False, salary='', posted=None, eligible=True, gov=False):
+                 remote=False, salary='', posted=None, eligible=True, gov=False,
+                 declared_style=''):
     posted_date = parse_posted_date(posted)
     if not title or not company or not isinstance(url, str) or not url.startswith('https://'):
         return None
+    arrangement = classify_work_arrangement(location, description, remote, declared_style)
     return {
         'title': str(title).strip(), 'company': str(company).strip(),
         'url': url, 'location': str(location or 'Location not specified'),
         'description': html_to_text(description)[:6500], 'source': source,
-        'remote': bool(remote), 'salary': str(salary or ''),
+        'remote': arrangement == 'Remote', 'work_style': arrangement,
+        'salary': str(salary or ''),
         'date': posted_date.isoformat() if posted_date else '',
         'eligible': bool(eligible), 'government': gov,
     }
@@ -498,7 +540,8 @@ def load_lever_employers():
                 job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
                     loc or 'Location not specified',
                     (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
-                    'Lever employer',remote,'',x.get('createdAt'),eligible)
+                    'Lever employer',remote,'',x.get('createdAt'),eligible,
+                    declared_style=style)
                 if job:jobs.append(job)
         except (HTTPError,URLError,TimeoutError,ValueError,TypeError):
             continue  # Individual failures do not interrupt other sources.
@@ -588,10 +631,7 @@ def fetch_all_free_jobs(query_terms):
     tasks={
         'NEOGOV government': lambda: load_neogov_feeds(),
         'NYC government': lambda: load_nyc_jobs(),
-        'Himalayas': lambda: load_himalayas(tuple(query_terms)),
-        'Jobicy': lambda: load_jobicy(),
-        'Remotive': lambda: load_remotive(),
-        'Remote OK': lambda: load_remoteok(),
+        # Remote-only providers are deliberately NOT queried for this search.
         'Arbeitnow': lambda: load_arbeitnow(),
         'Lever employer boards': lambda: load_lever_employers(),
     }
@@ -667,14 +707,22 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
             continue
         if 'spacex' in job['company'].casefold():
             continue
-        if work_style=='On-site / hybrid' and job['remote']:
+        # Exclude every posting identified as fully remote, regardless of state.
+        # Combined mode retains explicitly on-site, hybrid, and unidentified jobs;
+        # the latter are labeled 'Not specified' instead of guessed on-site.
+        arrangement=job.get('work_style') or (
+            'Remote' if job.get('remote') else 'Not specified')
+        if arrangement == 'Remote':
             excluded['location']+=1
             continue
-        if work_style=='Remote' and not job['remote']:
+        if work_style == 'On-site only' and arrangement != 'On-site':
+            excluded['location']+=1
+            continue
+        if work_style == 'Hybrid only' and arrangement != 'Hybrid':
             excluded['location']+=1
             continue
         state_ids=states_in_location(job['location'])
-        if state_code and (state_code not in state_ids) and not (job['remote'] and work_style!='On-site / hybrid' and not state_ids):
+        if state_code and state_code not in state_ids:
             excluded['location']+=1
             continue
         ranked=score_job(job,resume,query)
@@ -903,7 +951,7 @@ elif page == 'Career Matches':
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
-    st.caption('One search across free job feeds and selected government employers. Jobs are up to 45 days old; no paid API or setup required.')
+    st.caption('Search government and private-sector jobs, not remote-only boards. Only postings from the last 45 days are included; no paid API required.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
@@ -914,7 +962,9 @@ elif page == 'Find Jobs':
         with col_state:
             chosen_state=st.selectbox('Location',state_choices)
         with col_type:
-            chosen_work=st.selectbox('Work style',['Any','On-site / hybrid','Remote'])
+            chosen_work=st.selectbox('Work arrangement',
+                ['On-site + Hybrid','On-site only','Hybrid only'],
+                help='Fully remote positions are always excluded. On-site + Hybrid also shows jobs that do not specify their work arrangement, clearly labeled for verification.')
         submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
 
     if submitted:
@@ -951,9 +1001,9 @@ elif page == 'Find Jobs':
         c1.metric('Total jobs',len(all_results))
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
-        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Every job is a potential match, not a qualifications guarantee.")
+        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Posted within 45 days · Fully remote excluded · Jobs with unspecified work arrangements require verification.")
         if not all_results:
-            st.warning('No recent openings matched those choices in the available feeds. Try All states, Any work style, or a different search term. Source diagnostics below show any feed failures.')
+            st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
@@ -968,7 +1018,7 @@ elif page == 'Find Jobs':
                         st.markdown('**'+job['title']+'**')
                         st.caption(' · '.join([
                             job['company'],job['location'],
-                            'Remote' if job['remote'] else 'On-site / hybrid (verify)',
+                            job.get('work_style') or 'Not specified',
                             job['date']]))
                         st.caption('Government' if job['government'] else job['source'])
                         if job['salary']:
@@ -998,7 +1048,7 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
-            st.caption('Automatic searches include the preconfigured government agency RSS feeds, official NYC open-data listings, and available free public job APIs. Government coverage does not include every employer in all 50 states.')
+            st.caption('Searches NEOGOV agencies, NYC public jobs data, and mixed-location employer feeds. Fully remote-only feeds are skipped entirely. Work arrangements are based on employer-provided labels and descriptions; unspecified jobs may require checking. Government coverage is not comprehensive nationwide.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
