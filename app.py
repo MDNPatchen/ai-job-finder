@@ -1272,9 +1272,9 @@ elif page == 'Find Jobs':
             st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']}")
             if stats['errors']:
                 st.caption(f"{len(stats['errors'])} feeds had errors or were unavailable; successful feeds still contribute jobs.")
-                with st.expander('See unavailable feeds'):
+                if st.checkbox('Show unavailable feeds', key='show_unavailable_feeds'):
                     for err in stats['errors']:
-                        st.caption('• '+err)
+                        st.caption('• ' + err)
             st.caption('USAJOBS can also be included automatically if your account already has its free API credentials in Streamlit Secrets. Paid Adzuna and OpenAI APIs are not used. Indeed and LinkedIn do not provide unrestricted public job-search feeds for this app.')
     st.caption('Your Job Tracker still uses temporary session storage. Export its CSV to preserve applications.')
 
