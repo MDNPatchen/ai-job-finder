@@ -790,5 +790,14 @@
       "id": "yugo",
       "name": "Yugo"
     }
+  ],
+  "mayo": [
+    {
+      "id": "mayo-clinic",
+      "name": "Mayo Clinic",
+      "enabled": true,
+      "career_page": "https://jobs.mayoclinic.org/search-jobs",
+      "note": "Public listings and detail-page reader, not an official unrestricted jobs API."
+    }
   ]
 }
