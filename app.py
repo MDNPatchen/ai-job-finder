@@ -2,6 +2,7 @@ import re
 import json
 import html
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from io import BytesIO
 from datetime import date
@@ -151,63 +152,98 @@ def get_career_matches(resume):
     return sorted(results, key=lambda x: (-x['score'], x['title']))
 
 
-# Public endpoints; no account, API key, or paid service required.
-# Remotive requests are cached for 6 hours to respect its rate guidance.
-@st.cache_data(ttl=21600, show_spinner=False)
+# Free public remote-job feeds. Cache requests to avoid unnecessary provider traffic.
+# Search APIs query the provider directly, rather than filtering only a small
+# downloaded feed. Listings must be independently checked before applying.
+SEARCH_TERMS = [
+    'operations', 'business development', 'general manager', 'marketing',
+    'partnerships', 'logistics', 'chief operating officer', 'publisher'
+]
+
+
+def fetch_json(url):
+    request = Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (compatible; PersonalCareerResearch/1.0)',
+        'Accept': 'application/json'})
+    with urlopen(request, timeout=16) as response:
+        return json.load(response)
+
+
+def standard_job(title, company, url, location, description, source,
+                 remote=True, salary='', posted='', eligible=True):
+    if not (title and company and str(url).startswith('https://')):
+        return None
+    return {'title': str(title).strip(), 'company': str(company).strip(),
+            'url': str(url), 'location': str(location or 'Not specified'),
+            'remote': bool(remote), 'salary': str(salary or ''),
+            'date': str(posted or '')[:10],
+            'description': html_to_text(str(description or ''))[:6000],
+            'source': source, 'eligible': eligible}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_public_jobs():
-    jobs, errors = [], []
-    sources = [
-        ('Remotive', 'https://remotive.com/api/remote-jobs'),
-        ('Arbeitnow', 'https://www.arbeitnow.com/api/job-board-api'),
-    ]
-    for source, endpoint in sources:
+    jobs, errors, counts = [], [], {}
+    # Jobicy publishes recent remote jobs. Its USA filter is supplied by Jobicy.
+    try:
+        payload = fetch_json('https://jobicy.com/api/v2/remote-jobs?count=200&geo=usa')
+        for rec in payload.get('jobs', []):
+            job = standard_job(rec.get('jobTitle'), rec.get('companyName'),
+                rec.get('url'), rec.get('jobGeo') or 'USA / Remote',
+                rec.get('jobDescription'), 'Jobicy', True,
+                rec.get('annualSalaryMin') or '', rec.get('pubDate'), True)
+            if job: jobs.append(job)
+        counts['Jobicy'] = len([j for j in jobs if j['source'] == 'Jobicy'])
+    except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
+        errors.append(f'Jobicy could not be loaded ({type(exc).__name__}).')
+
+    # Himalayas searches remotely hosted jobs by keyword and country. Searching
+    # provider-side prevents executive titles from being lost in feed sampling.
+    for term in SEARCH_TERMS:
         try:
-            request = Request(endpoint, headers={'User-Agent': 'AIJobFinder/1.0 (personal career search)', 'Accept': 'application/json'})
-            with urlopen(request, timeout=18) as response:
-                payload = json.load(response)
-            records = payload.get('jobs', []) if source == 'Remotive' else payload.get('data', [])
-            for record in records:
-                if source == 'Remotive':
-                    location = str(record.get('candidate_required_location') or 'Not specified')
-                    remote = True
-                    salary = str(record.get('salary') or '')
-                    posted = str(record.get('publication_date') or '')[:10]
-                else:
-                    location = str(record.get('location') or 'Not specified')
-                    remote = record.get('remote') is True
-                    salary = ''
-                    posted = ''
-                title = str(record.get('title') or '').strip()
-                company = str(record.get('company_name') or '').strip()
-                url = str(record.get('url') or '').strip()
-                if not (title and company and url.startswith('https://')):
-                    continue
-                description = html_to_text(str(record.get('description') or ''))[:5000]
-                jobs.append({'title': title, 'company': company, 'url': url,
-                             'location': location, 'remote': remote, 'salary': salary,
-                             'date': posted, 'description': description, 'source': source})
-        except (HTTPError, URLError, TimeoutError, ValueError, OSError) as exc:
-            errors.append(f'{source} is unavailable right now ({type(exc).__name__}). Try again later.')
+            url = 'https://himalayas.app/jobs/api/search?' + urlencode(
+                {'q': term, 'country': 'US', 'sort': 'recent', 'page': 1})
+            payload = fetch_json(url)
+            for rec in payload.get('jobs', []):
+                restrictions = rec.get('locationRestrictions') or []
+                location = ', '.join(str(x) for x in restrictions) if restrictions else 'Worldwide / Remote'
+                low, high, currency = rec.get('minSalary'), rec.get('maxSalary'), rec.get('currency') or ''
+                salary = f'{currency} {low:,}–{high:,} / {rec.get("salaryPeriod") or "year"}' if isinstance(low, (int,float)) and isinstance(high,(int,float)) else ''
+                job = standard_job(rec.get('title'), rec.get('companyName'),
+                    rec.get('applicationLink'), location,
+                    rec.get('description') or rec.get('excerpt'), 'Himalayas',
+                    True, salary, rec.get('pubDate'), True)
+                if job: jobs.append(job)
+        except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
+            errors.append(f'Himalayas search for {term} failed ({type(exc).__name__}).')
+    counts['Himalayas'] = len([j for j in jobs if j['source'] == 'Himalayas'])
+
+    # Remotive supplements those sources. Location restrictions are interpreted
+    # conservatively, rather than assuming every remote job accepts U.S. applicants.
+    try:
+        payload = fetch_json('https://remotive.com/api/remote-jobs')
+        for rec in payload.get('jobs', []):
+            location = str(rec.get('candidate_required_location') or 'Unspecified')
+            eligible = any(x in location.lower() for x in
+                ['usa', 'united states', 'u.s.', 'north america', 'worldwide', 'anywhere', 'global'])
+            job = standard_job(rec.get('title'), rec.get('company_name'),
+                rec.get('url'), location, rec.get('description'), 'Remotive',
+                True, rec.get('salary'), rec.get('publication_date'), eligible)
+            if job: jobs.append(job)
+        counts['Remotive'] = len([j for j in jobs if j['source'] == 'Remotive'])
+    except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
+        errors.append(f'Remotive could not be loaded ({type(exc).__name__}).')
     unique = {}
     for job in jobs:
-        unique.setdefault(job['url'], job)
-    return list(unique.values()), errors
-
+        unique.setdefault(job['url'].split('?')[0], job)
+    return list(unique.values()), errors, counts
 
 def html_to_text(value):
     return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
 
 
 def us_eligible(job):
-    loc = job['location'].lower()
-    if job['source'] == 'Remotive':
-        # Remote listings can restrict applicants by country or time zone.
-        # Unknown/multi-region restrictions are excluded rather than assumed eligible.
-        return any(t in loc for t in ['usa', 'united states', 'u.s.', 'us only', 'north america', 'worldwide', 'anywhere', 'global'])
-    if job['remote']:
-        return any(t in loc for t in ['usa', 'united states', 'u.s.', 'north america', 'worldwide'])
-    # Arbeitnow mostly lists European jobs. Do not mislabel them as U.S. openings.
-    return bool(re.search(r'\b(usa|united states|u\.s\.|new york|california|texas|florida|chicago|seattle|boston|denver|minneapolis|atlanta|washington dc)\b', loc))
+    return bool(job.get('eligible', False))
 
 
 ROLE_ALIASES = {
@@ -425,59 +461,64 @@ elif page == 'Career Matches':
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Real Jobs — Nationwide + Remote')
-    st.write('Free public job feeds. Search across the U.S. where location eligibility is clear, plus remote jobs open to U.S. applicants.')
-    st.caption('Sources: Remotive (remote positions) and Arbeitnow (limited U.S. / remote listings). These do not cover every job board, and listings can expire.')
+    st.write('Searches free public job feeds for remote opportunities accepting U.S. applicants. '
+             'Nationwide on-site roles are not comprehensively covered by these sources.')
+    st.caption('Sources: Jobicy, Himalayas and Remotive. Listings can expire and some sources update with a delay.')
     recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
     with st.form('live_job_search'):
         role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
-        keywords = st.text_input('Optional extra search terms', placeholder='operations, publisher, general manager')
-        arrangement = st.selectbox('Work arrangement', ['Nationwide + remote', 'Remote only', 'On-site / hybrid in the U.S.'])
+        keywords = st.text_input('Optional keywords (try operations, leadership, business development)')
+        arrangement = st.selectbox('Work arrangement', ['Nationwide + remote', 'Remote only'])
         max_results = st.slider('Maximum displayed jobs', 5, 60, 25, step=5)
         search = st.form_submit_button('Search Live Jobs', type='primary')
     if search:
-        with st.spinner('Loading public job feeds...'):
-            fetched, errors = load_public_jobs()
-        if errors:
-            for error in errors:
-                st.warning(error)
-        query = keywords.strip()
+        with st.spinner('Searching public job sources (may take up to a minute)...'):
+            fetched, errors, counts = load_public_jobs()
+        st.session_state.feed_diagnostics = (len(fetched), counts, errors)
         selected_roles = recommended if role == 'All recommended career paths' else [role]
+        query = keywords.strip().lower()
         filtered = []
         for job in fetched:
-            if arrangement == 'Remote only' and not job['remote']:
-                continue
-            if arrangement == 'On-site / hybrid in the U.S.' and job['remote']:
-                continue
             if not us_eligible(job):
                 continue
             title = job['title'].lower()
             description = job['description'].lower()
             title_score = max((role_similarity(job['title'], r) for r in selected_roles), default=0)
-            # A strong role-title match is required; extra keywords can widen matching.
-            extra = bool(query and query.lower() in (title + ' ' + description))
-            if title_score == 0 and not extra:
+            # Use transferable senior-management terms when the exact title differs.
+            broad = bool(re.search(r'\b(operations|general manager|business development|partnerships|commercial|revenue|distribution|logistics|marketing|director|chief operating officer|publisher|regional manager)\b', title))
+            extra = bool(query and query in (title + ' ' + description))
+            if not (title_score or broad or extra):
                 continue
             competency_hits = job_competency_hits(job, st.session_state.resume_text)
-            score = title_score * 3 + len(competency_hits)
-            filtered.append({**job, 'rank': score, 'role_score': title_score, 'competency_hits': competency_hits})
+            rank = title_score * 4 + len(competency_hits) + (2 if extra else 0)
+            filtered.append({**job, 'rank': rank, 'role_score': title_score, 'competency_hits': competency_hits})
         filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
         st.session_state.search_results = filtered[:max_results]
         st.session_state.search_total = len(filtered)
         st.session_state.search_timestamp = str(date.today())
+    if 'feed_diagnostics' in st.session_state:
+        count, counts, errors = st.session_state.feed_diagnostics
+        with st.expander('Search diagnostics — see what sources returned'):
+            st.write(f'{count} unique postings fetched before career filtering.')
+            st.write('Source counts:', counts)
+            for error in errors:
+                st.warning(error)
+            st.caption('If a source is blocked or unavailable, its count may be missing. Results are cached for one hour.')
     if 'search_results' in st.session_state:
         results = st.session_state.search_results
         st.subheader(f'{len(results)} jobs displayed')
-        st.caption(f'{st.session_state.get("search_total", len(results))} matching postings in fetched feeds • Searched {st.session_state.get("search_timestamp", "today")}. No guaranteed vacancies or hiring fit.')
+        st.caption(f'{st.session_state.get("search_total", len(results))} broad career-related postings • Searched {st.session_state.get("search_timestamp", "today")}. This is not a hiring-fit score.')
         if not results:
-            st.info('No matching U.S.-eligible jobs were found in these limited feeds. Try a broader career path or keywords. This does not mean no such jobs exist.')
+            st.info('No matches in the available free feeds. Check Search diagnostics for provider errors. '
+                    'Try the keyword “operations” or a broader career path.')
         for i, job in enumerate(results):
             with st.container(border=True):
                 st.markdown(f"**{job['title']}** — {job['company']}")
-                st.write(f"📍 {job['location']} | {'Remote' if job['remote'] else 'On-site / hybrid'} | {job['source']}")
+                st.write(f"📍 {job['location']} | Remote | {job['source']}")
                 if job['salary']:
                     st.write('**Salary (as listed):**', job['salary'])
-                st.caption('Potential experience overlap: ' + (', '.join(job['competency_hits']) if job['competency_hits'] else 'Not enough detail to identify overlaps'))
-                st.caption('This is a simple title and phrase comparison, not a hiring probability or full requirements assessment.')
+                st.caption('Potential experience overlap: ' + (', '.join(job['competency_hits']) if job['competency_hits'] else 'No explicit competency phrase matches'))
+                st.caption('Check the full posting for U.S. eligibility, work authorization, location restrictions and qualifications.')
                 if job['date']:
                     st.caption('Posted: ' + job['date'])
                 st.link_button('View original posting / Apply', job['url'])
@@ -490,7 +531,7 @@ elif page == 'Find Jobs':
                             'Location': job['location'], 'Job URL': job['url'],
                             'Salary': job['salary'], 'Status': 'Saved',
                             'Date Recorded': str(date.today()), 'Interview Date': '',
-                            'Notes': f"Found via {job['source']}. Verify eligibility and job requirements before applying."
+                            'Notes': f"Found via {job['source']}. Confirm eligibility and requirements before applying."
                         })
                         st.success('Saved to Job Tracker for this session.')
     st.warning('Job Tracker entries are not permanently stored yet. Export your CSV before ending your session.')
