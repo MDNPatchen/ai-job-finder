@@ -1,1 +1,776 @@
-
+{
+  "schema_version": 1,
+  "about": "Editable, per-employer public job-feed catalog. A confirmed career-page identifier does NOT imply RSS is working or jobs are available. Diagnostics checks actual responses.",
+  "neogov": [
+    {
+      "id": "alaska",
+      "name": "State of Alaska",
+      "state": "AK",
+      "career_page": "https://www.governmentjobs.com/careers/alaska"
+    },
+    {
+      "id": "alabama",
+      "name": "State of Alabama",
+      "state": "AL",
+      "career_page": "https://www.governmentjobs.com/careers/alabama"
+    },
+    {
+      "id": "littlerock",
+      "name": "City of Little Rock",
+      "state": "AR",
+      "career_page": "https://www.governmentjobs.com/careers/littlerock"
+    },
+    {
+      "id": "mohavecountyaz",
+      "name": "Mohave County",
+      "state": "AZ",
+      "career_page": "https://www.governmentjobs.com/careers/mohavecountyaz"
+    },
+    {
+      "id": "pinalcounty",
+      "name": "Pinal County",
+      "state": "AZ",
+      "career_page": "https://www.governmentjobs.com/careers/pinalcounty"
+    },
+    {
+      "id": "saccity",
+      "name": "City of Sacramento",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/saccity"
+    },
+    {
+      "id": "sandiego",
+      "name": "City of San Diego",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/sandiego"
+    },
+    {
+      "id": "lacounty",
+      "name": "Los Angeles County",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/lacounty"
+    },
+    {
+      "id": "oc",
+      "name": "Orange County",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/oc"
+    },
+    {
+      "id": "riverside",
+      "name": "Riverside County",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/riverside"
+    },
+    {
+      "id": "sdcounty",
+      "name": "San Diego County",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/sdcounty"
+    },
+    {
+      "id": "santaclara",
+      "name": "Santa Clara County",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/santaclara"
+    },
+    {
+      "id": "centennial",
+      "name": "City of Centennial",
+      "state": "CO",
+      "career_page": "https://www.governmentjobs.com/careers/centennial"
+    },
+    {
+      "id": "colorado",
+      "name": "State of Colorado",
+      "state": "CO",
+      "career_page": "https://www.governmentjobs.com/careers/colorado"
+    },
+    {
+      "id": "CGA",
+      "name": "Connecticut General Assembly",
+      "state": "CT",
+      "career_page": "https://www.governmentjobs.com/Careers/CGA"
+    },
+    {
+      "id": "alachua",
+      "name": "Alachua County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/alachua"
+    },
+    {
+      "id": "broward",
+      "name": "Broward County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/broward"
+    },
+    {
+      "id": "charlottecountyfl",
+      "name": "Charlotte County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/charlottecountyfl"
+    },
+    {
+      "id": "miamifl",
+      "name": "City of Miami",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/miamifl"
+    },
+    {
+      "id": "flaglercounty",
+      "name": "Flagler County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/flaglercounty"
+    },
+    {
+      "id": "seminolecountyfl",
+      "name": "Seminole County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/seminolecountyfl"
+    },
+    {
+      "id": "volusiaco",
+      "name": "Volusia County",
+      "state": "FL",
+      "career_page": "https://www.governmentjobs.com/careers/volusiaco"
+    },
+    {
+      "id": "gwinnett",
+      "name": "Gwinnett County",
+      "state": "GA",
+      "career_page": "https://www.governmentjobs.com/careers/gwinnett"
+    },
+    {
+      "id": "honolulu",
+      "name": "City and County of Honolulu",
+      "state": "HI",
+      "career_page": "https://www.governmentjobs.com/careers/honolulu"
+    },
+    {
+      "id": "desmoines",
+      "name": "City of Des Moines",
+      "state": "IA",
+      "career_page": "https://www.governmentjobs.com/careers/desmoines"
+    },
+    {
+      "id": "polkia",
+      "name": "Polk County",
+      "state": "IA",
+      "career_page": "https://www.governmentjobs.com/careers/polkia"
+    },
+    {
+      "id": "iowa",
+      "name": "State of Iowa",
+      "state": "IA",
+      "career_page": "https://www.governmentjobs.com/careers/iowa"
+    },
+    {
+      "id": "boiseid",
+      "name": "City of Boise",
+      "state": "ID",
+      "career_page": "https://www.governmentjobs.com/careers/boiseid"
+    },
+    {
+      "id": "dupageco",
+      "name": "DuPage County",
+      "state": "IL",
+      "career_page": "https://www.governmentjobs.com/careers/dupageco"
+    },
+    {
+      "id": "lakecountyil",
+      "name": "Lake County",
+      "state": "IL",
+      "career_page": "https://www.governmentjobs.com/careers/lakecountyil"
+    },
+    {
+      "id": "indianapolis",
+      "name": "Indianapolis and Marion County",
+      "state": "IN",
+      "career_page": "https://www.governmentjobs.com/careers/indianapolis"
+    },
+    {
+      "id": "wichita",
+      "name": "City of Wichita",
+      "state": "KS",
+      "career_page": "https://www.governmentjobs.com/careers/wichita"
+    },
+    {
+      "id": "hopkinsvilleky",
+      "name": "City of Hopkinsville",
+      "state": "KY",
+      "career_page": "https://www.governmentjobs.com/careers/hopkinsvilleky/jobs/newprint/5427973"
+    },
+    {
+      "id": "neworleans",
+      "name": "City of New Orleans",
+      "state": "LA",
+      "career_page": "https://www.governmentjobs.com/careers/neworleans"
+    },
+    {
+      "id": "LOUISIANA",
+      "name": "State of Louisiana",
+      "state": "LA",
+      "career_page": "https://www.governmentjobs.com/careers/LOUISIANA"
+    },
+    {
+      "id": "boston",
+      "name": "City of Boston",
+      "state": "MA",
+      "career_page": "https://www.governmentjobs.com/careers/boston"
+    },
+    {
+      "id": "montgomerycountymd",
+      "name": "Montgomery County",
+      "state": "MD",
+      "career_page": "https://www.governmentjobs.com/careers/montgomerycountymd"
+    },
+    {
+      "id": "charlevoix",
+      "name": "City of Charlevoix",
+      "state": "MI",
+      "career_page": "https://www.governmentjobs.com/careers/charlevoix"
+    },
+    {
+      "id": "saginawmi",
+      "name": "City of Saginaw",
+      "state": "MI",
+      "career_page": "https://www.governmentjobs.com/careers/saginawmi"
+    },
+    {
+      "id": "duluthmn",
+      "name": "City of Duluth",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/duluthmn"
+    },
+    {
+      "id": "minneapolismn",
+      "name": "City of Minneapolis",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/minneapolismn"
+    },
+    {
+      "id": "dakota",
+      "name": "Dakota County",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/dakota"
+    },
+    {
+      "id": "hennepin",
+      "name": "Hennepin County",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/hennepin"
+    },
+    {
+      "id": "olmsted",
+      "name": "Olmsted County",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/olmsted"
+    },
+    {
+      "id": "stlouis",
+      "name": "St. Louis County",
+      "state": "MO",
+      "career_page": "https://www.governmentjobs.com/careers/stlouis"
+    },
+    {
+      "id": "mississippi",
+      "name": "State of Mississippi",
+      "state": "MS",
+      "career_page": "https://www.governmentjobs.com/careers/mississippi/jobs/newprint/5479933"
+    },
+    {
+      "id": "madisonmt",
+      "name": "Madison County",
+      "state": "MT",
+      "career_page": "https://www.governmentjobs.com/careers/madisonmt"
+    },
+    {
+      "id": "durhamnc",
+      "name": "City of Durham",
+      "state": "NC",
+      "career_page": "https://www.governmentjobs.com/careers/durhamnc"
+    },
+    {
+      "id": "raleighnc",
+      "name": "City of Raleigh",
+      "state": "NC",
+      "career_page": "https://www.governmentjobs.com/careers/raleighnc"
+    },
+    {
+      "id": "fargond",
+      "name": "City of Fargo",
+      "state": "ND",
+      "career_page": "https://www.governmentjobs.com/careers/fargond"
+    },
+    {
+      "id": "lincolnne",
+      "name": "City of Lincoln and Lancaster County",
+      "state": "NE",
+      "career_page": "https://www.governmentjobs.com/careers/lincolnne"
+    },
+    {
+      "id": "newjersey",
+      "name": "New Jersey Civil Service Commission",
+      "state": "NJ",
+      "career_page": "https://www.governmentjobs.com/careers/newjersey"
+    },
+    {
+      "id": "njjudiciary",
+      "name": "New Jersey Judiciary",
+      "state": "NJ",
+      "career_page": "https://www.governmentjobs.com/careers/njjudiciary"
+    },
+    {
+      "id": "cabq",
+      "name": "City of Albuquerque",
+      "state": "NM",
+      "career_page": "https://www.governmentjobs.com/careers/cabq"
+    },
+    {
+      "id": "clarkcounty",
+      "name": "Clark County",
+      "state": "NV",
+      "career_page": "https://www.governmentjobs.com/careers/clarkcounty"
+    },
+    {
+      "id": "erieco",
+      "name": "Erie County",
+      "state": "NY",
+      "career_page": "https://www.governmentjobs.com/careers/erieco"
+    },
+    {
+      "id": "livingstoncounty",
+      "name": "Livingston County",
+      "state": "NY",
+      "career_page": "https://www.governmentjobs.com/careers/livingstoncounty"
+    },
+    {
+      "id": "nassaucountyny",
+      "name": "Nassau County",
+      "state": "NY",
+      "career_page": "https://www.governmentjobs.com/careers/nassaucountyny"
+    },
+    {
+      "id": "waynecountyny",
+      "name": "Wayne County",
+      "state": "NY",
+      "career_page": "https://www.governmentjobs.com/careers/waynecountyny"
+    },
+    {
+      "id": "cleveland",
+      "name": "City of Cleveland",
+      "state": "OH",
+      "career_page": "https://www.governmentjobs.com/careers/cleveland"
+    },
+    {
+      "id": "columbusoh",
+      "name": "City of Columbus",
+      "state": "OH",
+      "career_page": "https://www.governmentjobs.com/careers/columbusoh"
+    },
+    {
+      "id": "portlandor",
+      "name": "City of Portland",
+      "state": "OR",
+      "career_page": "https://www.governmentjobs.com/careers/portlandor"
+    },
+    {
+      "id": "deschutes",
+      "name": "Deschutes County",
+      "state": "OR",
+      "career_page": "https://www.governmentjobs.com/careers/deschutes"
+    },
+    {
+      "id": "Pittsburgh",
+      "name": "City of Pittsburgh",
+      "state": "PA",
+      "career_page": "https://www.governmentjobs.com/careers/Pittsburgh"
+    },
+    {
+      "id": "greenvillesc",
+      "name": "City of Greenville",
+      "state": "SC",
+      "career_page": "https://www.governmentjobs.com/careers/greenvillesc"
+    },
+    {
+      "id": "siouxfallssd",
+      "name": "City of Sioux Falls",
+      "state": "SD",
+      "career_page": "https://www.governmentjobs.com/careers/siouxfallssd"
+    },
+    {
+      "id": "nashville",
+      "name": "Metro Nashville and Davidson County",
+      "state": "TN",
+      "career_page": "https://www.governmentjobs.com/careers/nashville"
+    },
+    {
+      "id": "harriscountytx",
+      "name": "Harris County",
+      "state": "TX",
+      "career_page": "https://www.governmentjobs.com/careers/harriscountytx"
+    },
+    {
+      "id": "colubbocktx",
+      "name": "Lubbock County",
+      "state": "TX",
+      "career_page": "https://www.governmentjobs.com/careers/colubbocktx"
+    },
+    {
+      "id": "utah",
+      "name": "State of Utah",
+      "state": "UT",
+      "career_page": "https://www.governmentjobs.com/careers/utah"
+    },
+    {
+      "id": "fairfaxcounty",
+      "name": "Fairfax County",
+      "state": "VA",
+      "career_page": "https://www.governmentjobs.com/careers/fairfaxcounty"
+    },
+    {
+      "id": "burlingtonvt",
+      "name": "City of Burlington",
+      "state": "VT",
+      "career_page": "https://www.governmentjobs.com/careers/burlingtonvt/jobs/newprint/5443625"
+    },
+    {
+      "id": "seattle",
+      "name": "City of Seattle",
+      "state": "WA",
+      "career_page": "https://www.governmentjobs.com/careers/seattle"
+    },
+    {
+      "id": "kingcounty",
+      "name": "King County",
+      "state": "WA",
+      "career_page": "https://www.governmentjobs.com/careers/kingcounty"
+    },
+    {
+      "id": "washington",
+      "name": "State of Washington",
+      "state": "WA",
+      "career_page": "https://www.governmentjobs.com/careers/washington"
+    },
+    {
+      "id": "madisonwi",
+      "name": "City of Madison",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/madisonwi"
+    },
+    {
+      "id": "countyofdane",
+      "name": "Dane County",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/countyofdane"
+    },
+    {
+      "id": "eauclaire",
+      "name": "Eau Claire County",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/eauclaire"
+    },
+    {
+      "id": "juneauwi",
+      "name": "Juneau County",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/juneauwi"
+    },
+    {
+      "id": "sheboygancounty",
+      "name": "Sheboygan County",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/sheboygancounty"
+    },
+    {
+      "id": "wv",
+      "name": "State of West Virginia",
+      "state": "WV",
+      "career_page": "https://www.governmentjobs.com/careers/wv"
+    },
+    {
+      "id": "wyoming",
+      "name": "State of Wyoming",
+      "state": "WY",
+      "career_page": "https://www.governmentjobs.com/careers/wyoming"
+    }
+  ],
+  "neoed": [
+    {
+      "id": "cccd",
+      "name": "Coast Community College District",
+      "state": "CA",
+      "career_page": "https://www.schooljobs.com/careers/cccd"
+    },
+    {
+      "id": "ggusd",
+      "name": "Garden Grove Unified",
+      "state": "CA",
+      "career_page": "https://www.schooljobs.com/careers/ggusd"
+    },
+    {
+      "id": "palmdalesd",
+      "name": "Palmdale School District",
+      "state": "CA",
+      "career_page": "https://www.schooljobs.com/careers/palmdalesd"
+    },
+    {
+      "id": "pasadenaedu",
+      "name": "Pasadena City College",
+      "state": "CA",
+      "career_page": "https://www.schooljobs.com/careers/pasadenaedu"
+    },
+    {
+      "id": "venturausd",
+      "name": "Ventura Unified School District",
+      "state": "CA",
+      "career_page": "https://www.schooljobs.com/careers/venturausd"
+    },
+    {
+      "id": "duvalschools",
+      "name": "Duval County Public Schools",
+      "state": "FL",
+      "career_page": "https://www.schooljobs.com/careers/duvalschools"
+    },
+    {
+      "id": "laneedu",
+      "name": "Eugene School District 4J",
+      "state": "OR",
+      "career_page": "https://www.schooljobs.com/careers/laneedu"
+    },
+    {
+      "id": "sdlancaster",
+      "name": "School District of Lancaster",
+      "state": "PA",
+      "career_page": "https://www.schooljobs.com/careers/sdlancaster"
+    },
+    {
+      "id": "sewanee",
+      "name": "University of the South",
+      "state": "TN",
+      "career_page": "https://www.schooljobs.com/careers/sewanee"
+    }
+  ],
+  "greenhouse": [
+    {
+      "id": "aksengineeringforestryllc",
+      "name": "AKS Engineering"
+    },
+    {
+      "id": "amn",
+      "name": "ARCO/Murray National Construction"
+    },
+    {
+      "id": "boldbusiness",
+      "name": "Bold Business"
+    },
+    {
+      "id": "brph",
+      "name": "BRPH"
+    },
+    {
+      "id": "clear",
+      "name": "CLEAR"
+    },
+    {
+      "id": "courtyardinc",
+      "name": "Courtyard"
+    },
+    {
+      "id": "energyprojectsolutionsllc",
+      "name": "Energy Project Solutions"
+    },
+    {
+      "id": "imaginepediatrics",
+      "name": "Imagine Pediatrics"
+    },
+    {
+      "id": "industrialelectricmanufacturing",
+      "name": "Industrial Electric Manufacturing"
+    },
+    {
+      "id": "powerdigitalmarketing",
+      "name": "Power Digital"
+    },
+    {
+      "id": "riseamg",
+      "name": "Rise Association Management Group"
+    },
+    {
+      "id": "sbusa",
+      "name": "S&B USA"
+    },
+    {
+      "id": "spsnorthamerica",
+      "name": "SPS North America"
+    },
+    {
+      "id": "unitedveincenters",
+      "name": "United Vein & Vascular Centers"
+    },
+    {
+      "id": "winnerscirclegroupoftexas1",
+      "name": "Winners Circle Group"
+    },
+    {
+      "id": "wpp",
+      "name": "WPP"
+    }
+  ],
+  "ashby": [
+    {
+      "id": "alternativepayments",
+      "name": "Alternative Payments"
+    },
+    {
+      "id": "cardless",
+      "name": "Cardless"
+    },
+    {
+      "id": "claylabs",
+      "name": "Clay"
+    },
+    {
+      "id": "ember-life-sciences",
+      "name": "Ember Life Sciences"
+    },
+    {
+      "id": "encord",
+      "name": "Encord"
+    },
+    {
+      "id": "imprint",
+      "name": "Imprint"
+    },
+    {
+      "id": "partly.com",
+      "name": "Partly"
+    },
+    {
+      "id": "rain",
+      "name": "Rain"
+    },
+    {
+      "id": "redesign health",
+      "name": "Redesign Health"
+    },
+    {
+      "id": "remodelboom",
+      "name": "RemodelBoom"
+    },
+    {
+      "id": "talkiatry",
+      "name": "Talkiatry"
+    },
+    {
+      "id": "tensec",
+      "name": "Tensec"
+    }
+  ],
+  "smartrecruiters": [
+    {
+      "id": "Bertelsmann-Jobs",
+      "name": "Bertelsmann / Arvato",
+      "government": false
+    },
+    {
+      "id": "CityAndCountyOfSanFrancisco1",
+      "name": "City and County of San Francisco",
+      "government": true
+    },
+    {
+      "id": "Dexterra",
+      "name": "Dexterra",
+      "government": false
+    },
+    {
+      "id": "InternationalDairyQueen",
+      "name": "International Dairy Queen",
+      "government": false
+    },
+    {
+      "id": "KIPP",
+      "name": "KIPP",
+      "government": false
+    },
+    {
+      "id": "MadeByFernLLC",
+      "name": "Made by Fern",
+      "government": false
+    },
+    {
+      "id": "prosidianconsulting",
+      "name": "ProSidian Consulting",
+      "government": false
+    },
+    {
+      "id": "PSICRO",
+      "name": "PSI CRO",
+      "government": false
+    }
+  ],
+  "lever": [
+    {
+      "id": "billboarder",
+      "name": "Billboarder"
+    },
+    {
+      "id": "kcasbio",
+      "name": "KCAS Bio"
+    },
+    {
+      "id": "momentshospice-2",
+      "name": "Moments Hospice"
+    },
+    {
+      "id": "networkconnex",
+      "name": "Network Connex"
+    }
+  ],
+  "workable": [
+    {
+      "id": "agcp",
+      "name": "AG Consulting Partners"
+    },
+    {
+      "id": "atria-health",
+      "name": "Atria Health and Research Institute"
+    },
+    {
+      "id": "futureplc",
+      "name": "Future Publishing"
+    },
+    {
+      "id": "hoa-talent",
+      "name": "HOA Talent"
+    },
+    {
+      "id": "johnson-mark-pc",
+      "name": "Johnson Mark P.C."
+    },
+    {
+      "id": "keller-executive-search",
+      "name": "Keller Executive Search"
+    },
+    {
+      "id": "lv-petroleum",
+      "name": "LV Petroleum"
+    },
+    {
+      "id": "nakedmd",
+      "name": "NakedMD"
+    },
+    {
+      "id": "pj-fitz",
+      "name": "P.J. Fitzpatrick"
+    },
+    {
+      "id": "the-common-market",
+      "name": "The Common Market"
+    },
+    {
+      "id": "yugo",
+      "name": "Yugo"
+    }
+  ]
+}
