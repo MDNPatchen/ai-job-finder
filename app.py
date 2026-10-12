@@ -77,8 +77,39 @@ def analyze_locally(resume):
             verify.append(skill)
     return {'documented': documented, 'verify': verify, 'roles': roles, 'suggestions': suggestions}
 
+# Career matches use the same publisher competency evidence as Career Analysis.
+# Scores are transparent overlap indicators, not employment eligibility predictions.
+CAREER_PATHS = [
+    {'title': 'Regional Operations Director', 'industry': 'Multi-location businesses', 'core': ['Multi-site business leadership', 'Financial & P&L leadership', 'Talent & organizational change'], 'additional': ['Distribution & logistics', 'Negotiation & vendor management'], 'focus': 'Emphasize locations led, budgets, operational improvements and team size.'},
+    {'title': 'General Manager', 'industry': 'Services, media, retail and local businesses', 'core': ['Financial & P&L leadership', 'Advertising & sales leadership', 'Talent & organizational change'], 'additional': ['Multi-site business leadership', 'Community partnerships'], 'focus': 'Highlight overall business ownership, revenue, profitability and leadership results.'},
+    {'title': 'Director of Business Development', 'industry': 'Business services and B2B organizations', 'core': ['Advertising & sales leadership', 'Community partnerships', 'Financial & P&L leadership'], 'additional': ['Audience & marketing development', 'Negotiation & vendor management'], 'focus': 'Show account growth, partnerships, pricing strategy and measurable sales outcomes.'},
+    {'title': 'Director of Marketing', 'industry': 'Marketing, media and consumer services', 'core': ['Audience & marketing development', 'Digital transformation', 'Advertising & sales leadership'], 'additional': ['Community partnerships', 'Financial & P&L leadership'], 'focus': 'Show audience growth, campaign results, digital revenue and customer acquisition.'},
+    {'title': 'Distribution Operations Director', 'industry': 'Logistics and delivery services', 'core': ['Distribution & logistics', 'Talent & organizational change', 'Financial & P&L leadership'], 'additional': ['Multi-site business leadership', 'Negotiation & vendor management'], 'focus': 'Show delivery efficiencies, route changes, service levels and cost savings.'},
+    {'title': 'Director of Community Partnerships', 'industry': 'Nonprofits, education and civic organizations', 'core': ['Community partnerships', 'Talent & organizational change', 'Audience & marketing development'], 'additional': ['Advertising & sales leadership', 'Financial & P&L leadership'], 'focus': 'Describe stakeholder relationships, public-facing leadership and partnership outcomes.'},
+    {'title': 'Digital Business Director', 'industry': 'Digital media and subscription businesses', 'core': ['Digital transformation', 'Audience & marketing development', 'Financial & P&L leadership'], 'additional': ['Advertising & sales leadership', 'Editorial & cross-functional leadership'], 'focus': 'Show digital product initiatives, subscription or advertising growth, and cross-team execution.'},
+    {'title': 'Chief Operating Officer (smaller organization)', 'industry': 'Small and midsize organizations', 'core': ['Financial & P&L leadership', 'Multi-site business leadership', 'Talent & organizational change'], 'additional': ['Negotiation & vendor management', 'Advertising & sales leadership'], 'focus': 'Document executive decision-making, business scale, direct reports and financial accountability.'},
+]
+
+
+def get_career_matches(resume):
+    analysis = analyze_locally(resume)
+    evidence_by_skill = {item['skill']: item['evidence'] for item in analysis['documented']}
+    results = []
+    for path in CAREER_PATHS:
+        all_skills = path['core'] + path['additional']
+        matched = [skill for skill in all_skills if skill in evidence_by_skill]
+        unconfirmed = [skill for skill in all_skills if skill not in evidence_by_skill]
+        # Core requirements count twice as much as additional competencies.
+        total_weight = 2 * len(path['core']) + len(path['additional'])
+        matched_weight = sum(2 if skill in path['core'] else 1 for skill in matched)
+        score = round(100 * matched_weight / total_weight)
+        results.append({**path, 'score': score, 'matched': matched,
+                        'unconfirmed': unconfirmed, 'evidence': evidence_by_skill})
+    return sorted(results, key=lambda x: (-x['score'], x['title']))
+
+
 st.sidebar.title('💼 AI Job Finder')
-page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Find Jobs','Job Tracker'])
+page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Career Matches','Find Jobs','Job Tracker'])
 st.sidebar.caption('Free local resume comparison. No API key or AI usage charges.')
 
 if page == 'Dashboard':
@@ -108,6 +139,7 @@ elif page == 'My Resume':
                 if extracted != st.session_state.resume_text:
                     st.session_state.resume_text = extracted
                     st.session_state.analysis = None
+                    st.session_state.pop('career_matches', None)
                     st.session_state.approved_suggestions = []
                 st.success('Resume uploaded successfully!')
             else:
@@ -179,6 +211,50 @@ elif page == 'Career Analysis':
             if approved:
                 st.download_button('⬇️ Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
             st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
+
+elif page == 'Career Matches':
+    st.title('🎯 Transferable Career Matches')
+    st.write('Explore career paths outside newspaper publishing based on the responsibilities actually mentioned in your resume.')
+    st.info('Free, local phrase-based matching. These are exploratory comparisons, not job openings, hiring predictions or professional qualifications assessments.')
+    if not st.session_state.resume_text.strip():
+        st.warning('First upload your resume on the My Resume page.')
+    else:
+        st.write('**Actual career background:** ' + (', '.join(st.session_state.confirmed_titles) or 'Group Newspaper Publisher'))
+        st.caption('Your real title is not changed to match another industry.')
+        if st.button('Compare My Career Skills', type='primary'):
+            st.session_state.career_matches = get_career_matches(st.session_state.resume_text)
+        if 'career_matches' in st.session_state:
+            results = st.session_state.career_matches
+            industry_options = ['All industries'] + sorted({r['industry'] for r in results})
+            industry = st.selectbox('Filter by industry', industry_options)
+            visible = [r for r in results if industry == 'All industries' or r['industry'] == industry]
+            st.caption('Overlap scores measure how many weighted phrases were found in your resume. A low score can mean missing wording, not missing ability.')
+            for r in visible:
+                with st.expander(f"{r['title']} — {r['score']}% documented competency overlap", expanded=False):
+                    st.write('**Industry:**', r['industry'])
+                    st.progress(r['score'] / 100)
+                    st.write('**Skills supported by resume phrases:**')
+                    if r['matched']:
+                        for skill in r['matched']:
+                            st.markdown('**' + skill + '**')
+                            st.caption('Resume evidence: ' + ' | '.join(r['evidence'][skill][:2]))
+                    else:
+                        st.write('None from this starter competency list.')
+                    st.write('**Responsibilities to confirm or document:**')
+                    if r['unconfirmed']:
+                        for skill in r['unconfirmed']:
+                            st.write('• ' + skill)
+                    else:
+                        st.write('All mapped areas had phrase matches; verify that the duties were actually performed.')
+                    st.write('**Resume tailoring idea:**', r['focus'])
+                    st.caption('Only add achievements, responsibilities and numbers you can substantiate. Use Career Analysis to edit and approve suggested wording.')
+            st.download_button('⬇️ Export Career Matches CSV',
+                pd.DataFrame([{'Career':r['title'], 'Industry':r['industry'],
+                    'Documented overlap (%)':r['score'],
+                    'Matched areas':'; '.join(r['matched']),
+                    'Areas to verify':'; '.join(r['unconfirmed']),
+                    'Resume focus':r['focus']} for r in visible]).to_csv(index=False),
+                'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
