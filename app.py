@@ -165,32 +165,113 @@ SEARCH_TERMS = [
 ]
 
 
-def fetch_json(url):
-    request = Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; PersonalCareerResearch/1.0)',
-        'Accept': 'application/json'})
-    with urlopen(request, timeout=16) as response:
-        return json.load(response)
-
+# ----------------------- FREE JOB SEARCH ENGINE -----------------------
+# No OpenAI, Adzuna, scraping or paid API. Sources load in the background.
+# Source coverage is necessarily partial: NEOGOV has per-agency feeds, not
+# a public national jobs API. Failed feeds and undated vacancies are excluded.
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MAX_POSTING_AGE_DAYS = 45
 
+US_STATES = {
+    'AL':'Alabama','AK':'Alaska','AZ':'Arizona','AR':'Arkansas','CA':'California',
+    'CO':'Colorado','CT':'Connecticut','DE':'Delaware','FL':'Florida','GA':'Georgia',
+    'HI':'Hawaii','ID':'Idaho','IL':'Illinois','IN':'Indiana','IA':'Iowa','KS':'Kansas',
+    'KY':'Kentucky','LA':'Louisiana','ME':'Maine','MD':'Maryland','MA':'Massachusetts',
+    'MI':'Michigan','MN':'Minnesota','MS':'Mississippi','MO':'Missouri','MT':'Montana',
+    'NE':'Nebraska','NV':'Nevada','NH':'New Hampshire','NJ':'New Jersey','NM':'New Mexico',
+    'NY':'New York','NC':'North Carolina','ND':'North Dakota','OH':'Ohio','OK':'Oklahoma',
+    'OR':'Oregon','PA':'Pennsylvania','RI':'Rhode Island','SC':'South Carolina',
+    'SD':'South Dakota','TN':'Tennessee','TX':'Texas','UT':'Utah','VT':'Vermont',
+    'VA':'Virginia','WA':'Washington','WV':'West Virginia','WI':'Wisconsin','WY':'Wyoming',
+    'DC':'District of Columbia',
+}
+
+# Agency tokens below were checked against GovernmentJobs career-page URLs,
+# not against live feed availability. RSS availability is tested on every load.
+# Deliberately distributed across regions, rather than Minnesota-only.
+GOVERNMENT_AGENCIES = (
+    ('hennepin', 'Hennepin County', 'MN'),
+    ('minneapolismn', 'City of Minneapolis', 'MN'),
+    ('polkia', 'Polk County', 'IA'),
+    ('iowa', 'State of Iowa', 'IA'),
+    ('siouxfallssd', 'City of Sioux Falls', 'SD'),
+    ('dupageco', 'DuPage County', 'IL'),
+    ('lakecountyil', 'Lake County', 'IL'),
+    ('washington', 'State of Washington', 'WA'),
+    ('kingcounty', 'King County', 'WA'),
+    ('seattle', 'City of Seattle', 'WA'),
+    ('portlandor', 'City of Portland', 'OR'),
+    ('sandiego', 'City of San Diego', 'CA'),
+    ('clarkcounty', 'Clark County', 'NV'),
+    ('pinalcounty', 'Pinal County', 'AZ'),
+    ('mohavecountyaz', 'Mohave County', 'AZ'),
+    ('centennial', 'City of Centennial', 'CO'),
+    ('harriscountytx', 'Harris County', 'TX'),
+    ('colubbocktx', 'Lubbock County', 'TX'),
+    ('gwinnett', 'Gwinnett County', 'GA'),
+    ('seminolecountyfl', 'Seminole County', 'FL'),
+    ('flaglercounty', 'Flagler County', 'FL'),
+    ('durhamnc', 'City of Durham', 'NC'),
+    ('wichita', 'City of Wichita', 'KS'),
+    ('utah', 'State of Utah', 'UT'),
+    ('LOUISIANA', 'State of Louisiana', 'LA'),
+    ('Pittsburgh', 'City of Pittsburgh', 'PA'),
+    ('cabq', 'City of Albuquerque', 'NM'),
+    ('boiseid', 'City of Boise', 'ID'),
+    ('fairfaxcounty', 'Fairfax County', 'VA'),
+)
+
+# Jobs from government boards may contain unusual occupational titles. These
+# patterns cover publisher-adjacent operations, business and civic management.
+ROLE_PATTERNS = [
+    (r'\b(chief operating officer|coo|chief administrative officer|chief business officer)\b', 'Executive operations', 15),
+    (r'\b(city|county|town|village|borough) (administrator|manager)\b', 'Government leadership', 15),
+    (r'\b(deputy|assistant) (city|county|town) (administrator|manager)\b', 'Government leadership', 14),
+    (r'\b(executive director|managing director|general manager|group publisher|publisher)\b', 'Executive leadership', 13),
+    (r'\b(regional|district|area) (operations )?(director|manager|vice president|vp)\b', 'Regional leadership', 13),
+    (r'\b(director|vice president|vp|head|chief) of (business development|operations|distribution|marketing|communications|community engagement|community relations|strategic partnerships|digital business|revenue|economic development|administration|administrative services|external affairs|public affairs|public relations)\b', 'Management leadership', 13),
+    (r'\b(operations|distribution|logistics|business development|economic development|community engagement|partnerships|communications|marketing|revenue|administrative services|business operations|commercial|digital|public affairs|public relations) (director|manager|lead|vice president|vp)\b', 'Management leadership', 12),
+    (r'\b(assistant|deputy|associate) director of (operations|administration|business|community|communications|economic development|distribution|marketing|public works)\b', 'Management leadership', 11),
+    (r'\b(program|business|operations|project) (administrator|manager)\b', 'Operations management', 9),
+    (r'\b(budget|strategic planning|procurement|contract|vendor|circulation|customer experience) (director|manager)\b', 'Business management', 9),
+    (r'\b(public works director|director of public works|county executive|city executive)\b', 'Public administration', 11),
+    (r'\b(nonprofit|foundation|association) (president|director|executive)\b', 'Nonprofit leadership', 10),
+]
+
+# Specialized roles with credentials not established by the user's verified
+# experience are excluded, even when titles also contain Director or VP.
+SPECIALIST_EXCLUSIONS = re.compile(
+    r'\b(physician|surgeon|nurse|nursing|clinical|dentist|pharmacist|attorney|'
+    r'counsel|lawyer|litigation|police|sheriff|firefighter|pilot|aviation|'
+    r'aerospace|spacecraft|satellite|rocket|machine learning|software engineer|'
+    r'engineering director|director of engineering|security engineer|'
+    r'cybersecurity|data scientist|research scientist|clinical director|'
+    r'architect|electrical engineer|civil engineer|mechanical engineer|'
+    r'veterinary|veterinarian|radiologist|therapist|psychologist|'
+    r'professor|principal software|head of product engineering)\b', re.I)
+
+
+def fetch_json(url, timeout=12):
+    request = Request(url, headers={
+        'User-Agent':'Mozilla/5.0 (compatible; PersonalCareerResearch/2.0)',
+        'Accept':'application/json'})
+    with urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
 
 def parse_posted_date(value):
-    """Return a date for common API date formats; unknown dates stay unknown."""
     if value is None or value == '':
         return None
     if isinstance(value, (int, float)):
         try:
-            timestamp = float(value)
-            if timestamp > 1e11:  # Unix milliseconds
-                timestamp /= 1000
-            return datetime.fromtimestamp(timestamp, tz=timezone.utc).date()
+            n = float(value) / (1000 if float(value) > 1e11 else 1)
+            return datetime.fromtimestamp(n, timezone.utc).date()
         except (ValueError, OverflowError, OSError):
             return None
     raw = str(value).strip()
     try:
-        return datetime.fromisoformat(raw.replace('Z', '+00:00')).date()
+        return datetime.fromisoformat(raw.replace('Z','+00:00')).date()
     except ValueError:
         pass
     try:
@@ -204,427 +285,436 @@ def parse_posted_date(value):
 
 
 def is_recent_posting(job, today=None):
-    """Only accept known publication dates from the last 45 days."""
     today = today or datetime.now(timezone.utc).date()
-    published = parse_posted_date(job.get('date'))
-    return published is not None and today - timedelta(days=MAX_POSTING_AGE_DAYS) <= published <= today
+    when = parse_posted_date(job.get('date'))
+    return when is not None and today - timedelta(days=MAX_POSTING_AGE_DAYS) <= when <= today
+
+
+def html_to_text(value):
+    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', str(value or '')))).strip()
 
 
 def standard_job(title, company, url, location, description, source,
-                 remote=True, salary='', posted='', eligible=True):
-    if not (title and company and str(url).startswith('https://')):
+                 remote=False, salary='', posted=None, eligible=True, gov=False):
+    posted_date = parse_posted_date(posted)
+    if not title or not company or not isinstance(url, str) or not url.startswith('https://'):
         return None
-    return {'title': str(title).strip(), 'company': str(company).strip(),
-            'url': str(url), 'location': str(location or 'Not specified'),
-            'remote': bool(remote), 'salary': str(salary or ''),
-            'date': parse_posted_date(posted).isoformat() if parse_posted_date(posted) else '',
-            'description': html_to_text(str(description or ''))[:6000],
-            'source': source, 'eligible': eligible}
-
-
-US_STATES = {
-    'AL':'Alabama','AK':'Alaska','AZ':'Arizona','AR':'Arkansas','CA':'California',
-    'CO':'Colorado','CT':'Connecticut','DE':'Delaware','FL':'Florida','GA':'Georgia',
-    'HI':'Hawaii','ID':'Idaho','IL':'Illinois','IN':'Indiana','IA':'Iowa','KS':'Kansas',
-    'KY':'Kentucky','LA':'Louisiana','ME':'Maine','MD':'Maryland','MA':'Massachusetts',
-    'MI':'Michigan','MN':'Minnesota','MS':'Mississippi','MO':'Missouri','MT':'Montana',
-    'NE':'Nebraska','NV':'Nevada','NH':'New Hampshire','NJ':'New Jersey','NM':'New Mexico',
-    'NY':'New York','NC':'North Carolina','ND':'North Dakota','OH':'Ohio','OK':'Oklahoma',
-    'OR':'Oregon','PA':'Pennsylvania','RI':'Rhode Island','SC':'South Carolina',
-    'SD':'South Dakota','TN':'Tennessee','TX':'Texas','UT':'Utah','VT':'Vermont',
-    'VA':'Virginia','WA':'Washington','WV':'West Virginia','WI':'Wisconsin','WY':'Wyoming',
-    'DC':'District of Columbia'
-}
+    return {
+        'title': str(title).strip(), 'company': str(company).strip(),
+        'url': url, 'location': str(location or 'Location not specified'),
+        'description': html_to_text(description)[:6500], 'source': source,
+        'remote': bool(remote), 'salary': str(salary or ''),
+        'date': posted_date.isoformat() if posted_date else '',
+        'eligible': bool(eligible), 'government': gov,
+    }
 
 
 def states_in_location(location):
-    """Identify explicit U.S. states only; do not guess from vague locations."""
     text = str(location or '')
     found = set()
     for code, name in US_STATES.items():
         if re.search(r'(?<![A-Za-z])' + re.escape(name) + r'(?![A-Za-z])', text, re.I):
             found.add(code)
-        # Abbreviations only after a comma, or as a standalone location.
-        if re.search(r',\s*' + code + r'(?:\b|$)', text) or text.strip() == code:
+        if re.search(r'(?:,\s*|\b)' + code + r'(?:\b|$)', text):
             found.add(code)
     return sorted(found)
 
 
-def muse_location(locations):
-    names = [x.get('name','') for x in (locations or []) if isinstance(x, dict)]
-    return ' / '.join(n for n in names if n) or 'Not specified'
+def role_classification(title):
+    if SPECIALIST_EXCLUSIONS.search(title or ''):
+        return None
+    for pattern, category, score in ROLE_PATTERNS:
+        if re.search(pattern, title or '', re.I):
+            return category, score
+    return None
 
 
-def muse_remote(location):
-    return bool(re.search(r'\b(remote|flexible|work from home|anywhere|virtual)\b', location, re.I))
+def us_remote_eligible(raw):
+    """Do not assume 'remote' means remote-from-US."""
+    if isinstance(raw, list):
+        if not raw:
+            return True  # Provider explicitly defines empty restrictions as worldwide.
+        s = ' '.join((r.get('alpha2') or r.get('name') or '') if isinstance(r,dict) else str(r) for r in raw)
+    else:
+        s = str(raw or '')
+    return bool(re.search(r'\b(US|USA|United States|United States of America|North America|Worldwide|Anywhere|Global)\b', s, re.I))
 
 
-def muse_us_eligible(location):
-    return bool(states_in_location(location) or re.search(
-        r'\b(United States|USA|U\.S\.|US Remote|Remote - US)\b', location, re.I))
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_muse_jobs():
-    """The Muse offers public location-tagged jobs, including non-remote roles."""
-    jobs, errors = [], []
-    # Public API: management and senior-level pages; small bounded request count.
-    for level in ('management', 'Senior Level'):
-        for page in range(0, 8):
-            try:
-                url = 'https://www.themuse.com/api/public/jobs?' + urlencode(
-                    {'page': page, 'level': level})
-                payload = fetch_json(url)
-                records = payload.get('results', [])
-                if not records:
-                    break
-                for rec in records:
-                    location = muse_location(rec.get('locations'))
-                    is_remote = muse_remote(location)
-                    eligible = muse_us_eligible(location)
-                    company = rec.get('company') or {}
-                    company_name = company.get('name', '') if isinstance(company, dict) else str(company)
-                    refs = rec.get('refs') or {}
-                    link = refs.get('landing_page') or refs.get('external_apply_url') or ''
-                    job = standard_job(rec.get('name'), company_name, link,
-                        location, rec.get('contents', ''), 'The Muse', is_remote,
-                        '', rec.get('publication_date'), eligible)
-                    if job:
-                        jobs.append(job)
-            except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-                errors.append(f'The Muse {level} page {page}: {type(exc).__name__}')
-                break
-    return jobs, errors
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_public_jobs():
-    jobs, errors, counts = [], [], {}
-    muse_jobs, muse_errors = load_muse_jobs()
-    jobs.extend(muse_jobs)
-    errors.extend(muse_errors)
-    counts['The Muse'] = len(muse_jobs)
-    # Jobicy publishes recent remote jobs. Its USA filter is supplied by Jobicy.
-    try:
-        payload = fetch_json('https://jobicy.com/api/v2/remote-jobs?count=200&geo=usa')
-        for rec in payload.get('jobs', []):
-            job = standard_job(rec.get('jobTitle'), rec.get('companyName'),
-                rec.get('url'), rec.get('jobGeo') or 'USA / Remote',
-                rec.get('jobDescription'), 'Jobicy', True,
-                rec.get('annualSalaryMin') or '', rec.get('pubDate'), True)
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_neogov_feeds():
+    """Best-effort agency RSS. Career page URL ≠ guarantee of working RSS."""
+    def one_agency(agency):
+        token, employer, state = agency
+        url = 'https://www.governmentjobs.com/SearchEngine/JobsFeed?' + urlencode({'agency': token})
+        req = Request(url, headers={'User-Agent':'Mozilla/5.0 (personal job research)',
+                                    'Accept':'application/rss+xml, application/xml, text/xml, */*'})
+        with urlopen(req, timeout=7) as response:
+            raw = response.read(3_000_000)
+        root = ET.fromstring(raw)
+        items = root.findall('.//item')
+        jobs = []
+        for item in items[:350]:
+            def field(key):
+                return (item.findtext(key) or '').strip()
+            job = standard_job(field('title'), employer, field('link'),
+                f'{employer}, {state}', field('description'), 'NEOGOV',
+                posted=field('pubDate') or field('date'), gov=True)
             if job: jobs.append(job)
-        counts['Jobicy'] = len([j for j in jobs if j['source'] == 'Jobicy'])
-    except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-        errors.append(f'Jobicy could not be loaded ({type(exc).__name__}).')
-
-    # Himalayas searches remotely hosted jobs by keyword and country. Searching
-    # provider-side prevents executive titles from being lost in feed sampling.
-    for term in SEARCH_TERMS:
-        try:
-            url = 'https://himalayas.app/jobs/api/search?' + urlencode(
-                {'q': term, 'country': 'US', 'sort': 'recent', 'page': 1})
-            payload = fetch_json(url)
-            for rec in payload.get('jobs', []):
-                restrictions = rec.get('locationRestrictions') or []
-                location = ', '.join(str(x) for x in restrictions) if restrictions else 'Worldwide / Remote'
-                low, high, currency = rec.get('minSalary'), rec.get('maxSalary'), rec.get('currency') or ''
-                salary = f'{currency} {low:,}–{high:,} / {rec.get("salaryPeriod") or "year"}' if isinstance(low, (int,float)) and isinstance(high,(int,float)) else ''
-                job = standard_job(rec.get('title'), rec.get('companyName'),
-                    rec.get('applicationLink'), location,
-                    rec.get('description') or rec.get('excerpt'), 'Himalayas',
-                    True, salary, rec.get('pubDate'), True)
-                if job: jobs.append(job)
-        except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-            errors.append(f'Himalayas search for {term} failed ({type(exc).__name__}).')
-    counts['Himalayas'] = len([j for j in jobs if j['source'] == 'Himalayas'])
-
-    # Remotive supplements those sources. Location restrictions are interpreted
-    # conservatively, rather than assuming every remote job accepts U.S. applicants.
-    try:
-        payload = fetch_json('https://remotive.com/api/remote-jobs')
-        for rec in payload.get('jobs', []):
-            location = str(rec.get('candidate_required_location') or 'Unspecified')
-            eligible = any(x in location.lower() for x in
-                ['usa', 'united states', 'u.s.', 'north america', 'worldwide', 'anywhere', 'global'])
-            job = standard_job(rec.get('title'), rec.get('company_name'),
-                rec.get('url'), location, rec.get('description'), 'Remotive',
-                True, rec.get('salary'), rec.get('publication_date'), eligible)
-            if job: jobs.append(job)
-        counts['Remotive'] = len([j for j in jobs if j['source'] == 'Remotive'])
-    except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-        errors.append(f'Remotive could not be loaded ({type(exc).__name__}).')
-    unique = {}
-    for job in jobs:
-        unique.setdefault(job['url'].split('?')[0], job)
-    return list(unique.values()), errors, counts
-
-# Additional public employer career feeds. These APIs are employer-specific;
-# tokens are entered by the user rather than guessed or scraped.
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_employer_boards(greenhouse_tokens, lever_tokens):
-    jobs, errors, counts = [], [], {}
-    for token in greenhouse_tokens[:12]:
-        try:
-            payload = fetch_json(f'https://boards-api.greenhouse.io/v1/boards/{quote(token)}/jobs?content=true')
-            records = payload.get('jobs', [])
-            for rec in records:
-                location = (rec.get('location') or {}).get('name', 'Not specified')
-                remote = muse_remote(location) or muse_remote(rec.get('title', ''))
-                job = standard_job(rec.get('title'), token, rec.get('absolute_url'), location,
-                    rec.get('content'), 'Greenhouse: ' + token, remote, '',
-                    rec.get('first_published') or rec.get('updated_at'),
-                    muse_us_eligible(location))
-                # updated_at is a modification date, NOT a publication date.
-                # Never treat it as proof of a recent posting.
-                if job and rec.get('first_published'):
-                    jobs.append(job)
-            counts['Greenhouse: ' + token] = sum(j['source'] == 'Greenhouse: ' + token for j in jobs)
-        except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-            errors.append(f'Greenhouse board {token}: {type(exc).__name__}')
-    for token in lever_tokens[:12]:
-        try:
-            records = fetch_json(f'https://api.lever.co/v0/postings/{quote(token)}?mode=json&limit=100')
-            for rec in records:
-                categories = rec.get('categories') or {}
-                location = categories.get('location') or 'Not specified'
-                workplace = categories.get('workplaceType') or ''
-                remote = workplace.lower() == 'remote' or muse_remote(location)
-                job = standard_job(rec.get('text'), token, rec.get('hostedUrl'), location,
-                    (rec.get('descriptionPlain') or '') + ' ' + (rec.get('additionalPlain') or ''),
-                    'Lever: ' + token, remote, '', rec.get('createdAt'),
-                    muse_us_eligible(location))
-                if job: jobs.append(job)
-            counts['Lever: ' + token] = sum(j['source'] == 'Lever: ' + token for j in jobs)
-        except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-            errors.append(f'Lever board {token}: {type(exc).__name__}')
-    return jobs, errors, counts
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_usajobs(api_key, email):
-    if not api_key or not email:
-        return [], [], {}
-    jobs, errors = [], []
-    for keyword in ['program manager', 'operations manager', 'business development',
-                    'public affairs director', 'administrative officer']:
-        try:
-            url = 'https://data.usajobs.gov/api/search?' + urlencode(
-                {'Keyword': keyword, 'ResultsPerPage': 100})
-            request = Request(url, headers={'Host': 'data.usajobs.gov',
-                'User-Agent': email, 'Authorization-Key': api_key,
-                'Accept': 'application/json'})
-            with urlopen(request, timeout=20) as response:
-                payload = json.load(response)
-            for item in (payload.get('SearchResult') or {}).get('SearchResultItems', []):
-                rec = item.get('MatchedObjectDescriptor') or {}
-                detail = rec.get('UserArea', {}).get('Details', {})
-                locs = rec.get('PositionLocation') or []
-                location = ' / '.join(x.get('LocationName', '') for x in locs) or 'United States'
-                description = ' '.join(str(detail.get(k) or '') for k in
-                    ['JobSummary', 'MajorDuties', 'QualificationSummary'])
-                job = standard_job(rec.get('PositionTitle'), rec.get('OrganizationName'),
-                    rec.get('PositionURI'), location, description, 'USAJOBS',
-                    bool(re.search(r'\bremote\b', location, re.I)), '',
-                    rec.get('PublicationStartDate'), True)
-                if job: jobs.append(job)
-        except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-            errors.append(f'USAJOBS ({keyword}): {type(exc).__name__}')
-    return jobs, errors, {'USAJOBS': len(jobs)}
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_adzuna_jobs(app_id, app_key, search_terms):
-    """Search Adzuna US jobs. Requires user-provided developer credentials."""
-    if not app_id or not app_key:
-        return [], [], {'Adzuna': 0}
-    jobs, errors = [], []
-    for term in search_terms[:6]:
-        for page in (1, 2):
+        return jobs, len(items)
+    jobs, failures, counts = [], [], {}
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        tasks = {pool.submit(one_agency, a): a for a in GOVERNMENT_AGENCIES}
+        for task in as_completed(tasks):
+            token, employer, state = tasks[task]
             try:
-                url = 'https://api.adzuna.com/v1/api/jobs/us/search/' + str(page) + '?' + urlencode({
-                    'app_id': app_id, 'app_key': app_key, 'results_per_page': 50,
-                    'what': term, 'sort_by': 'date', 'max_days_old': MAX_POSTING_AGE_DAYS})
-                payload = fetch_json(url)
-                for rec in payload.get('results', []):
-                    location_data = rec.get('location') or {}
-                    location = location_data.get('display_name') or ', '.join(location_data.get('area', []))
-                    employer = rec.get('company') or {}
-                    company = employer.get('display_name', '') if isinstance(employer, dict) else str(employer)
-                    salary = ''
-                    if rec.get('salary_min'):
-                        salary = '$' + format(float(rec['salary_min']), ',.0f')
-                        if rec.get('salary_max'):
-                            salary += '–$' + format(float(rec['salary_max']), ',.0f')
-                    job = standard_job(rec.get('title'), company, rec.get('redirect_url'),
-                        location, rec.get('description'), 'Adzuna US',
-                        muse_remote(location) or muse_remote(rec.get('title', '')),
-                        salary, rec.get('created'), True)
-                    if job: jobs.append(job)
-            except (HTTPError, URLError, TimeoutError, ValueError, OSError, TypeError) as exc:
-                errors.append(f'Adzuna {term} page {page}: {type(exc).__name__}')
-                break
-    return jobs, errors, {'Adzuna': len(jobs)}
+                records, count = task.result()
+                jobs.extend(records)
+                counts[f'{employer} ({state})'] = count
+            except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
+                failures.append(f'{employer} ({state}): {type(exc).__name__}')
+                counts[f'{employer} ({state})'] = 0
+    return jobs, failures, counts
 
 
-def external_board_urls(keywords, state_name):
-    """Legitimate interactive searches; never present as imported postings."""
-    query = keywords.strip() or 'operations director OR general manager OR chief operating officer'
-    location = '' if state_name == 'All states' else state_name
-    return {
-        'Indeed': 'https://www.indeed.com/jobs?' + urlencode({'q': query, 'l': location, 'fromage': 45}),
-        'LinkedIn': 'https://www.linkedin.com/jobs/search/?' + urlencode({'keywords': query, 'location': location or 'United States', 'f_TPR': 'r3888000'}),
-        'GovernmentJobs': 'https://www.governmentjobs.com/jobs?' + urlencode({'keyword': query, 'location': location}),
-        'USAJOBS': 'https://www.usajobs.gov/Search/Results?' + urlencode({'k': query, 'l': location}),
-    }
-
-
-def parse_board_tokens(value):
-    tokens = [x.strip().lower() for x in re.split(r'[,\n;]+', value or '')]
-    return tuple(dict.fromkeys(x for x in tokens if re.fullmatch(r'[a-z0-9_-]{2,80}', x)))
-
-
-def strict_title_match(title, roles):
-    """Only direct target roles or a limited set of adjacent management titles."""
-    if any(role_similarity(title, role) >= 3 for role in roles):
-        return True
-    value = title.lower()
-    adjacent = [r'\b(?:director|head|vice president|vp) of (?:operations|business development|marketing|distribution|partnerships)\b',
-                r'\b(?:regional|district|area) (?:manager|director)\b',
-                r'\b(?:general manager|chief operating officer|coo)\b',
-                r'\b(?:operations|business development|community engagement) director\b']
-    return any(re.search(pattern, value) for pattern in adjacent)
-
-
-def html_to_text(value):
-    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
-
-
-def us_eligible(job):
-    return bool(job.get('eligible', False))
-
-
-ROLE_ALIASES = {
-    'Chief Operating Officer (smaller organization)': ['chief operating officer', 'coo', 'head of operations', 'vp operations', 'vice president operations'],
-    'Distribution Operations Director': ['distribution director', 'director of distribution', 'logistics director', 'director of logistics', 'supply chain director'],
-    'Regional Operations Director': ['regional operations', 'regional director', 'director of operations', 'operations director', 'area manager'],
-    'Digital Business Director': ['digital director', 'director of digital', 'digital business', 'digital strategy director', 'digital operations'],
-    'Director of Community Partnerships': ['partnerships director', 'director of partnerships', 'community relations director', 'community engagement director'],
-    'Director of Business Development': ['business development director', 'director of business development', 'head of business development', 'commercial director'],
-    'Director of Marketing': ['marketing director', 'director of marketing', 'head of marketing'],
-    'General Manager': ['general manager', 'business unit manager', 'managing director'],
-}
-
-
-def role_similarity(title, role):
-    value = re.sub(r'[^a-z0-9 ]', ' ', title.lower())
-    value = re.sub(r'\s+', ' ', value).strip()
-    aliases = ROLE_ALIASES.get(role, [role.lower()])
-    for phrase in aliases:
-        clean = re.sub(r'[^a-z0-9 ]', ' ', phrase.lower())
-        clean = re.sub(r'\s+', ' ', clean).strip()
-        if re.search(r'\b' + re.escape(clean) + r'\b', value):
-            return 3
-    # Broader but still meaningful leadership-title signals.
-    if role in ['Regional Operations Director', 'Distribution Operations Director'] and 'operations' in value and any(t in value for t in ['director', 'head', 'vp']):
-        return 1
-    return 0
-
-
-# GovernmentJobs/NEOGOV supports agency-specific RSS feeds, not a single
-# nationwide feed. Agency identifiers below were established from actual
-# GovernmentJobs career-page URLs; availability of their RSS is checked live.
-VERIFIED_NEOGOV_AGENCIES = {
-    'hennepin': ('Hennepin County', 'MN'),
-    'minneapolismn': ('City of Minneapolis', 'MN'),
-    'kingcounty': ('King County', 'WA'),
-}
-
-# Links below lead to state employer career sites where known. The remaining
-# states are covered by a 50-state public-sector search and an official
-# government directory; no unverified state-agency URLs are invented.
-STATE_CAREER_PORTALS = {
-    'AL': 'https://www.personnel.alabama.gov/',
-    'AZ': 'https://www.azstatejobs.gov/',
-    'AR': 'https://arcareers.arkansas.gov/',
-    'CA': 'https://calcareers.ca.gov/',
-    'CO': 'https://www.colorado.gov/jobs',
-    'FL': 'https://jobs.myflorida.com/',
-    'GA': 'https://careers.georgia.gov/',
-    'HI': 'https://jobs.hawaii.gov/',
-    'MN': 'https://mn.gov/mmb/careers/search-for-jobs/',
-    'NY': 'https://statejobs.ny.gov/',
-    'NC': 'https://www.governmentjobs.com/careers/northcarolina',
-    'OH': 'https://careers.ohio.gov/',
-    'OR': 'https://oregon.wd5.myworkdayjobs.com/SOR_External_Career_Site',
-    'PA': 'https://www.employment.pa.gov/',
-    'TX': 'https://www.workintexas.com/',
-    'VA': 'https://www.jobs.virginia.gov/',
-    'WA': 'https://www.careers.wa.gov/',
-    'WI': 'https://wisc.jobs/',
-}
-
-
-def parse_neogov_agencies(raw):
-    """Accept agency tokens or GovernmentJobs agency career URLs only."""
-    found = {}
-    for token in re.split(r'[,\n;]+', raw or ''):
-        token = token.strip()
-        if not token:
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_nyc_jobs():
+    """Official New York City current jobs data (public Socrata endpoint)."""
+    # Server-side filtering keeps the dataset small; official post dates are used.
+    where = "posting_type='External' AND (" + ' OR '.join(
+        f"upper(business_title) like '%{term}%'" for term in (
+            'DIRECTOR','MANAGER','ADMINISTRATOR','PUBLISHER','CHIEF OPERATING',
+            'BUSINESS DEVELOPMENT','DEPUTY COMMISSIONER','EXECUTIVE')) + ')'
+    params = {'$where':where, '$limit':650, '$order':'posting_date DESC'}
+    raw = fetch_json('https://data.cityofnewyork.us/resource/kpav-sd4t.json?' + urlencode(params))
+    jobs=[]
+    for rec in raw:
+        jobid = str(rec.get('job_id') or '').strip()
+        if not jobid:
             continue
-        if token.startswith('http'):
-            parsed = urlparse(token)
-            if parsed.hostname not in ('governmentjobs.com', 'www.governmentjobs.com'):
-                continue
-            match = re.match(r'^/careers/([A-Za-z0-9_-]+)', parsed.path)
-            if not match:
-                continue
-            agency = match.group(1).lower()
-        else:
-            agency = token.lower()
-        if re.fullmatch(r'[a-z0-9_-]{2,70}', agency):
-            found[agency] = VERIFIED_NEOGOV_AGENCIES.get(agency, (agency, ''))
-    return dict(list(found.items())[:35])
+        url = 'https://cityjobs.nyc.gov/jobs'  # Verified official portal; individual URLs require slugs.
+        # The dataset's To Apply field sometimes has a specific application URL.
+        apply_field = str(rec.get('to_apply') or '')
+        explicit = re.search(r'https://[^\s<>"\']+', apply_field)
+        if explicit:
+            url = explicit.group().rstrip('.,;)')
+        location = rec.get('work_location') or 'New York City, NY'
+        if not states_in_location(location):
+            location = str(location) + ', NY'
+        salary = ''
+        if rec.get('salary_range_from') and rec.get('salary_range_to'):
+            salary = f"${rec['salary_range_from']}–${rec['salary_range_to']} ({rec.get('salary_frequency','')})"
+        job = standard_job(rec.get('business_title'),
+            'City of New York · ' + str(rec.get('agency') or 'City agency'),
+            url, location, rec.get('job_description') or rec.get('minimum_qual_requirements'),
+            'NYC Open Data', salary=salary, posted=rec.get('posting_date'), gov=True)
+        if job:
+            job['reference'] = f'NYC Job ID {jobid}; search this ID at the official portal'
+            jobs.append(job)
+    return jobs
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_neogov_feeds(agencies):
-    """Use documented NEOGOV RSS endpoint, never scrape career pages."""
-    jobs, errors, counts = [], [], {}
-    for agency, employer, state in agencies:
-        url = 'https://www.governmentjobs.com/SearchEngine/JobsFeed?' + urlencode({'agency': agency})
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_remotive():
+    jobs=[]
+    data=fetch_json('https://remotive.com/api/remote-jobs?limit=150')
+    for x in data.get('jobs',[]):
+        loc=x.get('candidate_required_location') or ''
+        job=standard_job(x.get('title'), x.get('company_name'),x.get('url'),
+            loc or 'Remote (location unspecified)',x.get('description'),
+            'Remotive',True,x.get('salary'),x.get('publication_date'),
+            eligible=us_remote_eligible(loc))
+        if job: jobs.append(job)
+    return jobs
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_jobicy():
+    jobs=[]
+    data=fetch_json('https://jobicy.com/api/v2/remote-jobs?count=200&geo=usa')
+    for x in data.get('jobs',[]):
+        job=standard_job(x.get('jobTitle'),x.get('companyName'),x.get('url'),
+            x.get('jobGeo') or 'USA (remote)', x.get('jobDescription'),
+            'Jobicy',True,x.get('annualSalaryMin') or '',x.get('pubDate'),True)
+        if job:jobs.append(job)
+    return jobs
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_himalayas(query_terms):
+    # Search provider-side across several role families without excessive calls.
+    # Himalayas refreshes its data daily; we cache these requests for 24 hours.
+    def one_term(term):
+        params=urlencode({'q':term,'country':'US','sort':'recent','page':1})
         try:
-            req = Request(url, headers={'User-Agent': 'AIJobFinder/1.0 (personal job search)', 'Accept': 'application/rss+xml, application/xml, text/xml'})
-            with urlopen(req, timeout=10) as response:
-                payload = response.read(2_000_000)
-            root = ET.fromstring(payload)
-            items = root.findall('.//item')
-            if not items:
-                # Some agencies don't expose RSS or have no current openings.
-                errors.append(f'NEOGOV {employer}: feed returned no RSS items (check the agency career page).')
-            count = 0
-            for item in items[:250]:
-                def field(name):
-                    value = item.findtext(name)
-                    return (value or '').strip()
-                title = field('title')
-                link = field('link')
-                posted = field('pubDate') or field('date')
-                description = field('description')
-                # RSS does not consistently contain city/state. Use a verified
-                # agency's known state only; do not assign states to user tokens.
-                location = f'{employer}, {state}' if state else employer
-                job = standard_job(title, employer, link, location, description,
-                                   'NEOGOV RSS', remote=False, posted=posted)
-                if job:
-                    jobs.append(job)
-                    count += 1
-            counts[f'NEOGOV: {employer}'] = count
-        except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError) as exc:
-            errors.append(f'NEOGOV {employer}: feed unavailable ({type(exc).__name__}). Use its official careers page.')
-            counts[f'NEOGOV: {employer}'] = 0
-    return jobs, errors, counts
+            data=fetch_json('https://himalayas.app/jobs/api/search?' + params,timeout=10)
+        except (HTTPError,URLError,TimeoutError,ValueError,OSError):
+            return []
+        jobs=[]
+        for x in data.get('jobs') or []:
+            restricted=x.get('locationRestrictions')
+            eligible=us_remote_eligible(restricted) if isinstance(restricted,list) else False
+            loc=', '.join((r.get('name') or r.get('alpha2') or '') if isinstance(r,dict) else str(r) for r in restricted) if restricted else 'Worldwide remote'
+            low,high=x.get('minSalary'),x.get('maxSalary')
+            money=''
+            if isinstance(low,(int,float)) and isinstance(high,(int,float)):
+                money=f"{x.get('currency') or ''} {low:,.0f}–{high:,.0f} / {x.get('salaryPeriod') or 'year'}"
+            job=standard_job(x.get('title'),x.get('companyName'),
+                x.get('applicationLink'),loc,x.get('description') or x.get('excerpt'),
+                'Himalayas',True,money,x.get('pubDate'),eligible)
+            if job:jobs.append(job)
+        return jobs
+    results=[]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures=[pool.submit(one_term,t) for t in query_terms[:7]]
+        for task in as_completed(futures):
+            results.extend(task.result())
+    return results
 
 
+# Public Lever ATS boards found from actual employer career pages; no API key.
+# We query only these verified employer IDs, not an imaginary cross-employer API.
+LEVER_BOARDS = (
+    ('momentshospice-2','Moments Hospice'),
+    ('networkconnex','Network Connex'),
+    ('billboarder','Billboarder'),
+    ('kcasbio','KCAS Bio'),
+)
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_lever_employers():
+    jobs=[]
+    for token, employer in LEVER_BOARDS:
+        try:
+            data=fetch_json('https://api.lever.co/v0/postings/' + quote(token) + '?mode=json&limit=100')
+            for x in data if isinstance(data,list) else []:
+                cats=x.get('categories') or {}
+                loc=cats.get('location') or ''
+                style=str(x.get('workplaceType') or '')
+                remote=bool(re.search('remote',style+' '+loc,re.I))
+                eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
+                if remote and not eligible:
+                    eligible=us_remote_eligible(loc)
+                job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
+                    loc or 'Location not specified',
+                    (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
+                    'Lever employer',remote,'',x.get('createdAt'),eligible)
+                if job:jobs.append(job)
+        except (HTTPError,URLError,TimeoutError,ValueError,TypeError):
+            continue  # Individual failures do not interrupt other sources.
+    return jobs
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_remoteok():
+    jobs=[]
+    raw=fetch_json('https://remoteok.com/api')
+    if not isinstance(raw,list):
+        return jobs
+    for x in raw:
+        if not isinstance(x,dict) or not x.get('position'):
+            continue
+        loc=x.get('location') or ''
+        # Never infer US eligibility from 'remote' with no location restrictions.
+        eligible=us_remote_eligible(loc)
+        job=standard_job(x.get('position'),x.get('company'),x.get('url'),
+            loc or 'Remote (location unknown)',x.get('description'),
+            'Remote OK',True,x.get('salary') or '',x.get('date') or x.get('epoch'),eligible)
+        if job:jobs.append(job)
+    return jobs
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_arbeitnow():
+    jobs=[]
+    for page in (1,2,3):
+        raw=fetch_json(f'https://www.arbeitnow.com/api/job-board-api?page={page}')
+        recs=raw.get('data') or []
+        for x in recs:
+            loc=str(x.get('location') or '')
+            remote=bool(x.get('remote'))
+            eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|U\.S\.)\b',loc,re.I))
+            if remote and not eligible:
+                eligible=us_remote_eligible(loc)
+            job=standard_job(x.get('title'),x.get('company_name'),x.get('url'),
+                loc or 'Not specified',x.get('description'),'Arbeitnow',
+                remote, '', x.get('created_at'),eligible)
+            if job:jobs.append(job)
+        if not recs:
+            break
+    return jobs
+
+
+def _secret(name):
+    try:
+        return str(st.secrets.get(name,'') or '').strip()
+    except Exception:
+        return ''
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_usajobs_if_authorized(key, email):
+    # USAJOBS requires its own FREE authorization key: never try without one.
+    if not key or not email:
+        return []
+    all_jobs=[]
+    terms=('operations director','city administrator','business development',
+           'program manager','communications director')
+    for term in terms:
+        url='https://data.usajobs.gov/api/search?' + urlencode(
+            {'Keyword':term,'ResultsPerPage':75})
+        req=Request(url,headers={'Host':'data.usajobs.gov',
+            'User-Agent':email,'Authorization-Key':key,'Accept':'application/json'})
+        with urlopen(req,timeout=12) as response:
+            payload=json.load(response)
+        records=payload.get('SearchResult',{}).get('SearchResultItems',[])
+        for item in records:
+            x=item.get('MatchedObjectDescriptor') or {}
+            det=(x.get('PositionRemuneration') or [{}])[0]
+            salary=''
+            if isinstance(det,dict):
+                salary=str(det.get('MinimumRange',''))+'–'+str(det.get('MaximumRange',''))
+            loc=' / '.join(z.get('LocationName','') for z in x.get('PositionLocation',[]) if isinstance(z,dict))
+            job=standard_job(x.get('PositionTitle'),x.get('OrganizationName') or 'U.S. Government',
+                x.get('PositionURI'),loc,str(x.get('UserArea',{}).get('Details',{}).get('JobSummary','')),
+                'USAJOBS',False,salary,x.get('PublicationStartDate'),True,True)
+            if job:all_jobs.append(job)
+    return all_jobs
+
+
+# Cache each upstream separately. When a feed times out, show it in diagnostics
+# but do not suppress jobs from functioning sources.
+def fetch_all_free_jobs(query_terms):
+    tasks={
+        'NEOGOV government': lambda: load_neogov_feeds(),
+        'NYC government': lambda: load_nyc_jobs(),
+        'Himalayas': lambda: load_himalayas(tuple(query_terms)),
+        'Jobicy': lambda: load_jobicy(),
+        'Remotive': lambda: load_remotive(),
+        'Remote OK': lambda: load_remoteok(),
+        'Arbeitnow': lambda: load_arbeitnow(),
+        'Lever employer boards': lambda: load_lever_employers(),
+    }
+    usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
+    if usa_key and usa_email:
+        tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
+    jobs, errors, counts=[],[],{}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures={executor.submit(fn):label for label,fn in tasks.items()}
+        for future in as_completed(futures):
+            label=futures[future]
+            try:
+                result=future.result()
+                if label=='NEOGOV government':
+                    records,failures,agency_counts=result
+                    jobs.extend(records)
+                    counts[label]=len(records)
+                    counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
+                    errors.extend(failures)
+                else:
+                    jobs.extend(result)
+                    counts[label]=len(result)
+            except Exception as exc:
+                counts[label]=0
+                errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
+    return jobs,errors,counts
+
+
+def normalized_key(job):
+    title=re.sub(r'[^a-z0-9]+',' ',job['title'].lower()).strip()
+    company=re.sub(r'[^a-z0-9]+',' ',job['company'].lower()).strip()
+    # Reposts across boards usually have different URLs; compare employer/title.
+    return (title,company)
+
+
+def score_job(job, resume, words=''):
+    classified=role_classification(job['title'])
+    if not classified:
+        return None
+    category, score=classified
+    # User's query is authoritative: title match or strongly related description.
+    search_terms=[x.lower() for x in re.findall(r'[A-Za-z0-9]+',words) if len(x)>2]
+    if search_terms:
+        title=job['title'].lower()
+        description=job['description'].lower()
+        in_title=any(w in title for w in search_terms)
+        in_description=sum(w in description for w in search_terms)
+        if not (in_title or in_description>=max(1,len(search_terms)//2)):
+            return None
+        score+=4 if in_title else 1
+    competencies=job_competency_hits(job,resume)
+    score+=min(4,len(competencies))
+    # Role title is the main signal, competencies are only supporting evidence.
+    # Avoid ranking remote IT/SpaceX director jobs based on generic 'leadership'.
+    if job['government']:
+        score+=1
+    return {**job, 'category':category, 'rank':score, 'competency_hits':competencies,
+            'states':states_in_location(job['location'])}
+
+
+def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
+    unique={}
+    excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,'location':0}
+    for job in jobs:
+        if not job.get('date'):
+            excluded['undated']+=1
+            continue
+        if not is_recent_posting(job):
+            excluded['old']+=1
+            continue
+        if not job.get('eligible'):
+            excluded['eligibility']+=1
+            continue
+        if 'spacex' in job['company'].casefold():
+            continue
+        if work_style=='On-site / hybrid' and job['remote']:
+            excluded['location']+=1
+            continue
+        if work_style=='Remote' and not job['remote']:
+            excluded['location']+=1
+            continue
+        state_ids=states_in_location(job['location'])
+        if state_code and (state_code not in state_ids) and not (job['remote'] and work_style!='On-site / hybrid' and not state_ids):
+            excluded['location']+=1
+            continue
+        ranked=score_job(job,resume,query)
+        if ranked is None:
+            excluded['irrelevant']+=1
+            continue
+        key=normalized_key(job)
+        if key not in unique or unique[key]['rank']<ranked['rank']:
+            unique[key]=ranked
+    # Keep all credible results; diversify within the top pages, not just 25.
+    sorted_jobs=sorted(unique.values(),key=lambda j:(-j['rank'],-int(j['date'].replace('-','')),j['title'].lower()))
+    company_counts=Counter()
+    diverse=[]
+    for job in sorted_jobs:
+        company=job['company'].casefold()
+        if company_counts[company]>=3:
+            continue
+        company_counts[company]+=1
+        diverse.append(job)
+    # Interleave government and commercial results so one type cannot dominate.
+    government=[j for j in diverse if j['government']]
+    private=[j for j in diverse if not j['government']]
+    interleaved=[]
+    while government or private:
+        if government: interleaved.append(government.pop(0))
+        if private: interleaved.append(private.pop(0))
+        if private: interleaved.append(private.pop(0))
+    return interleaved,excluded
+
+
+def save_result_to_tracker(job):
+    if any(x.get('Job URL','').split('?')[0]==job['url'].split('?')[0]
+           for x in st.session_state.jobs):
+        return False
+    st.session_state.jobs.append({
+        'Company':job['company'],'Job Title':job['title'],
+        'Location':job['location'],'Job URL':job['url'],
+        'Salary':job['salary'],'Status':'Saved','Date Recorded':str(date.today()),
+        'Interview Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
+    return True
 def job_competency_hits(job, resume):
     # Uses verified experience or phrases in the resume; compares to job description.
     confirmed = verified_competencies()
@@ -812,211 +902,110 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Real Jobs — Expanded Search')
-    st.write('Search U.S. location-tagged and remote job postings. State filters use the location provided by the employer; results are not comprehensive.')
-    st.caption('Automatic sources: public feeds, optional Adzuna US, employer boards, USAJOBS and configured NEOGOV agencies. Indeed and LinkedIn are external searches, not imported results. All imported jobs must be dated within 45 days.')
-    recommended = [r['title'] for r in get_career_matches(st.session_state.resume_text)] if st.session_state.resume_text.strip() else [r['title'] for r in CAREER_PATHS]
-    with st.form('live_job_search'):
-        role = st.selectbox('Career path', ['All recommended career paths'] + recommended)
-        keywords = st.text_input('Optional keywords (try operations, leadership, business development)')
-        arrangement = st.selectbox('Work arrangement', ['On-site / hybrid only (hide remote)', 'Nationwide + remote', 'Remote only'], index=0)
-        state_choice = st.selectbox('State', ['All states'] + [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda item: item[1])])
-        sort_choice = st.selectbox('Sort results', ['Best career match', 'State (A–Z)', 'Newest posting', 'Company (A–Z)'])
-        strict_match = st.checkbox('Require a closely related management job title (uncheck to broaden)', value=False)
-        exclude_companies = st.text_input('Exclude employers (comma-separated)', value='SpaceX', help='Example: SpaceX, Tesla')
-        company_limit = st.slider('Maximum listings per employer', 1, 10, 3)
-        max_results = st.slider('Maximum displayed jobs', 5, 60, 25, step=5)
-        with st.expander('More sources — optional, no paid API required'):
-            greenhouse_input = st.text_area('Greenhouse employer board tokens (comma-separated)', help='Use the employer token from boards.greenhouse.io/EMPLOYER. Not a general cross-employer search.')
-            lever_input = st.text_area('Lever employer board tokens (comma-separated)', help='Use the employer token from jobs.lever.co/EMPLOYER.')
-            st.caption('Adzuna offers a developer jobs API; request credentials at developer.adzuna.com and set ADZUNA_APP_ID / ADZUNA_APP_KEY in Streamlit Secrets. USAJOBS requires USAJOBS_API_KEY and USAJOBS_EMAIL. Neither uses OpenAI credits.')
-        with st.expander('Government RSS feeds — city and county employers'):
-            use_gov_feeds = st.checkbox('Include NEOGOV government RSS feeds', value=True)
-            gov_agencies = st.text_area('GovernmentJobs agency names or career URLs (comma/newline-separated)',
-                value='hennepin, minneapolismn, kingcounty',
-                help='Example: https://www.governmentjobs.com/careers/hennepin. Only entered agencies are checked; this is not a nationwide NEOGOV index.')
-            st.caption('These three starter agencies are in MN and WA, not nationwide. Add verified GovernmentJobs career URLs from any state. The app cannot discover every NEOGOV employer automatically. Missing dates are excluded.')
-        search = st.form_submit_button('Search Live Jobs', type='primary')
-    if search:
-        with st.spinner('Searching public job sources (may take up to a minute)...'):
-            fetched, errors, counts = load_public_jobs()
-            extra, extra_errors, extra_counts = load_employer_boards(
-                parse_board_tokens(greenhouse_input), parse_board_tokens(lever_input))
-            fetched.extend(extra)
-            errors.extend(extra_errors)
-            counts.update(extra_counts)
-            try:
-                federal_key = st.secrets.get('USAJOBS_API_KEY', '')
-                federal_email = st.secrets.get('USAJOBS_EMAIL', '')
-            except (FileNotFoundError, KeyError):
-                federal_key, federal_email = '', ''
-            federal, federal_errors, federal_counts = load_usajobs(federal_key, federal_email)
-            fetched.extend(federal)
-            errors.extend(federal_errors)
-            counts.update(federal_counts)
-            try:
-                adzuna_id = st.secrets.get('ADZUNA_APP_ID', '')
-                adzuna_key = st.secrets.get('ADZUNA_APP_KEY', '')
-            except (FileNotFoundError, KeyError):
-                adzuna_id, adzuna_key = '', ''
-            adzuna_terms = (keywords.strip(),) if keywords.strip() else (
-                'operations director', 'general manager', 'business development director',
-                'regional operations', 'executive director', 'city administrator')
-            adzuna, adzuna_errors, adzuna_counts = load_adzuna_jobs(
-                adzuna_id, adzuna_key, adzuna_terms)
-            fetched.extend(adzuna)
-            errors.extend(adzuna_errors)
-            counts.update(adzuna_counts)
-            if use_gov_feeds:
-                agency_map = parse_neogov_agencies(gov_agencies)
-                agency_rows = tuple((token, name, state) for token, (name, state) in agency_map.items())
-                govt, govt_errors, govt_counts = load_neogov_feeds(agency_rows)
-                fetched.extend(govt)
-                errors.extend(govt_errors)
-                counts.update(govt_counts)
-            fetched = list({j['url'].split('?')[0]: j for j in fetched}.values())
-        st.session_state.feed_diagnostics = (len(fetched), counts, errors)
-        selected_roles = recommended if role == 'All recommended career paths' else [role]
-        state_code = state_choice.rsplit('(', 1)[-1].rstrip(')') if state_choice != 'All states' else None
-        query = keywords.strip().lower()
-        blocked = [name.strip().casefold() for name in exclude_companies.split(',') if name.strip()]
-        filtered = []
-        stale_count = 0
-        unknown_date_count = 0
-        for job in fetched:
-            if not parse_posted_date(job.get('date')):
-                unknown_date_count += 1
-                continue
-            if not is_recent_posting(job):
-                stale_count += 1
-                continue
-            if not us_eligible(job):
-                continue
-            if any(name in job['company'].casefold() for name in blocked):
-                continue
-            if arrangement == 'On-site / hybrid only (hide remote)' and job['remote']:
-                continue
-            if arrangement == 'Remote only' and not job['remote']:
-                continue
-            job_states = states_in_location(job['location'])
-            if state_code and state_code not in job_states:
-                continue
-            title = job['title'].lower()
-            description = job['description'].lower()
-            title_score = max((role_similarity(job['title'], r) for r in selected_roles), default=0)
-            # Use transferable senior-management terms when the exact title differs.
-            broad = bool(re.search(r'\b(operations|general manager|business development|partnerships|commercial|revenue|distribution|logistics|marketing|director|chief operating officer|publisher|regional manager)\b', title))
-            extra = bool(query and query in (title + ' ' + description))
-            if strict_match and not (strict_title_match(job['title'], selected_roles) or (extra and title_score)):
-                continue
-            if not (title_score or broad or extra):
-                continue
-            competency_hits = job_competency_hits(job, st.session_state.resume_text)
-            rank = title_score * 4 + len(competency_hits) + (2 if extra else 0)
-            filtered.append({**job, 'states': job_states, 'rank': rank, 'role_score': title_score, 'competency_hits': competency_hits})
-        if sort_choice == 'State (A–Z)':
-            filtered.sort(key=lambda j: (US_STATES.get(j['states'][0], 'ZZZ') if j['states'] else 'ZZZ', -j['rank']))
-        elif sort_choice == 'Newest posting':
-            filtered.sort(key=lambda j: (j['date'] or '0000-00-00', j['rank']), reverse=True)
-        elif sort_choice == 'Company (A–Z)':
-            filtered.sort(key=lambda j: (j['company'].lower(), -j['rank']))
-        else:
-            filtered.sort(key=lambda j: (-j['rank'], j['title'].lower()))
-        # Diversity control runs before the final display cap.
-        employer_counts = Counter()
-        diverse = []
-        for job in filtered:
-            company_key = job['company'].casefold().strip()
-            if employer_counts[company_key] < company_limit:
-                diverse.append(job)
-                employer_counts[company_key] += 1
-        filtered = diverse
-        st.session_state.date_filter_diagnostics = (stale_count, unknown_date_count)
-        st.session_state.search_state_counts = dict(sorted(Counter(
-            code for j in filtered for code in j['states']).items()))
-        st.session_state.search_results = filtered[:max_results]
-        st.session_state.search_total = len(filtered)
-        st.session_state.search_timestamp = str(date.today())
-    if 'feed_diagnostics' in st.session_state:
-        count, counts, errors = st.session_state.feed_diagnostics
-        with st.expander('Search diagnostics — see what sources returned'):
-            st.write(f'{count} unique postings fetched before career filtering.')
-            st.write('Source counts:', counts)
-            stale, undated = st.session_state.get('date_filter_diagnostics', (0, 0))
-            st.write(f'Excluded {stale} postings older than {MAX_POSTING_AGE_DAYS} days or dated in the future; excluded {undated} postings without a usable publication date.')
-            for error in errors:
-                st.warning(error)
-            st.caption('If a source is blocked or unavailable, its count may be missing. Results are cached for one hour.')
-    if 'search_results' in st.session_state:
-        results = st.session_state.search_results
-        st.subheader(f'{len(results)} jobs displayed')
-        st.caption(f'Posting date filter: last {MAX_POSTING_AGE_DAYS} days only. Undated listings are hidden.')
-        state_counts = st.session_state.get('search_state_counts', {})
-        if state_counts:
-            with st.expander('Job counts by state (before display limit)'):
-                st.write(', '.join(f'{US_STATES.get(code, code)}: {count}' for code, count in state_counts.items()))
-        else:
-            st.caption('No explicit U.S. state locations in the current filtered results.')
-        st.caption(f'{st.session_state.get("search_total", len(results))} filtered career-related postings • Searched {st.session_state.get("search_timestamp", "today")}. This is not a hiring-fit score.')
-        if not results:
-            st.info('No matching jobs for these filters in the available feeds. Try All states, Nationwide + remote, or a broader career path. Check Search diagnostics for source errors.')
-        for i, job in enumerate(results):
-            with st.container(border=True):
-                st.markdown(f"**{job['title']}** — {job['company']}")
-                st.write(f"📍 {job['location']} | {'Remote' if job['remote'] else 'On-site / hybrid (verify)' } | {job['source']}")
-                if job['salary']:
-                    st.write('**Salary (as listed):**', job['salary'])
-                st.caption('Potential experience overlap: ' + (', '.join(job['competency_hits']) if job['competency_hits'] else 'No explicit competency phrase matches'))
-                st.caption('Check the full posting for U.S. eligibility, work authorization, location restrictions and qualifications.')
-                if job['date']:
-                    st.caption('Posted: ' + job['date'])
-                st.link_button('View original posting / Apply', job['url'])
-                if st.button('Save to Job Tracker', key=f'save_live_{i}'):
-                    if any(j.get('Job URL') == job['url'] for j in st.session_state.jobs):
-                        st.info('Already in your Job Tracker.')
-                    else:
-                        st.session_state.jobs.append({
-                            'Company': job['company'], 'Job Title': job['title'],
-                            'Location': job['location'], 'Job URL': job['url'],
-                            'Salary': job['salary'], 'Status': 'Saved',
-                            'Date Recorded': str(date.today()), 'Interview Date': '',
-                            'Notes': f"Found via {job['source']}. Confirm eligibility and requirements before applying."
-                        })
-                        st.success('Saved to Job Tracker for this session.')
-    st.subheader('🌐 Search Indeed, LinkedIn and government job boards')
-    st.caption('These open official searches in another tab. They are NOT imported into the app, and their results are not included in the 45-day filtered counts. Check dates and qualifications on each board.')
-    external_location = st.selectbox('Location for external job board searches',
-        ['All states'] + [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda kv: kv[1])],
-        key='external_search_state')
-    external_state = external_location.split(' (')[0] if external_location != 'All states' else 'All states'
-    external_query = st.text_input('Keywords for Indeed / LinkedIn / GovernmentJobs',
-        value='operations director OR general manager OR chief operating officer',
-        key='external_search_query')
-    for board, link in external_board_urls(external_query, external_state).items():
-        st.link_button('Search ' + board, link)
-    st.caption('The 45-day preference is sent to external sites where supported, but each site controls its own filters.')
+    st.title('🔎 Find Jobs')
+    st.caption('One search across free job feeds and selected government employers. Jobs are up to 45 days old; no paid API or setup required.')
 
-    st.subheader('🏛️ Government jobs — all 50 states')
-    st.caption('The state selector covers every U.S. state. Direct state-employer links are provided where configured; public-sector search links are available for all 50 states. External search results are NOT included in the 45-day filtered count; check dates and eligibility on the original website.')
-    state_portal = st.selectbox('Select a state for government vacancies',
-        [f'{name} ({code})' for code, name in sorted(US_STATES.items(), key=lambda kv: kv[1]) if code != 'DC'],
-        index=next((i for i, (code, name) in enumerate(sorted(((c, n) for c, n in US_STATES.items() if c != 'DC'), key=lambda kv: kv[1])) if code == 'MN'), 0),
-        key='government_state')
-    selected_code = state_portal.rsplit('(', 1)[-1].rstrip(')')
-    selected_name = US_STATES[selected_code]
-    st.link_button(f'Search public-sector jobs in {selected_name}',
-        'https://www.governmentjobs.com/jobs?' + urlencode({'location': selected_name}))
-    if selected_code in STATE_CAREER_PORTALS:
-        st.link_button(f'Open {selected_name} state government career portal', STATE_CAREER_PORTALS[selected_code])
+    state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
+    with st.form('clean_search'):
+        search_text = st.text_input('Job title or keyword (optional)',
+            placeholder='Try city administrator, COO, operations director…',
+            help='Leave empty to search for roles matching your verified publisher leadership experience.')
+        col_state, col_type = st.columns([2,1])
+        with col_state:
+            chosen_state=st.selectbox('Location',state_choices)
+        with col_type:
+            chosen_work=st.selectbox('Work style',['Any','On-site / hybrid','Remote'])
+        submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
+
+    if submitted:
+        # Search multiple related role families behind the scenes. No tokens,
+        # agency IDs, employer exclusions or API parameters shown to user.
+        terms = [search_text.strip()] if search_text.strip() else [
+            'chief operating officer','director of operations','general manager',
+            'business development director','marketing director',
+            'regional director','partnerships director']
+        with st.spinner('Searching free job boards and government employer feeds…'):
+            raw, errors, source_counts = fetch_all_free_jobs(tuple(terms))
+            code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
+            matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
+                search_text,st.session_state.resume_text)
+        st.session_state.search_results=matches
+        st.session_state.search_page=0
+        st.session_state.search_stats={
+            'fetched':len(raw),'sources':source_counts,'errors':errors,
+            'excluded':excluded,'searched':datetime.now().strftime('%b %d, %Y %I:%M %p'),
+            'government':sum(bool(x['government']) for x in matches),
+            'scope':chosen_state,'work':chosen_work,
+        }
+
+    if 'search_results' not in st.session_state:
+        st.info('Search for leadership, management and public-sector openings across the United States. Leave the keyword blank to use your career profile.')
     else:
-        st.info('A direct state-employer portal has not been verified for this state in the app. Use the official 50-state directory to locate it; the public-sector search link above remains available.')
-    st.link_button('Official 50-state government directory (USAGov)', 'https://www.usa.gov/state-governments')
-    st.link_button('50-state career portal directory (UW–Madison)', 'https://career.lafollette.wisc.edu/resources/state-job-homepages-for-all-50-states/')
-    st.link_button('Search federal government vacancies (USAJOBS)', 'https://www.usajobs.gov/Search/Results')
-    st.link_button('Browse all local government jobs', 'https://www.governmentjobs.com/jobs')
-    st.caption('The All states setting does not discover all state and county agency feeds. NEOGOV imports only the configured agency tokens. Add more agency career URLs from across the country to expand government coverage.')
-    st.caption('For automatic federal listings, add USAJOBS_API_KEY and USAJOBS_EMAIL to Streamlit Secrets after requesting a free USAJOBS API key. No OpenAI key is needed.')
-    st.warning('Job Tracker entries are not permanently stored yet. Export your CSV before ending your session.')
+        all_results=st.session_state.search_results
+        stats=st.session_state.search_stats
+        c1,c2,c3=st.columns(3)
+        c1.metric('Relevant openings',len(all_results))
+        c2.metric('Government',stats['government'])
+        c3.metric('Employers',len({x['company'].casefold() for x in all_results}))
+        st.caption(f"Updated {stats['searched']} · Posted within 45 days · Every job is a potential match, not a qualifications guarantee.")
+        if not all_results:
+            st.warning('No recent openings matched those choices in the available feeds. Try All states, Any work style, or a different search term. Source diagnostics below show any feed failures.')
+        else:
+            PAGE_SIZE=12
+            page_no=st.session_state.get('search_page',0)
+            page_total=(len(all_results)+PAGE_SIZE-1)//PAGE_SIZE
+            page_no=min(max(page_no,0),page_total-1)
+            st.session_state.search_page=page_no
+            st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(all_results))} of {len(all_results)} results · Government and private listings mixed for variety')
+            for n,job in enumerate(all_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE], start=page_no*PAGE_SIZE):
+                with st.container(border=True):
+                    left,right=st.columns([5,1.7],vertical_alignment='top')
+                    with left:
+                        st.markdown('**'+job['title']+'**')
+                        st.caption(' · '.join([
+                            job['company'],job['location'],
+                            'Remote' if job['remote'] else 'On-site / hybrid (verify)',
+                            job['date']]))
+                        st.caption('Government' if job['government'] else job['source'])
+                        if job['salary']:
+                            st.write('Pay listed: '+job['salary'])
+                        if job.get('reference'):
+                            st.caption(job['reference'])
+                        if job.get('competency_hits'):
+                            with st.expander('How this relates to your experience'):
+                                st.write('Resume or user-confirmed competencies mentioned in the listing: '+', '.join(job['competency_hits']))
+                                st.caption('Check minimum education, licensing, public-service eligibility, and experience requirements yourself.')
+                    with right:
+                        st.link_button('Search NYC by ID' if job.get('reference') else 'View / Apply',job['url'],use_container_width=True)
+                        if st.button('Save job',key=f'clean_save_{n}',use_container_width=True):
+                            if save_result_to_tracker(job):
+                                st.success('Saved')
+                            else:
+                                st.info('Already saved')
+            before, middle, after=st.columns([1,2,1],vertical_alignment='center')
+            with before:
+                if st.button('← Previous',disabled=page_no==0,use_container_width=True):
+                    st.session_state.search_page=page_no-1
+                    st.rerun()
+            with middle:
+                st.caption(f'Page {page_no+1} of {page_total}')
+            with after:
+                if st.button('Next →',disabled=page_no>=page_total-1,use_container_width=True):
+                    st.session_state.search_page=page_no+1
+                    st.rerun()
+        with st.expander('Source coverage and diagnostics'):
+            st.caption('Automatic searches include the preconfigured government agency RSS feeds, official NYC open-data listings, and available free public job APIs. Government coverage does not include every employer in all 50 states.')
+            st.write('Job providers returned:')
+            for name,count in sorted(stats['sources'].items()):
+                st.write(f'• {name}: {count}')
+            st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']}")
+            if stats['errors']:
+                st.caption(f"{len(stats['errors'])} feeds had errors or were unavailable; successful feeds still contribute jobs.")
+                with st.expander('See unavailable feeds'):
+                    for err in stats['errors']:
+                        st.caption('• '+err)
+            st.caption('USAJOBS can also be included automatically if your account already has its free API credentials in Streamlit Secrets. Paid Adzuna and OpenAI APIs are not used. Indeed and LinkedIn do not provide unrestricted public job-search feeds for this app.')
+    st.caption('Your Job Tracker still uses temporary session storage. Export its CSV to preserve applications.')
 
 elif page == 'Job Tracker':
     st.title('📋 Job Application Tracker')
