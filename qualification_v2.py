@@ -116,6 +116,11 @@ def _requirement_priority(context):
 def extract_requirements(description, resume=''):
     """Only report phrases visibly present in the posting, never invent credentials."""
     body=re.sub(r'\s+', ' ',str(description or ''))[:16500]
+    # Career sites append unrelated job recommendations. Do not interpret
+    # those titles (especially RN/nurse jobs) as this role's credentials.
+    body=re.split(r'\b(?:Similar Jobs|Jobs for you|Recently Viewed Jobs|'
+                  r'Top Matches for You|Insights from previous hires)\b',
+                  body,maxsplit=1,flags=re.I)[0]
     resume=str(resume or '')
     results=[]
     seen=set()
@@ -140,6 +145,12 @@ def extract_requirements(description, resume=''):
         add('License / certification',match,_evidence_status(resume,_LICENSE),11)
 
     for match in list(_YEAR.finditer(body))[:5]:
+        # Ignore years-of-company-history and generic marketing boilerplate.
+        surrounding=body[max(0,match.start()-65):min(len(body),match.end()+130)]
+        if not re.search(r'\b(?:experience|management|leadership|qualified|qualification|'
+                         r'required|minimum|supervisory|professional duties)\b',
+                         surrounding,re.I):
+            continue
         # The number matters, but total career length is not proof of the
         # specific domain experience stated in this ad.
         token=match.group('amount').lower()
