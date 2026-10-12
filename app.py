@@ -220,6 +220,14 @@ GOVERNMENT_AGENCIES = (
     ('cabq', 'City of Albuquerque', 'NM'),
     ('boiseid', 'City of Boise', 'ID'),
     ('fairfaxcounty', 'Fairfax County', 'VA'),
+    # Additional employer tokens confirmed from public NEOGOV career pages.
+    ('colorado', 'State of Colorado', 'CO'),
+    ('newjersey', 'New Jersey Civil Service Commission', 'NJ'),
+    ('greenvillesc', 'City of Greenville', 'SC'),
+    ('njjudiciary', 'New Jersey Judiciary', 'NJ'),
+    ('saginawmi', 'City of Saginaw', 'MI'),
+    ('charlevoix', 'City of Charlevoix', 'MI'),
+    ('deschutes', 'Deschutes County', 'OR'),
 )
 
 # Jobs from government boards may contain unusual occupational titles. These
@@ -548,6 +556,205 @@ def load_lever_employers():
     return jobs
 
 
+# Public job-board URLs identified on employer-hosted posting pages.
+# These provider APIs are per employer: there is no universal search endpoint.
+# Tokens are not guaranteed to remain active; failures appear in diagnostics.
+GREENHOUSE_BOARDS = (
+    ('boldbusiness', 'Bold Business'),
+    ('riseamg', 'Rise Association Management Group'),
+    ('spsnorthamerica', 'SPS North America'),
+    ('clear', 'CLEAR'),
+    ('wpp', 'WPP'),
+    ('unitedveincenters', 'United Vein & Vascular Centers'),
+    ('powerdigitalmarketing', 'Power Digital'),
+    ('brph', 'BRPH'),
+    ('amn', 'ARCO/Murray National Construction'),
+    ('sbusa', 'S&B USA'),
+    ('industrialelectricmanufacturing', 'Industrial Electric Manufacturing'),
+    ('courtyardinc', 'Courtyard'),
+    ('energyprojectsolutionsllc', 'Energy Project Solutions'),
+    ('aksengineeringforestryllc', 'AKS Engineering'),
+    ('winnerscirclegroupoftexas1', 'Winners Circle Group'),
+    ('imaginepediatrics', 'Imagine Pediatrics'),
+)
+ASHBY_BOARDS = (
+    ('imprint', 'Imprint'),
+    ('tensec', 'Tensec'),
+    ('alternativepayments', 'Alternative Payments'),
+    ('talkiatry', 'Talkiatry'),
+    ('redesign health', 'Redesign Health'),
+    ('cardless', 'Cardless'),
+    ('encord', 'Encord'),
+    ('ember-life-sciences', 'Ember Life Sciences'),
+    ('partly.com', 'Partly'),
+    ('claylabs', 'Clay'),
+    ('rain', 'Rain'),
+    ('remodelboom', 'RemodelBoom'),
+)
+SMARTRECRUITERS_BOARDS = (
+    ('CityAndCountyOfSanFrancisco1', 'City and County of San Francisco', True),
+    ('InternationalDairyQueen', 'International Dairy Queen', False),
+    ('Bertelsmann-Jobs', 'Bertelsmann / Arvato', False),
+    ('MadeByFernLLC', 'Made by Fern', False),
+    ('PSICRO', 'PSI CRO', False),
+    ('Dexterra', 'Dexterra', False),
+    ('prosidianconsulting', 'ProSidian Consulting', False),
+    ('KIPP', 'KIPP', False),
+)
+# NEOGOV also powers education and public school districts under schooljobs.com.
+SCHOOLJOBS_AGENCIES = (
+    ('palmdalesd', 'Palmdale School District', 'CA'),
+    ('duvalschools', 'Duval County Public Schools', 'FL'),
+    ('ggusd', 'Garden Grove Unified', 'CA'),
+    ('sdlancaster', 'School District of Lancaster', 'PA'),
+    ('pasadenaedu', 'Pasadena City College', 'CA'),
+    ('laneedu', 'Eugene School District 4J', 'OR'),
+    ('cccd', 'Coast Community College District', 'CA'),
+    ('venturausd', 'Ventura Unified School District', 'CA'),
+    ('sewanee', 'University of the South', 'TN'),
+)
+
+
+def retrieve_boards(boards, worker, max_workers=8):
+    """Small bounded parallelism; return failures rather than silently hiding them."""
+    jobs, failures = [], []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        tasks={pool.submit(worker, record): record for record in boards}
+        for future in as_completed(tasks):
+            info=tasks[future]
+            try:
+                jobs.extend(future.result())
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,KeyError,OSError) as exc:
+                failures.append(f'{info[1]}: {type(exc).__name__}')
+    return jobs, failures
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_greenhouse_boards():
+    """Greenhouse documents first_published in its public job-board API.
+    Never substitute updated_at: it is not the posting date.
+    """
+    def fetch(board):
+        token, employer=board
+        data=fetch_json('https://boards-api.greenhouse.io/v1/boards/' +
+                        quote(token)+'/jobs?content=true', timeout=10)
+        jobs=[]
+        for x in (data.get('jobs') or []):
+            if not isinstance(x,dict) or x.get('internal_job_id') is None:
+                continue
+            location=(x.get('location') or {}).get('name') or ''
+            country_ok=bool(states_in_location(location) or re.search(r'\b(United States|USA|U\.S\.)\b',location,re.I))
+            if not country_ok:continue
+            job=standard_job(x.get('title'),employer,x.get('absolute_url'),location,
+                x.get('content') or '','Greenhouse',
+                posted=x.get('first_published'),eligible=True)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(GREENHOUSE_BOARDS,fetch)
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_ashby_boards():
+    """Public Ashby Posting API explicitly provides publishedAt and workplaceType."""
+    def fetch(board):
+        token, employer=board
+        data=fetch_json('https://api.ashbyhq.com/posting-api/job-board/' +
+                        quote(token)+'?includeCompensation=true', timeout=10)
+        jobs=[]
+        for x in (data.get('jobs') or []):
+            if not isinstance(x,dict) or x.get('isListed') is False:continue
+            style=str(x.get('workplaceType') or '')
+            if style.lower()=='remote' or x.get('isRemote') and style.lower()!='hybrid':
+                continue
+            addr=((x.get('address') or {}).get('postalAddress') or {})
+            region=addr.get('addressRegion') or ''
+            country=str(addr.get('addressCountry') or '')
+            loc=str(x.get('location') or '')
+            if region and region.lower() not in loc.lower():loc=loc+', '+str(region)
+            if country and country.lower() not in loc.lower():loc=loc+', '+country
+            eligible=bool(states_in_location(loc) or
+              re.search(r'\b(United States|USA|US)\b',loc,re.I))
+            if not eligible:continue
+            compensation=x.get('compensation') or {}
+            pay=compensation.get('scrapeableCompensationSalarySummary') or compensation.get('compensationTierSummary') or ''
+            job=standard_job(x.get('title'),employer,x.get('jobUrl') or x.get('applyUrl'),
+                loc,x.get('descriptionPlain') or x.get('descriptionHtml') or '',
+                'Ashby',False,pay,x.get('publishedAt'),True,
+                declared_style=style)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(ASHBY_BOARDS,fetch)
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_smartrecruiters_boards():
+    """Public company postings; releasedDate is supplied by SmartRecruiters."""
+    def fetch(board):
+        token, employer, gov=board
+        data=fetch_json('https://api.smartrecruiters.com/v1/companies/'+quote(token)+
+                        '/postings?'+urlencode({'limit':100,'destination':'PUBLIC','country':'us'}),timeout=10)
+        jobs=[]
+        # List records do not contain the application URL or requirements.
+        # Obtain public details only for recent, relevant US roles.
+        candidates=[]
+        for x in (data.get('content') or []):
+            if not isinstance(x,dict) or not role_classification(x.get('name')):
+                continue
+            posted=parse_posted_date(x.get('releasedDate'))
+            if not posted or not date.today()-timedelta(days=MAX_POSTING_AGE_DAYS)<=posted<=date.today():
+                continue
+            place=x.get('location') or {}
+            if str(place.get('country') or '').lower() not in ('us','usa','united states','united states of america'):
+                continue
+            if place.get('remote'):continue
+            candidates.append(x)
+        for x in candidates[:30]:
+            place=x.get('location') or {}
+            parts=[place.get('city'),place.get('region'),'United States']
+            loc=', '.join(str(part) for part in parts if part)
+            employer_name=(x.get('company') or {}).get('name') or employer
+            id_=x.get('id')
+            if not id_:continue
+            # Public detail provides a real, verifiable postingUrl, rather than
+            # guessing a job URL from an ID. Failure is skipped, not fabricated.
+            try:
+                detail=fetch_json('https://api.smartrecruiters.com/v1/companies/'+
+                                  quote(token)+'/postings/'+quote(str(id_)),timeout=8)
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,OSError):
+                continue
+            sections=((detail.get('jobAd') or {}).get('sections') or {})
+            description=' '.join(str((sections.get(key) or {}).get('text') or '')
+                   for key in ('jobDescription','qualifications','additionalInformation'))
+            url=detail.get('postingUrl') or detail.get('applyUrl')
+            job=standard_job(x.get('name'),employer_name,url,loc,description,
+                 'SmartRecruiters',False,
+                 posted=x.get('releasedDate'),gov=gov)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(SMARTRECRUITERS_BOARDS,fetch)
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def load_schooljobs_feeds():
+    """NEOED schooljobs RSS, per official 2025 NEOGOV feed documentation."""
+    def fetch(board):
+        token,employer,state=board
+        url='https://www.schooljobs.com/SearchEngine/JobsFeed?'+urlencode({'agency':token})
+        req=Request(url,headers={'User-Agent':'Mozilla/5.0 (personal job research)',
+                                 'Accept':'application/rss+xml, application/xml, text/xml, */*'})
+        with urlopen(req,timeout=9) as response:
+            root=ET.fromstring(response.read(3_000_000))
+        jobs=[]
+        for entry in root.findall('.//item')[:250]:
+            f=lambda name:(entry.findtext(name) or '').strip()
+            job=standard_job(f('title'),employer,f('link'),
+                employer+', '+state,f('description'),'NEOED Schooljobs',
+                posted=f('pubDate') or f('date'),gov=True)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(SCHOOLJOBS_AGENCIES,fetch)
+
+
 @st.cache_data(ttl=7200, show_spinner=False)
 def load_remoteok():
     jobs=[]
@@ -634,6 +841,10 @@ def fetch_all_free_jobs(query_terms):
         # Remote-only providers are deliberately NOT queried for this search.
         'Arbeitnow': lambda: load_arbeitnow(),
         'Lever employer boards': lambda: load_lever_employers(),
+        'Greenhouse public boards': lambda: load_greenhouse_boards(),
+        'Ashby public boards': lambda: load_ashby_boards(),
+        'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(),
+        'NEOED education RSS': lambda: load_schooljobs_feeds(),
     }
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
@@ -651,6 +862,12 @@ def fetch_all_free_jobs(query_terms):
                     counts[label]=len(records)
                     counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
                     errors.extend(failures)
+                elif label in ('Greenhouse public boards','Ashby public boards',
+                               'SmartRecruiters public boards','NEOED education RSS'):
+                    records, failures=result
+                    jobs.extend(records)
+                    counts[label]=len(records)
+                    errors.extend(f'{label} / {message}' for message in failures)
                 else:
                     jobs.extend(result)
                     counts[label]=len(result)
@@ -951,7 +1168,7 @@ elif page == 'Career Matches':
 
 elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
-    st.caption('Search government and private-sector jobs, not remote-only boards. Only postings from the last 45 days are included; no paid API required.')
+    st.caption('Search recent U.S. government and private-sector jobs across free public feeds. Fully remote positions are excluded. No paid API required.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
@@ -1048,7 +1265,7 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
-            st.caption('Searches NEOGOV agencies, NYC public jobs data, and mixed-location employer feeds. Fully remote-only feeds are skipped entirely. Work arrangements are based on employer-provided labels and descriptions; unspecified jobs may require checking. Government coverage is not comprehensive nationwide.')
+            st.caption('Searches NEOGOV and NEOED RSS, NYC public data, Greenhouse, Ashby, SmartRecruiters, and Lever employer boards. Each ATS is searched at curated employers, not universally. Fully remote-only boards are skipped. Employer dates and work labels may be incomplete; government coverage remains partial nationwide.')
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
