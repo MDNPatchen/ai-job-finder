@@ -1,0 +1,27 @@
+name: Verify employer background checks
+
+on:
+  pull_request:
+    paths:
+      - "employer_checks.py"
+      - "employer_ui.py"
+      - "app.py"
+      - "test_employer_checks.py"
+      - "employer_profiles.json"
+      - ".github/workflows/verify-employer-checks.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python modules
+        run: python -m py_compile app.py employer_checks.py employer_ui.py
+      - name: Validate employer sources JSON
+        run: python -m json.tool employer_profiles.json > /dev/null
+      - name: Run offline employer regression tests
+        run: python -m unittest -v test_employer_checks
