@@ -148,10 +148,10 @@ def extract_requirements(description, resume=''):
         broad=re.findall(_YEAR,resume)
         years=[int(y) if y.isdigit() else _NUMBER.get(y.lower(),0) for y in broad]
         if years and max(years)>=needed:
-            status=('At least this many years mentioned in resume; '
+            status=('Resume mentions at least this many years; '
                     'specific field and duties remain unverified')
         else:
-            status='Number of years and related duties not verified from resume'
+            status='Not verified from resume: number of years and related duties are unknown'
         add('Experience duration',match,status)
 
     for match in list(_CIVIL.finditer(body))[:2]:
@@ -218,7 +218,7 @@ def role_alignment(title):
     return 48
 
 
-def recalibrate_match(job, qualification):
+def recalibrate_match(job, qualification, resume_text=''):
     """Transparent comparative research ordering, never eligibility probability."""
     if not qualification.get('resume_present'):
         return {'index':0,'role_alignment':role_alignment(job.get('title')),
@@ -228,7 +228,7 @@ def recalibrate_match(job, qualification):
     n=int(qualification.get('total_areas') or 0)
     overlap=100*(m+0.5*c)/max(5,n)
     alignment=role_alignment(job.get('title'))
-    specialties=assess_specialized_experience(job,qualification.get('_resume_text',''))
+    specialties=assess_specialized_experience(job,resume_text)
     cautions=[]
     for item in specialties:
         if item['needs_verification']:
