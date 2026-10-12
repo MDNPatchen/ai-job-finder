@@ -309,6 +309,12 @@
       "career_page": "https://www.governmentjobs.com/careers/lincolnne"
     },
     {
+      "id": "concordnh",
+      "name": "City of Concord",
+      "state": "NH",
+      "career_page": "https://www.governmentjobs.com/careers/concordnh"
+    },
+    {
       "id": "newjersey",
       "name": "New Jersey Civil Service Commission",
       "state": "NJ",
@@ -369,6 +375,12 @@
       "career_page": "https://www.governmentjobs.com/careers/columbusoh"
     },
     {
+      "id": "brokenarrowok",
+      "name": "City of Broken Arrow",
+      "state": "OK",
+      "career_page": "https://www.governmentjobs.com/careers/brokenarrowok"
+    },
+    {
       "id": "portlandor",
       "name": "City of Portland",
       "state": "OR",
@@ -385,6 +397,12 @@
       "name": "City of Pittsburgh",
       "state": "PA",
       "career_page": "https://www.governmentjobs.com/careers/Pittsburgh"
+    },
+    {
+      "id": "rhodeisland",
+      "name": "State of Rhode Island",
+      "state": "RI",
+      "career_page": "https://www.governmentjobs.com/careers/rhodeisland"
     },
     {
       "id": "greenvillesc",
