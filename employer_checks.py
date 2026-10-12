@@ -244,8 +244,9 @@ def check_employer(job,profiles,sec_contact_email='',posting_fetch=None,
     try:
         gleif=gleif_entity(company,gleif_getter)
         if gleif:
-            out['identity']={'status':'Exact-name GLEIF legal entity match',
-                             **gleif,'note':'An LEI identifies a reported legal entity, not the person posting this particular vacancy.'}
+            out['identity']={**gleif,'entity_status':gleif.get('status'),
+                             'status':'Exact-name GLEIF legal entity match',
+                             'note':'An LEI identifies a reported legal entity, not the person posting this particular vacancy.'}
             if not out['age'] and gleif.get('creation_date'):
                 try:
                     d=date.fromisoformat(gleif['creation_date'])
