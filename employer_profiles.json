@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "guidance": "Only add founding/history claims with an accessible source. For exact legal entity age use GLEIF data when available. Unknown employer age and financial strength are not guessed.",
+  "employers": [
+    {
+      "name": "Mayo Clinic",
+      "employer_type": "nonprofit",
+      "history": {
+        "year": 1864,
+        "meaning": "Medical-practice roots in Rochester (Mayo Clinic name formalized in 1914), NOT incorporation age",
+        "source_url": "https://history.mayoclinic.org/timelines/this-month-in-our-history/"
+      },
+      "references": [
+        {
+          "title": "Mayo Clinic — official organization history",
+          "url": "https://history.mayoclinic.org/timelines/this-month-in-our-history/"
+        },
+        {
+          "title": "Mayo Clinic — About (nonprofit status)",
+          "url": "https://www.mayoclinic.org/about-mayo-clinic"
+        },
+        {
+          "title": "2024 audited financial report (New Mexico DOJ records)",
+          "url": "https://secure.nmdoj.gov/coros/Documents/41-6011702/IndependentAuditorsReport2024-FYE20241231.pdf"
+        },
+        {
+          "title": "IRS tax-exempt filings and Form 990 search",
+          "url": "https://apps.irs.gov/app/eos/"
+        },
+        {
+          "title": "Municipal bond filings / continuing disclosure (MSRB EMMA)",
+          "url": "https://emma.msrb.org/"
+        }
+      ]
+    }
+  ]
+}
