@@ -23,6 +23,7 @@ from posting_metadata import (
     reconcile_workplace_record
 )
 from employer_ui import render_employer_checker
+from employer_postings import posting_quality
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
@@ -1074,12 +1075,15 @@ def score_job(job, resume, words='', qualification_profile=None):
 
 
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
-                         max_per_employer=None, preferences=None):
+                         max_per_employer=None, preferences=None,
+                         listing_scope='Direct employers only (recommended)'):
     qualification_profile = compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
-              'location':0,'employer_limit':0,'preferences':0}
+              'location':0,'employer_limit':0,'preferences':0,
+              'recruiter':0,'directory_link':0,'indirect_source':0,
+              'foreign_location':0}
     for cached_job in jobs:
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
@@ -1104,6 +1108,21 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         if arrangement == 'Remote' and not mayo_remote:
             excluded['location']+=1
             continue
+        quality=posting_quality(job)
+        if quality['foreign_location']:
+            excluded['foreign_location']+=1
+            continue
+        if listing_scope != 'All sources (including directory links)':
+            if not quality['individual_url']:
+                excluded['directory_link']+=1
+                continue
+            if not quality['direct_source']:
+                excluded['indirect_source']+=1
+                continue
+            if (listing_scope == 'Direct employers only (recommended)'
+                    and quality['recruiter']):
+                excluded['recruiter']+=1
+                continue
         if work_style == 'On-site only' and arrangement != 'On-site':
             excluded['location']+=1
             continue
@@ -1468,6 +1487,13 @@ elif page == 'Find Jobs':
             chosen_work=st.selectbox('Work arrangement',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
                 help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
+        chosen_listing_scope=st.selectbox(
+            'Listing sources', [
+                'Direct employers only (recommended)',
+                'Include recruiter listings with direct job links',
+                'All sources (including directory links)',
+            ],
+            help='Recommended: employer-specific career boards and public agencies, with a link to an individual vacancy. Recruiting intermediaries, aggregators and general career directories are hidden. This does not prove the vacancy remains open; check the original employer listing.')
         chosen_employer_scope=st.selectbox(
             'Jobs per employer',
             ['All matching jobs (recommended)',
@@ -1513,7 +1539,8 @@ elif page == 'Find Jobs':
                 'verified_workplace_only':verified_work,
             }
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
-                search_text,st.session_state.resume_text,employer_cap,preferences)
+                search_text,st.session_state.resume_text,employer_cap,preferences,
+                chosen_listing_scope)
         had_baseline=st.session_state.search_baseline
         matches,new_seen=annotate_new_results(
             matches,st.session_state.seen_jobs,had_baseline)
@@ -1532,6 +1559,7 @@ elif page == 'Find Jobs':
             'matching_version':MATCHING_ENGINE_VERSION,
             'government':sum(bool(x['government']) for x in matches),
             'scope':chosen_state,'work':chosen_work,
+            'listing_scope':chosen_listing_scope,
             'employer_scope':chosen_employer_scope,
         }
 
@@ -1556,7 +1584,15 @@ elif page == 'Find Jobs':
                    'First search establishes a baseline for identifying new postings.')
         if not tracker_cloud_enabled():
             st.caption('New-posting history lasts for this session unless restored from a tracker JSON backup.')
-        st.caption(f"{employer_total} distinct employers · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        st.caption(f"{employer_total} distinct employers · {stats.get('listing_scope','Direct employers only (recommended)')} · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        screened=stats['excluded']
+        if any(screened.get(k,0) for k in ('recruiter','directory_link','indirect_source','foreign_location')):
+            st.info(f"Listing screening removed {screened.get('recruiter',0)} recruiting-firm posts, "
+                    f"{screened.get('directory_link',0)} directory-only links, "
+                    f"{screened.get('indirect_source',0)} third-party aggregator posts, "
+                    f"and {screened.get('foreign_location',0)} explicitly non-U.S. locations. "
+                    'Change Listing sources and search again to see a broader selection.')
+        st.caption('Employer-named career boards and vacancy-specific URLs do not guarantee a job is still open. Verify the original employer or government posting before applying.')
         if stats['excluded'].get('employer_limit',0):
             st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
         if not st.session_state.resume_text.strip():
@@ -1626,6 +1662,15 @@ elif page == 'Find Jobs':
                             job.get('work_style') or 'Not specified',
                             job['date']]))
                         st.caption('Government' if job['government'] else job['source'])
+                        quality=posting_quality(job)
+                        if quality['recruiter']:
+                            st.warning('Recruiting intermediary: the underlying hiring employer is not established.')
+                        elif quality['direct_source'] and quality['individual_url']:
+                            st.caption('Employer/agency career feed · Individual vacancy link · Current availability not independently verified')
+                        elif not quality['individual_url']:
+                            st.caption('General careers directory only — no vacancy-specific application link')
+                        else:
+                            st.caption('Third-party source — confirm the original employer posting')
                         if job.get('employer_identity_kind','').startswith('Recruiting'):
                             st.caption('Recruiter named; the client hiring company has not been independently identified.')
                         if job.get('arrangement_source') and job.get('work_style') != 'Not specified':
@@ -1683,7 +1728,7 @@ elif page == 'Find Jobs':
                                 st.write('**Resume focus:** ' + qualification['resume_focus'])
                                 st.caption('Confirmations never rewrite your resume. Update Career Analysis to confirm experience you have but did not include. Verify employer screening criteria directly.')
                     with right:
-                        st.link_button('Open NYC jobs; use Job ID' if job.get('reference') else 'View / Apply',job['url'],use_container_width=True)
+                        st.link_button('Open directory; search job ID' if job.get('reference') and not posting_quality(job)['individual_url'] else 'View individual vacancy' if posting_quality(job)['individual_url'] else 'Open listing source',job['url'],use_container_width=True)
                         if st.button('Save job',key=f'clean_save_{n}',use_container_width=True):
                             if save_result_to_tracker(job):
                                 st.success('Saved')

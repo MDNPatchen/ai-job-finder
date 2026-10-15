@@ -10,6 +10,7 @@ from ranked_breakdowns import (
 )
 from posting_metadata import reconcile_workplace_record
 from job_workflow import preferences_allow
+from employer_postings import posting_quality
 
 
 def make_job(title="Operations Director", documented=0, confirmed=0, total=5,
@@ -57,6 +58,7 @@ def extracted_filter():
         "evidence_sort_key":evidence_sort_key,
         "reconcile_workplace_record":reconcile_workplace_record,
         "preferences_allow":preferences_allow,
+        "posting_quality":posting_quality,
         "score_job":lambda job,resume,query,profile:dict(job),
     }
     exec(compile(module,"app.py","exec"),namespace)
@@ -185,6 +187,47 @@ class RankedBreakdownTests(unittest.TestCase):
             {'minimum_salary':125000,'include_unlisted_salary':True})
         self.assertEqual(len(results),0)
         self.assertEqual(excluded['preferences'],1)
+
+    def test_recruiter_and_directory_links_are_hidden_by_default(self):
+        direct=make_job(title='Director of Operations',company='Future Publishing')
+        direct['url']='https://apply.workable.com/j/EC2A4EFE7C'
+        recruiter=make_job(title='Vice President of Operations',
+                           company='Keller Executive Search')
+        recruiter['url']='https://apply.workable.com/j/DB19968E49'
+        directory=make_job(title='Deputy City Manager',
+                           company='City of New York',source='NYC Open Data')
+        directory['url']='https://cityjobs.nyc.gov/jobs'
+        filtered, excluded=extracted_filter()(
+            [direct,recruiter,directory],None,'On-site + Hybrid','','resume')
+        self.assertEqual([item['company'] for item in filtered],['Future Publishing'])
+        self.assertEqual(excluded['recruiter'],1)
+        self.assertEqual(excluded['directory_link'],1)
+
+    def test_broader_listing_choice_requires_user_opt_in(self):
+        direct=make_job(title='Director of Operations',company='Future Publishing')
+        recruiter=make_job(title='Operations Director',
+                           company='Keller Executive Search')
+        directory=make_job(title='Deputy City Manager',
+                           company='City of New York',source='NYC Open Data')
+        directory['url']='https://cityjobs.nyc.gov/jobs'
+        jobs=[direct,recruiter,directory]
+        with_recruiter,_=extracted_filter()(
+            jobs,None,'On-site + Hybrid','','resume',None,None,
+            'Include recruiter listings with direct job links')
+        self.assertEqual(len(with_recruiter),2)
+        all_sources,_=extracted_filter()(
+            jobs,None,'On-site + Hybrid','','resume',None,None,
+            'All sources (including directory links)')
+        self.assertEqual(len(all_sources),3)
+
+    def test_explicit_canadian_location_is_excluded(self):
+        Canadian=make_job(title='Director of Operations',
+                          company='Some Publisher')
+        Canadian['location']='Toronto, ON, CA'
+        results,excluded=extracted_filter()(
+            [Canadian],None,'On-site + Hybrid','','resume')
+        self.assertEqual(results,[])
+        self.assertEqual(excluded['foreign_location'],1)
 
     def test_no_resume_keeps_old_relevance_priority(self):
         jobs=[

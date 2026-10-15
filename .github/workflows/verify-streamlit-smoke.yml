@@ -5,6 +5,8 @@ on:
     paths:
       - "app.py"
       - "job_workflow.py"
+      - "employer_postings.py"
+      - "posting_metadata.py"
       - "tracker_store.py"
       - "job_sources.json"
       - "requirements.txt"
@@ -33,5 +35,5 @@ jobs:
           assert not app.exception, [e.message for e in app.exception]
           app.sidebar.radio[0].set_value("Job Tracker").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          print("Streamlit 3.0 Dashboard / Find Jobs / Job Tracker smoke passed")
+          print("Streamlit 3.0.1 Dashboard / Find Jobs / Job Tracker smoke passed")
           PY

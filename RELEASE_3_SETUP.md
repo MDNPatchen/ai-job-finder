@@ -1,5 +1,34 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.0.1 — employer-direct search quality (October 15, 2026)
+
+**New default:** Find Jobs → **Listing sources** → **Direct employers only
+(recommended)**. This hides listings posted by recognizable search firms,
+recruiting agencies and staffing companies (including Keller Executive
+Search), third-party aggregate boards, and general job directories such as
+the NYC public jobs landing page when a vacancy-specific URL is unavailable.
+The filtering also rejects explicitly Canadian job locations mistakenly
+interpreted as California.
+
+You can switch to **Include recruiter listings with direct job links** to
+opt back into recruiting intermediaries, or **All sources (including
+directory links)** to see everything. Exclusion counts appear beneath search
+results. These options change source screening, not resume scoring, 45-day
+age restrictions, the Mayo Clinic remote exception, or the existing state and
+workplace filters.
+
+**Important:** A named employer board and a link to a specific job do NOT
+prove the job is still accepting applications or independently verify the
+hiring organization. Open the vacancy on the company or agency site, and
+use **Check employer** for additional on-demand evidence. NYC public data
+without vacancy-specific URLs is available only in the broader search mode,
+not silently represented as a direct application link.
+
+The engine version is **3.0.1**, which deliberately invalidates in-session
+rankings and labels new CSV/JSON exports so the prior 3.0.0 results do not
+appear to have been filtered.
+
+
 This app is **free to search**. It uses public career boards, official government
 RSS feeds, and optional user-supplied USAJOBS credentials. No payment-card,
 OpenAI, LinkedIn or Indeed credential is required.
