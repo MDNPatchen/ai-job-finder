@@ -364,7 +364,7 @@ def classify_work_arrangement(location, description, declared_remote=False, decl
         return 'Remote'
     if re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',loc,re.I):
         return 'On-site'
-    return from_explicit_description(html_to_text(description))
+    return from_explicit_description(html_to_text(description)) or 'Not specified'
 
 
 def standard_job(title, company, url, location, description, source,
@@ -375,9 +375,11 @@ def standard_job(title, company, url, location, description, source,
         return None
     arrangement = classify_work_arrangement(location, description, remote, declared_style)
     explicit_style = declared_arrangement(declared_style)
-    arrangement_source = ('Employer ATS workplace label' if explicit_style else
-                          'Posting location or description text' if arrangement!='Not specified'
-                          else 'No explicit workplace label in public posting')
+    arrangement_source = ('No explicit workplace label in public posting'
+                          if arrangement == 'Not specified' else
+                          'Employer ATS workplace label' if explicit_style else
+                          'Provider remote flag' if affirmative(remote) else
+                          'Posting location or description text')
     return {
         'title': str(title).strip(), 'company': str(company).strip(),
         'employer_identity_kind': employer_identity_kind(company),
