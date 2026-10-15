@@ -9,7 +9,8 @@ import unittest
 
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
-    employer_identity_kind
+    employer_identity_kind, reconcile_workplace_record,
+    NO_WORKPLACE_EVIDENCE, WORKPLACE_SOURCE_UNVERIFIED
 )
 from ranked_breakdowns import breakdowns_csv_rows, breakdowns_json
 
@@ -76,6 +77,62 @@ class ArrangementProvenanceTests(unittest.TestCase):
         listing=job(extract_current_functions(),remote=True,declared_style='HYBRID')
         self.assertEqual(listing['work_style'],'Hybrid')
         self.assertEqual(listing['arrangement_source'],'Employer ATS workplace label')
+
+    def test_cached_unknown_cannot_claim_posting_evidence(self):
+        cached={'work_style':'Not specified','remote':False,
+                'arrangement_source':'Posting location or description text',
+                'location':'Nashville, TN','description':'Lead business operations.'}
+        repaired=reconcile_workplace_record(cached)
+        self.assertEqual(repaired['work_style'],'Not specified')
+        self.assertEqual(repaired['arrangement_source'],NO_WORKPLACE_EVIDENCE)
+        self.assertEqual(cached['arrangement_source'],
+                         'Posting location or description text')
+
+    def test_cached_hybrid_without_traceable_source_is_marked_unverified(self):
+        cached={'work_style':'Hybrid','remote':False,
+                'arrangement_source':'No explicit workplace label in public posting',
+                'location':'Nashville, TN','description':'Manage the school budget.'}
+        repaired=reconcile_workplace_record(cached)
+        self.assertEqual(repaired['work_style'],'Hybrid')
+        self.assertEqual(repaired['arrangement_source'],WORKPLACE_SOURCE_UNVERIFIED)
+
+    def test_cached_hybrid_evidence_is_recovered_if_explicit_in_posting(self):
+        cached={'work_style':'Hybrid','remote':False,
+                'arrangement_source':'No explicit workplace label in public posting',
+                'location':'Nashville, TN',
+                'description':'Work arrangement: Hybrid. Lead operational teams.'}
+        repaired=reconcile_workplace_record(cached)
+        self.assertEqual(repaired['work_style'],'Hybrid')
+        self.assertEqual(repaired['arrangement_source'],
+                         'Posting location or description text')
+
+    def test_cached_known_ats_label_is_not_erased(self):
+        cached={'work_style':'On-site',
+                'arrangement_source':'Employer ATS workplace label',
+                'remote':False,'location':'Salt Lake City, UT'}
+        repaired=reconcile_workplace_record(cached)
+        self.assertEqual(repaired['arrangement_source'],
+                         'Employer ATS workplace label')
+
+    def test_cached_provider_remote_label_requires_evidence(self):
+        cached={'work_style':'Remote','remote':True,
+                'arrangement_source':'Provider remote flag',
+                'location':'Rochester, Minnesota'}
+        repaired=reconcile_workplace_record(cached)
+        self.assertEqual(repaired['work_style'],'Remote')
+        self.assertEqual(repaired['arrangement_source'],'Provider remote flag')
+
+    def test_inconsistent_cached_provenance_repairs_before_export(self):
+        cached={'work_style':'Not specified','remote':False,
+                'arrangement_source':'Posting location or description text',
+                'location':'United States','description':'Direct operational leaders.',
+                'title':'Director of Operations','company':'Example Inc',
+                'source':'NEOGOV','url':'https://example.org/director',
+                'qualification_match':{'resume_present':True,'fit_index':78}}
+        repaired=reconcile_workplace_record(cached)
+        report=breakdowns_csv_rows([repaired])[0]
+        self.assertEqual(report['Work arrangement'],'Not specified')
+        self.assertEqual(report['Work arrangement evidence'],NO_WORKPLACE_EVIDENCE)
 
     def test_unknown_export_keeps_unknown_source(self):
         listing=job(extract_current_functions())
