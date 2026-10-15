@@ -78,13 +78,20 @@ def _qualification_screeners(description, resume):
 def assess_job_qualifications(job, profile, resume_text=''):
     """Grounded overlap assessment, not a credential or hiring-eligibility verdict."""
     description = str(job.get('description') or '')[:16000]
-    job_text = str(job.get('title') or '') + '. ' + description
+    job_title = str(job.get('title') or '')
     matched, confirmed_only, missing = [], [], []
     for area, patterns in _COMPILED:
-        found = next((m for pattern in patterns if (m := pattern.search(job_text))), None)
+        found = next((m for pattern in patterns if (m := pattern.search(description))), None)
+        origin = 'Job description'
+        source = description
+        if found is None:
+            found = next((m for pattern in patterns if (m := pattern.search(job_title))), None)
+            origin = 'Job title only'
+            source = job_title
         if found is None:
             continue
-        entry = {'area': area, 'listing_excerpt': _excerpt(job_text, found)}
+        entry = {'area': area, 'listing_excerpt': _excerpt(source, found),
+                 'match_origin': origin}
         if area in profile['evidence']:
             matched.append({**entry, 'resume_evidence': profile['evidence'][area]})
         elif area in profile['confirmed']:
@@ -128,6 +135,8 @@ def assess_job_qualifications(job, profile, resume_text=''):
     result['specialized_requirements'] = review['specialties']
     result['cautions'] = review['cautions']
     result['description_completeness'] = review['confidence']
+    result['transferable_strengths'] = review['transferable_strengths']
+    result['duty_coverage_index'] = review['duty_coverage']
     if review['cautions'] and label.startswith('Strong resume overlap'):
         result['label'] = 'Strong transferable overlap — important requirements to verify'
     return result
