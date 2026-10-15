@@ -84,7 +84,7 @@ def transfer_fit(qualification, job, title_alignment, specialty_penalty=0,
     confirmed = qualification.get('confirmed_only') or []
     missing = qualification.get('not_documented') or []
     all_areas = matched + confirmed + missing
-    possible = max(6.0, sum(_weight(item) for item in all_areas))
+    possible = max(5.0, sum(_weight(item) for item in all_areas))
     supported = sum(
         _weight(item) * (1.0 if _is_description_match(item) else 0.30)
         for item in matched)
