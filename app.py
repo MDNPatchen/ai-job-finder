@@ -24,6 +24,16 @@ from posting_metadata import (
 )
 from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
+from job_workflow import (
+    distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
+    preferences_allow
+)
+from tracker_store import (
+    COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
+    import_tracker_csv, export_tracker_csv, import_workspace_json,
+    export_workspace_json, load_remote_workspace, save_remote_workspace,
+    authenticate
+)
 
 st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
 
@@ -48,7 +58,9 @@ INITIAL_VERIFIED = list(VERIFICATION_AREAS)
 
 for key, default in {'jobs': [], 'resume_text': '', 'confirmed_titles': [], 'analysis': None,
                      'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy(),
-                     'confirmed_qualifications': []}.items():
+                     'confirmed_qualifications': [], 'seen_jobs': [],
+                     'search_baseline': False, 'tracker_unlocked': False,
+                     'tracker_loaded': False}.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -1025,10 +1037,9 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
 
 
 def normalized_key(job):
-    title=re.sub(r'[^a-z0-9]+',' ',job['title'].lower()).strip()
-    company=re.sub(r'[^a-z0-9]+',' ',job['company'].lower()).strip()
-    # Reposts across boards usually have different URLs; compare employer/title.
-    return (title,company)
+    # A title/employer combination can represent different requisitions in
+    # different cities (or in the same city). Use the actual posting identity.
+    return distinct_posting_key(job)
 
 
 def score_job(job, resume, words='', qualification_profile=None):
@@ -1063,12 +1074,12 @@ def score_job(job, resume, words='', qualification_profile=None):
 
 
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
-                         max_per_employer=None):
+                         max_per_employer=None, preferences=None):
     qualification_profile = compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
-              'location':0,'employer_limit':0}
+              'location':0,'employer_limit':0,'preferences':0}
     for cached_job in jobs:
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
@@ -1102,6 +1113,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         state_ids=states_in_location(job['location'])
         if state_code and state_code not in state_ids:
             excluded['location']+=1
+            continue
+        if not preferences_allow(job,state_ids,preferences):
+            excluded['preferences']+=1
             continue
         ranked=score_job(job,resume,query,qualification_profile)
         if ranked is None:
@@ -1150,7 +1164,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
 
 
 def save_result_to_tracker(job):
-    if any(x.get('Job URL','').split('?')[0]==job['url'].split('?')[0]
+    identity=posting_id(job)
+    if any(posting_id({'company':x['Company'],'title':x['Job Title'],
+                       'url':x['Job URL'],'location':x['Location']})==identity
            for x in st.session_state.jobs):
         return False
     st.session_state.jobs.append({
@@ -1158,6 +1174,7 @@ def save_result_to_tracker(job):
         'Location':job['location'],'Job URL':job['url'],
         'Salary':job['salary'],'Status':'Saved','Date Recorded':str(date.today()),
         'Interview Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
+    persist_tracker_if_unlocked()
     return True
 def job_competency_hits(job, resume):
     # Uses verified experience or phrases in the resume; compares to job description.
