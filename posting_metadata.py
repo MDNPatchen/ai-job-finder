@@ -86,3 +86,59 @@ def greenhouse_workplace_label(metadata):
             if style:
                 return style
     return ''
+
+
+# Records from public feeds may have been cached before the current parsing
+# rules were deployed. Normalize *both* the work style and its provenance
+# when those records are ranked/exported; avoid mutating provider cache data.
+NO_WORKPLACE_EVIDENCE = 'No explicit workplace label in public posting'
+WORKPLACE_SOURCE_UNVERIFIED = (
+    'Work arrangement reported; original evidence not retained — verify employer posting'
+)
+
+
+def reconcile_workplace_record(job):
+    """Preserve recognized work styles, but never invent their provenance.
+
+    If an older cache entry says "Not specified" while claiming evidence was
+    found, it has no established work-arrangement source. If a recognizable
+    On-site/Hybrid/Remote label has no matching evidence, keep the label but
+    explicitly mark its source unverified rather than fabricating an ATS field.
+    """
+    out=dict(job)
+    style=declared_arrangement(out.get('work_style'))
+    if not style:
+        style='Remote' if affirmative(out.get('remote')) else 'Not specified'
+    original_source=str(out.get('arrangement_source') or '').strip()
+
+    if style=='Not specified':
+        source=NO_WORKPLACE_EVIDENCE
+    elif original_source=='Employer ATS workplace label':
+        source=original_source
+    elif original_source=='Provider remote flag' and style=='Remote' and affirmative(out.get('remote')):
+        source=original_source
+    else:
+        # Only infer from plainly labeled description/location text. A city
+        # itself is not evidence of an on-site requirement.
+        description=from_explicit_description(out.get('description'))
+        location=str(out.get('location') or '')
+        if re.search(r'\bhybrid\b',location,re.I):
+            location_style='Hybrid'
+        elif re.search(r'\b(?:fully\s+)?remote\b',location,re.I):
+            location_style='Remote'
+        elif re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',
+                       location,re.I):
+            location_style='On-site'
+        else:
+            location_style=''
+        if style in (description,location_style):
+            source='Posting location or description text'
+        elif original_source=='Provider remote flag' and style=='Remote':
+            source='Provider remote flag'
+        else:
+            source=WORKPLACE_SOURCE_UNVERIFIED
+
+    out['work_style']=style
+    out['remote']=(style=='Remote')
+    out['arrangement_source']=source
+    return out
