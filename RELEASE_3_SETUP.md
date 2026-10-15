@@ -1,5 +1,33 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.1 — career suitability guardrails (October 15, 2026)
+
+The 3.1.0 job export surfaced unrelated specialist and early-career openings
+with near-perfect scores simply because lengthy job descriptions referenced
+generic skills (budgets, managers, strategy, reporting). **Skills overlap does
+not establish that a role is a good career transition.**
+
+Version 3.1.1 adds independent, conservative career-fit cautions for:
+- Job titles indicating specialized training (for example engineering,
+  software/IT administration, accounting or capital-markets, clinical care,
+  technical data journalism, court practice or teaching) without matching
+  field-specific evidence in the uploaded résumé.
+- Internships, trainees and some narrower first-line or assistant roles, but
+  only when the résumé evidences substantial prior management experience.
+
+This reduces comparative fit ranking without silently deleting positions or
+claiming an applicant is formally ineligible. A résumé explicitly documenting
+the specialized field bypasses that field's caution. The display shows the
+reason for each caution; CSV/JSON exports preserve it too.
+
+Cross-industry operations, logistics, partnerships, procurement, marketing
+and customer-management roles remain welcome. The default source screening,
+45-day limit, and Mayo Clinic remote exception are unchanged.
+
+Run a new search after deployment. Prior 3.1.0 rankings are invalidated and
+new export filenames contain **_v311_**.
+
+
 ## Version 3.1.0 — résumé strengths first (October 15, 2026)
 
 This build does **not** limit your career search to newspaper, publisher or

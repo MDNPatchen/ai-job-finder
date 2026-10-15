@@ -7,6 +7,7 @@ Use requirement excerpts to explain uncertainty, not hard job exclusions.
 import re
 from qualification_domains import identify_specialized_requirements
 from transfer_fit import transfer_fit
+from career_fit_guardrails import evaluate_career_fit
 
 _NUMBER = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
@@ -208,6 +209,7 @@ def recalibrate_match(job, qualification, resume_text=''):
     if not qualification.get('resume_present'):
         return {'index':0,'role_alignment':alignment,
                 'cautions':[],'specialties':[],
+                'career_fit_cautions':[], 'career_fit_penalty':0,
                 'transferable_strengths':[], 'duty_coverage':0,
                 'confidence':'No resume uploaded'}
     specialties=assess_specialized_experience(job,resume_text)
@@ -228,8 +230,15 @@ def recalibrate_match(job, qualification, resume_text=''):
         cautions.append(item['type']+' to verify: '+item['listing_excerpt'][:145])
     transfer=transfer_fit(qualification, job, alignment,
                           specialty_penalty, credential_penalty)
-    return {'index':transfer['index'],'role_alignment':alignment,
+    career_fit=evaluate_career_fit(job,resume_text)
+    for note in career_fit['cautions']:
+        cautions.append('Career fit to review: '+note['area']+
+                        ' — '+note['reason'])
+    adjusted=max(0,transfer['index']-career_fit['penalty'])
+    return {'index':adjusted,'role_alignment':alignment,
             'cautions':cautions,'specialties':specialties,
+            'career_fit_cautions':career_fit['cautions'],
+            'career_fit_penalty':career_fit['penalty'],
             'transferable_strengths':transfer['transferable_strengths'],
             'duty_coverage':transfer['duty_coverage'],
             'confidence':('Limited details; inspect the employer posting' if

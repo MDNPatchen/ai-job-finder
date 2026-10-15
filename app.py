@@ -1639,7 +1639,7 @@ elif page == 'Find Jobs':
         else:
             if st.session_state.resume_text.strip():
                 st.write('**Sorted by transferable strengths supported by your résumé: highest to lowest.**')
-                st.caption('The transferable-strength fit index primarily weighs your actual résumé examples against the job duties. A job title contributes only a small amount; missing industry-specific experience, professional licenses and other requirements lower the ranking but do not automatically disqualify you. This is NOT a hiring probability or eligibility determination.')
+                st.caption('The transferable-strength fit index primarily weighs your actual résumé examples against job duties, then considers the job-specific technical background and career-stage alignment. A high overlap score alone does not establish career suitability. Job-specific cautions reduce rank but never automatically remove a posting. This is NOT a hiring probability or eligibility determination.')
                 run_id = stats.get('run_id','')
                 all_breakdowns = breakdowns_json(
                     all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
@@ -1702,6 +1702,10 @@ elif page == 'Find Jobs':
                                 f"{len(q.get('resume_matches') or [])} areas supported by resume · "
                                 f"{len(q.get('confirmed_only') or [])} confirmed separately · "
                                 f"{len(q.get('not_documented') or [])} to investigate")
+                            if q.get('career_fit_cautions'):
+                                st.caption('Career fit to verify: '+
+                                    ' · '.join(x['area'] for x in
+                                             q['career_fit_cautions'][:2]))
                         st.caption(' · '.join([
                             job['company'],job['location'],
                             job.get('work_style') or 'Not specified',
