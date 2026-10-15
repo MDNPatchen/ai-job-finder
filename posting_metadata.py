@@ -67,3 +67,22 @@ def employer_identity_kind(company):
     if name in RECRUITER_NAMES:
         return 'Recruiting intermediary named; underlying hiring company unverified'
     return 'Company named by source; hiring identity not independently verified'
+
+
+def greenhouse_workplace_label(metadata):
+    """Return an ATS-supplied work label only when its field name says so."""
+    if not isinstance(metadata,list):
+        return ''
+    for item in metadata:
+        if not isinstance(item,dict):
+            continue
+        name=str(item.get('name') or '').strip().casefold()
+        if name not in ('workplace type','work arrangement','work model',
+                        'work location type','working model','work mode'):
+            continue
+        raw=item.get('value')
+        for value in raw if isinstance(raw,list) else [raw]:
+            style=declared_arrangement(value)
+            if style:
+                return style
+    return ''
