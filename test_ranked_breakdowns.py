@@ -9,6 +9,7 @@ from ranked_breakdowns import (
     evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 )
 from posting_metadata import reconcile_workplace_record
+from job_workflow import preferences_allow
 
 
 def make_job(title="Operations Director", documented=0, confirmed=0, total=5,
@@ -55,6 +56,7 @@ def extracted_filter():
         "normalized_key":lambda j:(j["title"],j["company"]),
         "evidence_sort_key":evidence_sort_key,
         "reconcile_workplace_record":reconcile_workplace_record,
+        "preferences_allow":preferences_allow,
         "score_job":lambda job,resume,query,profile:dict(job),
     }
     exec(compile(module,"app.py","exec"),namespace)
@@ -144,6 +146,45 @@ class RankedBreakdownTests(unittest.TestCase):
             jobs,None,'On-site + Hybrid','','resume',3)
         self.assertEqual(len(compact),10)
         self.assertEqual(excluded['employer_limit'],1)
+
+    def test_distinct_requisition_urls_for_same_title_are_not_collapsed(self):
+        from job_workflow import distinct_posting_key
+        jobs=[make_job(title='Regional Operations Director',company='Example Media',
+                       documented=4) for _ in range(3)]
+        jobs[0]['location']='Phoenix, AZ'
+        jobs[0]['url']='https://example.org/jobs/phoenix-101'
+        jobs[1]['location']='Tucson, AZ'
+        jobs[1]['url']='https://example.org/jobs/tucson-102'
+        jobs[2]['location']='Phoenix, AZ'
+        jobs[2]['url']='https://example.org/jobs/phoenix-103'
+        unique={distinct_posting_key(j) for j in jobs}
+        self.assertEqual(len(unique),3)
+
+    def test_identical_direct_urls_ignore_tracking_query_parameters(self):
+        from job_workflow import distinct_posting_key
+        a=make_job(title='Regional Operations Director')
+        b=dict(a)
+        a['url']='https://example.org/jobs/123?utm_source=board'
+        b['url']='https://example.org/jobs/123?utm_medium=alerts'
+        self.assertEqual(distinct_posting_key(a),distinct_posting_key(b))
+
+    def test_advanced_preferences_keep_unlisted_pay_by_default(self):
+        job=make_job(title='Regional Operations Director')
+        job['salary']=''
+        results,excluded=extracted_filter()(
+            [job],None,'On-site + Hybrid','','resume',None,
+            {'minimum_salary':125000,'include_unlisted_salary':True})
+        self.assertEqual(len(results),1)
+        self.assertEqual(excluded['preferences'],0)
+
+    def test_advanced_preferences_exclude_known_salary_below_threshold(self):
+        job=make_job(title='Regional Operations Director')
+        job['salary']='$80,000-$110,000 Annually'
+        results,excluded=extracted_filter()(
+            [job],None,'On-site + Hybrid','','resume',None,
+            {'minimum_salary':125000,'include_unlisted_salary':True})
+        self.assertEqual(len(results),0)
+        self.assertEqual(excluded['preferences'],1)
 
     def test_no_resume_keeps_old_relevance_priority(self):
         jobs=[
