@@ -161,7 +161,7 @@ def extract_requirements(description, resume=''):
         years=[int(y) if y.isdigit() else _NUMBER.get(y.lower(),0) for y in broad]
         if years and max(years)>=needed:
             status=('Resume mentions at least this many total career years; '
-                    'the required field, duties and years in that field are not verified')
+                    'the specific field, duties and years in that field are not verified')
         else:
             status='Not verified from resume: number of years and related duties are unknown'
         add('Experience duration',match,status)
