@@ -6,6 +6,8 @@ on:
       - "app.py"
       - "qualification_matcher.py"
       - "ranked_breakdowns.py"
+      - "build_info.py"
+      - "test_build_version.py"
       - "test_ranked_breakdowns.py"
       - ".github/workflows/verify-ranked-breakdowns.yml"
   workflow_dispatch:
@@ -19,6 +21,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile Python modules
-        run: python -m py_compile app.py qualification_matcher.py ranked_breakdowns.py
+        run: python -m py_compile app.py qualification_matcher.py ranked_breakdowns.py build_info.py
       - name: Run offline qualification rank and export tests
-        run: python -m unittest -v test_ranked_breakdowns
+        run: python -m unittest -v test_ranked_breakdowns test_build_version
