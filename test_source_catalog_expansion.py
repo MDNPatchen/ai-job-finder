@@ -37,7 +37,7 @@ class CareerCatalogTests(unittest.TestCase):
 
     def test_schema_and_exactly_12_additional_verified_boards(self):
         self.assertEqual(self.catalog['schema_version'],1)
-        self.assertEqual(sum(len(self.catalog[x]) for x in PROVIDERS),158)
+        self.assertEqual(sum(len(self.catalog[x]) for x in PROVIDERS),159)
         for group,ids in EXPECTED.items():
             current={record['id'] for record in self.catalog[group]}
             self.assertTrue(ids.issubset(current),f'{group}: {ids-current}')
@@ -64,7 +64,10 @@ class CareerCatalogTests(unittest.TestCase):
                         self.assertIs(type(record['government']),bool)
 
     def test_original_board_counts_retained(self):
-        self.assertEqual(len(self.catalog['neogov']),85)
+        self.assertEqual(len(self.catalog['neogov']),86)
+        self.assertIn('nccde',{x['id'] for x in self.catalog['neogov']})
+        self.assertEqual(len({x['state'] for x in self.catalog['neogov']+
+                             self.catalog['neoed']}),49)
         self.assertEqual(len(self.catalog['neoed']),9)
         self.assertEqual(len(self.catalog['mayo']),1)
         self.assertEqual(len(self.catalog['workable']),11)
@@ -118,7 +121,8 @@ class SmartRecruitersDetailTests(unittest.TestCase):
                     'description':description,'posted':posted,
                     'style':declared_style,'gov':gov} if url else None
         def retrieve_boards(boards,worker,max_workers=8):
-            return [job for board in boards for job in worker(board)], []
+            jobs=[job for board in boards for job in worker(board)]
+            return jobs, [], [{'status':'Active','board':'Example','records':len(jobs)}]
         env={
             'fetch_json':fetch_json,'ThreadPoolExecutor':BoundedExecutor,
             'date':date,'timedelta':timedelta,'MAX_POSTING_AGE_DAYS':45,
@@ -134,7 +138,8 @@ class SmartRecruitersDetailTests(unittest.TestCase):
             'ValueError':ValueError,'TypeError':TypeError,'OSError':OSError,
         }
         exec(compile(module,'app.py','exec'),env)
-        jobs,failures=env['load_smartrecruiters_boards']()
+        jobs,failures,health=env['load_smartrecruiters_boards']()
+        self.assertEqual(health[0]['records'],1)
         self.assertEqual(len(jobs),1)
         self.assertEqual(failures,[])
         self.assertEqual(jobs[0]['url'],

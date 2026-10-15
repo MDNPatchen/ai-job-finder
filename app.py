@@ -24,6 +24,16 @@ from posting_metadata import (
 )
 from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
+from job_workflow import (
+    distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
+    preferences_allow
+)
+from tracker_store import (
+    COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
+    import_tracker_csv, export_tracker_csv, import_workspace_json,
+    export_workspace_json, load_remote_workspace, save_remote_workspace,
+    authenticate
+)
 
 st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
 
@@ -48,7 +58,9 @@ INITIAL_VERIFIED = list(VERIFICATION_AREAS)
 
 for key, default in {'jobs': [], 'resume_text': '', 'confirmed_titles': [], 'analysis': None,
                      'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy(),
-                     'confirmed_qualifications': []}.items():
+                     'confirmed_qualifications': [], 'seen_jobs': [],
+                     'search_baseline': False, 'tracker_unlocked': False,
+                     'tracker_loaded': False}.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -596,27 +608,28 @@ def load_himalayas(query_terms):
 
 @st.cache_data(ttl=7200, show_spinner=False)
 def load_lever_employers(catalog_version=None):
-    jobs=[]
-    for token, employer in LEVER_BOARDS:
-        try:
-            data=fetch_json('https://api.lever.co/v0/postings/' + quote(token) + '?mode=json&limit=100')
-            for x in data if isinstance(data,list) else []:
-                cats=x.get('categories') or {}
-                loc=cats.get('location') or ''
-                style=str(x.get('workplaceType') or '')
-                remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
-                eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
-                if remote and not eligible:
-                    eligible=us_remote_eligible(loc)
-                job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
-                    loc or 'Location not specified',
-                    (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
-                    'Lever employer',remote,'',x.get('createdAt'),eligible,
-                    declared_style=style)
-                if job:jobs.append(job)
-        except (HTTPError,URLError,TimeoutError,ValueError,TypeError):
-            continue  # Individual failures do not interrupt other sources.
-    return jobs
+    def fetch(board):
+        token, employer=board
+        data=fetch_json('https://api.lever.co/v0/postings/' +
+                        quote(token) + '?mode=json&limit=100')
+        jobs=[]
+        for x in data if isinstance(data,list) else []:
+            cats=x.get('categories') or {}
+            loc=cats.get('location') or ''
+            style=str(x.get('workplaceType') or '')
+            remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
+            eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
+            if remote and not eligible:
+                eligible=us_remote_eligible(loc)
+            job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
+                loc or 'Location not specified',
+                (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
+                'Lever employer',remote,'',x.get('createdAt'),eligible,
+                declared_style=style)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(LEVER_BOARDS,fetch, max_workers=4)
+
 
 
 # Public job-board URLs identified on employer-hosted posting pages.
@@ -692,17 +705,26 @@ def load_workable_boards(catalog_version=None):
 
 
 def retrieve_boards(boards, worker, max_workers=8):
-    """Small bounded parallelism; return failures rather than silently hiding them."""
-    jobs, failures = [], []
+    """Return jobs, explicit errors AND per-board health, including empty feeds."""
+    jobs, failures, health = [], [], []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         tasks={pool.submit(worker, record): record for record in boards}
         for future in as_completed(tasks):
             info=tasks[future]
             try:
-                jobs.extend(future.result())
-            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,KeyError,OSError) as exc:
+                records=future.result()
+                jobs.extend(records)
+                health.append({'board':info[1], 'feed_id':info[0],
+                               'status':'Active' if records else 'Empty',
+                               'records':len(records)})
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,
+                    KeyError,OSError) as exc:
                 failures.append(f'{info[1]}: {type(exc).__name__}')
-    return jobs, failures
+                health.append({'board':info[1], 'feed_id':info[0],
+                               'status':'Failed', 'records':0,
+                               'error':type(exc).__name__})
+    return jobs, failures, sorted(health,key=lambda x:(x['board'].casefold(),x['feed_id']))
+
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
@@ -964,7 +986,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
         tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
-    jobs, errors, counts=[],[],{}
+    jobs, errors, counts, health=[],[],{},[]
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures={executor.submit(fn):label for label,fn in tasks.items()}
         for future in as_completed(futures):
@@ -975,32 +997,49 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                     records,failures,agency_counts=result
                     jobs.extend(records)
                     counts[label]=len(records)
-                    counts['Government agency feeds in location']=sum(state_filter is None or a[2] == state_filter for a in GOVERNMENT_AGENCIES)
-                    counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
-                    counts['Government feeds empty']=sum(n == 0 for n in agency_counts.values())-len(failures)
+                    counts['Government agency feeds in location']=sum(
+                        state_filter is None or a[2] == state_filter
+                        for a in GOVERNMENT_AGENCIES)
+                    counts['Government agencies with RSS items']=sum(
+                        n>0 for n in agency_counts.values())
+                    counts['Government feeds empty']=sum(
+                        n == 0 for n in agency_counts.values())-len(failures)
                     counts['Government feeds failed']=len(failures)
                     errors.extend(failures)
+                    failed_names={err.split(':',1)[0].strip() for err in failures}
+                    for board,number in agency_counts.items():
+                        health.append({'provider':label,'board':board,
+                                       'status':('Failed' if board in failed_names else
+                                                 'Active' if number else 'Empty'),
+                                       'records':number})
                 elif label in ('Greenhouse public boards','Ashby public boards',
                                'SmartRecruiters public boards','NEOED education RSS',
-                               'Workable public boards'):
-                    records, failures=result
+                               'Workable public boards','Lever employer boards'):
+                    records,failures,board_health=result
                     jobs.extend(records)
                     counts[label]=len(records)
                     errors.extend(f'{label} / {message}' for message in failures)
+                    health.extend({**x,'provider':label} for x in board_health)
                 else:
                     jobs.extend(result)
                     counts[label]=len(result)
+                    health.append({'provider':label,'board':label,
+                                   'status':'Active' if result else 'Empty',
+                                   'records':len(result)})
             except Exception as exc:
                 counts[label]=0
                 errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
-    return jobs,errors,counts
+                health.append({'provider':label,'board':label,
+                               'status':'Failed','records':0,
+                               'error':type(exc).__name__})
+    return jobs,errors,counts,sorted(health,
+                key=lambda x:(x['provider'],x['board'].casefold()))
 
 
 def normalized_key(job):
-    title=re.sub(r'[^a-z0-9]+',' ',job['title'].lower()).strip()
-    company=re.sub(r'[^a-z0-9]+',' ',job['company'].lower()).strip()
-    # Reposts across boards usually have different URLs; compare employer/title.
-    return (title,company)
+    # A title/employer combination can represent different requisitions in
+    # different cities (or in the same city). Use the actual posting identity.
+    return distinct_posting_key(job)
 
 
 def score_job(job, resume, words='', qualification_profile=None):
@@ -1035,12 +1074,12 @@ def score_job(job, resume, words='', qualification_profile=None):
 
 
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
-                         max_per_employer=None):
+                         max_per_employer=None, preferences=None):
     qualification_profile = compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
-              'location':0,'employer_limit':0}
+              'location':0,'employer_limit':0,'preferences':0}
     for cached_job in jobs:
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
@@ -1074,6 +1113,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         state_ids=states_in_location(job['location'])
         if state_code and state_code not in state_ids:
             excluded['location']+=1
+            continue
+        if not preferences_allow(job,state_ids,preferences):
+            excluded['preferences']+=1
             continue
         ranked=score_job(job,resume,query,qualification_profile)
         if ranked is None:
@@ -1122,7 +1164,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
 
 
 def save_result_to_tracker(job):
-    if any(x.get('Job URL','').split('?')[0]==job['url'].split('?')[0]
+    identity=posting_id(job)
+    if any(posting_id({'company':x['Company'],'title':x['Job Title'],
+                       'url':x['Job URL'],'location':x['Location']})==identity
            for x in st.session_state.jobs):
         return False
     st.session_state.jobs.append({
@@ -1130,6 +1174,7 @@ def save_result_to_tracker(job):
         'Location':job['location'],'Job URL':job['url'],
         'Salary':job['salary'],'Status':'Saved','Date Recorded':str(date.today()),
         'Interview Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
+    persist_tracker_if_unlocked()
     return True
 def job_competency_hits(job, resume):
     # Uses verified experience or phrases in the resume; compares to job description.
@@ -1142,6 +1187,54 @@ def job_competency_hits(job, resume):
         if area in confirmed and any(re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', job_text, re.I) for term in phrases):
             matches.append(area)
     return matches[:5]
+
+
+def tracker_cloud_enabled():
+    return bool(_secret('TRACKER_DATABASE_URL') and _secret('TRACKER_ACCESS_PASSWORD'))
+
+
+def persist_tracker_if_unlocked():
+    """Sync only an explicitly unlocked private workspace, never the Git repo."""
+    if not tracker_cloud_enabled() or not st.session_state.get('tracker_unlocked'):
+        return False
+    try:
+        save_remote_workspace(
+            _secret('TRACKER_DATABASE_URL'),
+            _secret('TRACKER_WORKSPACE_ID') or 'personal',
+            st.session_state.jobs,
+            st.session_state.seen_jobs,
+            st.session_state.search_baseline)
+        st.session_state.tracker_storage_error=''
+        return True
+    except Exception as exc:
+        st.session_state.tracker_storage_error=type(exc).__name__
+        return False
+
+
+def unlock_tracker_workspace(password):
+    if not authenticate(password,_secret('TRACKER_ACCESS_PASSWORD')):
+        return False
+    remote=load_remote_workspace(
+        _secret('TRACKER_DATABASE_URL'),
+        _secret('TRACKER_WORKSPACE_ID') or 'personal')
+    # The saved cloud record is authoritative. Preserve any session-only
+    # entries made before unlock, without discarding the saved cloud history.
+    existing={posting_id({'company':x['Company'],'title':x['Job Title'],
+                          'location':x['Location'],'url':x['Job URL']}):x
+              for x in remote['jobs']}
+    for item in st.session_state.jobs:
+        key=posting_id({'company':item['Company'],'title':item['Job Title'],
+                        'location':item['Location'],'url':item['Job URL']})
+        existing.setdefault(key,item)
+    st.session_state.jobs=list(existing.values())
+    st.session_state.seen_jobs=sorted(set(st.session_state.seen_jobs) |
+                                      set(remote['seen']))
+    st.session_state.search_baseline=(st.session_state.search_baseline
+                                     or remote['has_baseline'])
+    st.session_state.tracker_unlocked=True
+    st.session_state.tracker_loaded=True
+    persist_tracker_if_unlocked()
+    return True
 
 
 st.sidebar.title('💼 AI Job Finder')
@@ -1163,7 +1256,8 @@ if page == 'Dashboard':
         st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
     else:
         st.info('Go to Job Tracker to add a job.')
-    st.caption('Jobs are stored only for this session. Export your CSV to keep a backup.')
+    st.caption('The Job Tracker supports CSV/JSON backups, and can sync to private '
+               'Postgres storage after you configure Streamlit Secrets and unlock it.')
 
 elif page == 'My Resume':
     st.title('📄 My Resume')
@@ -1379,6 +1473,24 @@ elif page == 'Find Jobs':
             ['All matching jobs (recommended)',
              'Compact results: up to 3 per employer (10 Mayo Clinic)'],
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
+        with st.expander('Advanced search filters (optional)'):
+            state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
+            include_states=st.multiselect(
+                'Only these states (leave blank for nationwide)',state_names,
+                help='You can pick several states instead of filtering down to one.')
+            exclude_states=st.multiselect('Exclude states',state_names)
+            desired_seniority=st.multiselect('Role level',[
+                'Executive / VP','Publisher','Director','Manager','Other'],
+                help='Leave empty to include all role levels.')
+            minimum_salary=st.number_input('Minimum listed annual salary ($)',
+                min_value=0,max_value=500000,step=10000,value=0,
+                help='Only explicitly annual salary figures are compared. This is not a salary estimate.')
+            include_unknown_pay=st.checkbox(
+                'Include jobs that do not disclose annual compensation',value=True)
+            verified_work=st.checkbox(
+                'Exclude listings with unspecified on-site/hybrid arrangements',
+                value=False,
+                help='This excludes unknown arrangements but still permits explicitly remote Mayo Clinic roles.')
         submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
 
     if submitted:
@@ -1390,14 +1502,31 @@ elif page == 'Find Jobs':
             'regional director','partnerships director']
         with st.spinner('Searching free job boards and government employer feeds…'):
             code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
-            raw, errors, source_counts = fetch_all_free_jobs(tuple(terms), code)
+            raw, errors, source_counts, board_health = fetch_all_free_jobs(tuple(terms), code)
             employer_cap=(3 if chosen_employer_scope.startswith('Compact') else None)
+            preferences={
+                'included_states':[x.split(' ',1)[0] for x in include_states],
+                'excluded_states':[x.split(' ',1)[0] for x in exclude_states],
+                'seniority':desired_seniority,
+                'minimum_salary':minimum_salary,
+                'include_unlisted_salary':include_unknown_pay,
+                'verified_workplace_only':verified_work,
+            }
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
-                search_text,st.session_state.resume_text,employer_cap)
+                search_text,st.session_state.resume_text,employer_cap,preferences)
+        had_baseline=st.session_state.search_baseline
+        matches,new_seen=annotate_new_results(
+            matches,st.session_state.seen_jobs,had_baseline)
+        st.session_state.seen_jobs=new_seen
+        st.session_state.search_baseline=True
+        persist_tracker_if_unlocked()
         st.session_state.search_results=matches
         st.session_state.search_page=0
         st.session_state.search_stats={
             'fetched':len(raw),'sources':source_counts,'errors':errors,
+            'board_health':board_health,'preferences':preferences,
+            'new_count':sum(bool(x['new_since_last_search']) for x in matches),
+            'had_baseline':had_baseline,
             'excluded':excluded,'searched':datetime.now().strftime('%b %d, %Y %I:%M %p'),
             'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
             'matching_version':MATCHING_ENGINE_VERSION,
@@ -1421,6 +1550,12 @@ elif page == 'Find Jobs':
         c1.metric('Total jobs',len(all_results))
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
+        new_count=sum(x.get('new_since_last_search',False) for x in all_results)
+        st.caption(f'{new_count} new postings compared with earlier searches'
+                   if stats.get('had_baseline',False) else
+                   'First search establishes a baseline for identifying new postings.')
+        if not tracker_cloud_enabled():
+            st.caption('New-posting history lasts for this session unless restored from a tracker JSON backup.')
         st.caption(f"{employer_total} distinct employers · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
         if stats['excluded'].get('employer_limit',0):
             st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
@@ -1451,17 +1586,34 @@ elif page == 'Find Jobs':
                         export_filename('detailed',run_id,'json'), 'application/json',
                         use_container_width=True)
                 st.caption('Downloads contain job links, cited resume excerpts, specific industry cautions and requirements to verify. Nothing is sent to an outside AI service. The comparisons are not licensing or hiring decisions.')
+            new_only=st.checkbox('Show only new positions since the previous search',
+                                 value=False,key='new_jobs_only')
+            hide_tracked=st.checkbox('Hide positions already in my Job Tracker',
+                                     value=False,key='hide_tracked_jobs')
+            tracked_ids={posting_id({'company':item['Company'],'title':item['Job Title'],
+                       'url':item['Job URL'],'location':item['Location']})
+                         for item in st.session_state.jobs}
+            display_results=[job for job in all_results
+                 if (not new_only or job.get('new_since_last_search'))
+                 and (not hide_tracked or posting_id(job) not in tracked_ids)]
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
-            page_total=(len(all_results)+PAGE_SIZE-1)//PAGE_SIZE
+            page_total=max(1,(len(display_results)+PAGE_SIZE-1)//PAGE_SIZE)
             page_no=min(max(page_no,0),page_total-1)
             st.session_state.search_page=page_no
-            st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(all_results))} of {len(all_results)} results · '+('Ranked by qualification evidence' if st.session_state.resume_text.strip() else 'Government and private listings mixed for variety'))
-            for n,job in enumerate(all_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE], start=page_no*PAGE_SIZE):
+            if not display_results:
+                st.info('No positions match these display choices. Try turning off New only or Hide tracked.')
+            else:
+                st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(display_results))} of {len(display_results)} displayed jobs · '
+                          +('Ranked by qualification evidence' if st.session_state.resume_text.strip()
+                            else 'Government and private listings mixed for variety'))
+            for n,job in enumerate(display_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE],
+                                    start=page_no*PAGE_SIZE):
                 with st.container(border=True):
                     left,right=st.columns([5,1.7],vertical_alignment='top')
                     with left:
-                        st.markdown('**#'+str(n+1)+' · '+job['title']+'**')
+                        st.markdown(('**NEW · **' if job.get('new_since_last_search') else '')+
+                                    '**#'+str(n+1)+' · '+job['title']+'**')
                         if st.session_state.resume_text.strip():
                             q = job.get('qualification_match') or {}
                             st.write(f"**Comparative qualification fit: {evidence_index(q)}/96**")
@@ -1560,6 +1712,26 @@ elif page == 'Find Jobs':
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
+            board_rows=stats.get('board_health') or []
+            if board_rows:
+                healthy=sum(row['status']=='Active' for row in board_rows)
+                empty=sum(row['status']=='Empty' for row in board_rows)
+                failed=sum(row['status']=='Failed' for row in board_rows)
+                st.write(f'**Career-board health:** {healthy} returned records · '
+                         f'{empty} responded with zero qualifying feed records · '
+                         f'{failed} were unavailable')
+                filter_health=st.selectbox('Board status',[
+                    'All boards','Active','Empty','Failed'],key='board_health_filter')
+                shown=[r for r in board_rows if filter_health=='All boards'
+                       or r['status']==filter_health]
+                st.dataframe(pd.DataFrame(shown),hide_index=True,use_container_width=True)
+                st.caption('Active means the provider returned candidate records, not that an '
+                           'eligible role survived the 45-day, location and resume filters. '
+                           'Empty means no candidate records survived provider parsing; it '
+                           'does not prove an employer has no jobs.')
+            st.write(f"Excluded by extra search preferences: {stats['excluded'].get('preferences',0)}")
+            if stats.get('preferences'):
+                st.caption('Advanced filters: '+str(stats['preferences']))
             st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']} · Hidden by optional employer limit: {stats['excluded'].get('employer_limit',0)}")
             if stats['errors']:
                 st.caption(f"{len(stats['errors'])} feeds had errors or were unavailable; successful feeds still contribute jobs.")
@@ -1567,42 +1739,162 @@ elif page == 'Find Jobs':
                     for err in stats['errors']:
                         st.caption('• ' + err)
             st.caption('USAJOBS can also be included automatically if your account already has its free API credentials in Streamlit Secrets. Paid Adzuna and OpenAI APIs are not used. Indeed and LinkedIn do not provide unrestricted public job-search feeds for this app.')
-    st.caption('Your Job Tracker still uses temporary session storage. Export its CSV to preserve applications.')
+    st.caption('Job Tracker backups include application history and seen-job IDs. '
+               'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
     st.title('📋 Job Application Tracker')
-    with st.expander('➕ Add a New Job', expanded=True):
+    st.caption('Track applications, interviews, offers, skipped openings and notes. '
+               'A JSON backup also includes your previously seen vacancy history.')
+
+    if tracker_cloud_enabled():
+        if st.session_state.tracker_unlocked:
+            st.success('Private cloud tracker unlocked. Changes are synchronized to configured Postgres storage.')
+        else:
+            with st.form('tracker_unlock'):
+                entered_password=st.text_input('Private tracker password',type='password',
+                   help='Configured in Streamlit Secrets, never stored in GitHub.')
+                unlock=st.form_submit_button('Unlock saved applications')
+                if unlock:
+                    try:
+                        if unlock_tracker_workspace(entered_password):
+                            st.success('Private applications loaded.')
+                            st.rerun()
+                        else:
+                            st.error('Incorrect password or password configuration.')
+                    except Exception as exc:
+                        st.error('Could not load cloud tracker: '+type(exc).__name__)
+            st.warning('Not unlocked: edits are session-only. Unlock before searching to '
+                       'retain job history across devices or deployments.')
+    else:
+        st.info('Session-only mode: no private database is configured. '
+                'Use JSON backup/restore to preserve your applications and seen jobs. '
+                'For automatic persistence, configure TRACKER_DATABASE_URL and '
+                'TRACKER_ACCESS_PASSWORD in Streamlit Secrets.')
+    if st.session_state.get('tracker_storage_error'):
+        st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
+                 '). Export a JSON backup now; the latest changes are in this session.')
+
+    st.subheader('Backup and restore')
+    backup_left,backup_right=st.columns(2)
+    with backup_left:
+        st.download_button(
+            '⬇️ Download complete tracker backup (JSON)',
+            export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
+                                  st.session_state.search_baseline),
+            'job_tracker_full_backup.json','application/json',use_container_width=True)
+    with backup_right:
+        st.download_button(
+            '⬇️ Export applications CSV',
+            export_tracker_csv(st.session_state.jobs),'job_tracker.csv',
+            'text/csv',use_container_width=True)
+    with st.expander('Restore applications and job history'):
+        uploaded_backup=st.file_uploader('Choose prior Job Tracker CSV or full JSON backup',
+                                         type=['csv','json'],key='tracker_restore_file')
+        restore_mode=st.radio('Import behavior',[
+            'Merge with existing applications','Replace existing applications'],
+            help='Replacing JSON also replaces seen-job history. CSV backups contain applications only.')
+        if st.button('Restore selected backup',disabled=uploaded_backup is None):
+            try:
+                raw=uploaded_backup.getvalue()
+                if uploaded_backup.name.lower().endswith('.json'):
+                    incoming=import_workspace_json(raw)
+                    restored_jobs=incoming['jobs']
+                else:
+                    restored_jobs=import_tracker_csv(raw)
+                    incoming=None
+                if restore_mode.startswith('Replace'):
+                    st.session_state.jobs=restored_jobs
+                    if incoming is not None:
+                        st.session_state.seen_jobs=incoming['seen']
+                        st.session_state.search_baseline=incoming['has_baseline']
+                else:
+                    merged={posting_id({'company':x['Company'],'title':x['Job Title'],
+                                       'location':x['Location'],'url':x['Job URL']}):x
+                            for x in st.session_state.jobs}
+                    for entry in restored_jobs:
+                        key=posting_id({'company':entry['Company'],
+                                       'title':entry['Job Title'],
+                                       'location':entry['Location'],'url':entry['Job URL']})
+                        merged.setdefault(key,entry)
+                    st.session_state.jobs=list(merged.values())
+                    if incoming is not None:
+                        st.session_state.seen_jobs=sorted(
+                            set(st.session_state.seen_jobs) | set(incoming['seen']))
+                        st.session_state.search_baseline=(
+                            st.session_state.search_baseline or incoming['has_baseline'])
+                synced=persist_tracker_if_unlocked()
+                if tracker_cloud_enabled() and st.session_state.tracker_unlocked and not synced:
+                    st.warning('Imported into this session, but cloud save failed. Keep a backup.')
+                else:
+                    st.success(f'Restored {len(restored_jobs)} saved applications.')
+                st.rerun()
+            except (UnicodeDecodeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                st.error('Backup not imported: '+str(exc)[:280])
+
+    with st.expander('➕ Add a New Job', expanded=False):
         with st.form('add_job'):
-            company = st.text_input('Company')
-            title = st.text_input('Job Title')
-            location = st.text_input('Location')
-            url = st.text_input('Job Posting URL')
-            salary = st.text_input('Salary / Range')
-            status = st.selectbox('Status', STATUSES)
-            recorded = st.date_input('Date Recorded', value=date.today())
-            interview = st.date_input('Interview Date (optional)', value=None)
-            notes = st.text_area('Notes / Next Steps')
+            company=st.text_input('Company')
+            title=st.text_input('Job Title')
+            location=st.text_input('Location')
+            url=st.text_input('Job Posting URL')
+            salary=st.text_input('Salary / Range')
+            status=st.selectbox('Status',STATUSES)
+            recorded=st.date_input('Date Recorded',value=date.today())
+            interview=st.date_input('Interview Date (optional)',value=None)
+            notes=st.text_area('Notes / Next Steps')
             if st.form_submit_button('Save Job'):
                 if company.strip() and title.strip():
-                    st.session_state.jobs.append({'Company':company.strip(),'Job Title':title.strip(),'Location':location.strip(),'Job URL':url.strip(),'Salary':salary.strip(),'Status':status,'Date Recorded':str(recorded),'Interview Date':str(interview) if interview else '', 'Notes':notes.strip()})
-                    st.success('Job added.')
+                    try:
+                        row={'Company':company.strip(),'Job Title':title.strip(),
+                             'Location':location.strip(),'Job URL':url.strip(),
+                             'Salary':salary.strip(),'Status':status,
+                             'Date Recorded':str(recorded),
+                             'Interview Date':str(interview) if interview else '',
+                             'Notes':notes.strip()}
+                        from tracker_store import normalize_tracker_row
+                        row=normalize_tracker_row(row)
+                        identity=posting_id({'company':row['Company'],'title':row['Job Title'],
+                                             'location':row['Location'],'url':row['Job URL']})
+                        existing={posting_id({'company':x['Company'],'title':x['Job Title'],
+                                              'location':x['Location'],'url':x['Job URL']})
+                                  for x in st.session_state.jobs}
+                        if identity in existing:
+                            st.info('This vacancy is already in your tracker.')
+                        else:
+                            st.session_state.jobs.append(row)
+                            persist_tracker_if_unlocked()
+                            st.success('Job added.')
+                            st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
                 else:
                     st.warning('Company and Job Title are required.')
-    jobs = st.session_state.jobs
+
+    jobs=st.session_state.jobs
     if jobs:
-        selected_status = st.selectbox('Filter by status', ['All'] + STATUSES)
-        visible = [j for j in jobs if selected_status == 'All' or j['Status'] == selected_status]
-        st.dataframe(pd.DataFrame(visible), use_container_width=True, hide_index=True)
-        idx = st.selectbox('Update a job', range(len(jobs)), format_func=lambda i: f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
-        job = jobs[idx]
-        new_status = st.selectbox('New status', STATUSES, index=STATUSES.index(job['Status']))
-        new_notes = st.text_area('Update notes', value=job['Notes'], key=f'notes_{idx}')
+        st.metric('Applications tracked',len(jobs))
+        selected_status=st.selectbox('Filter by status',['All']+STATUSES)
+        visible=[j for j in jobs if selected_status=='All' or j['Status']==selected_status]
+        st.dataframe(pd.DataFrame(visible),use_container_width=True,hide_index=True)
+        idx=st.selectbox('Update a job',range(len(jobs)),
+                         format_func=lambda i:f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
+        job=jobs[idx]
+        new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']))
+        new_notes=st.text_area('Update notes',value=job['Notes'],key=f'notes_{idx}')
         if st.button('Save Changes'):
-            jobs[idx]['Status'] = new_status
-            jobs[idx]['Notes'] = new_notes
-            st.success('Changes saved for this session.')
+            jobs[idx]['Status']=new_status
+            jobs[idx]['Notes']=new_notes.strip()[:3000]
+            persist_tracker_if_unlocked()
+            st.success('Changes saved'+(' to cloud.' if st.session_state.tracker_unlocked
+                                         and not st.session_state.get('tracker_storage_error')
+                                         else ' for this session.'))
             st.rerun()
-        st.download_button('⬇️ Export Job Tracker CSV', pd.DataFrame(jobs).to_csv(index=False), 'job_tracker.csv', 'text/csv')
+        if st.checkbox('Enable deletion of selected job',value=False):
+            if st.button('Delete selected job'):
+                jobs.pop(idx)
+                persist_tracker_if_unlocked()
+                st.success('Selected job deleted.')
+                st.rerun()
     else:
-        st.info('No jobs tracked yet.')
-    st.warning('Tracker data is temporary. Export a CSV backup before closing your session. Permanent storage is a future step.')
+        st.info('No jobs tracked yet. Save an opening from Find Jobs or import a prior backup.')

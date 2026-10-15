@@ -1,0 +1,37 @@
+name: Verify Streamlit application startup
+
+on:
+  pull_request:
+    paths:
+      - "app.py"
+      - "job_workflow.py"
+      - "tracker_store.py"
+      - "job_sources.json"
+      - "requirements.txt"
+      - "build_info.py"
+      - ".github/workflows/verify-streamlit-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the exact Streamlit application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Exercise Dashboard, Find Jobs and Job Tracker without network queries
+        run: |
+          python - <<'PY'
+          from streamlit.testing.v1 import AppTest
+          app=AppTest.from_file("app.py").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          app.sidebar.radio[0].set_value("Find Jobs").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          app.sidebar.radio[0].set_value("Job Tracker").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          print("Streamlit 3.0 Dashboard / Find Jobs / Job Tracker smoke passed")
+          PY
