@@ -5,6 +5,7 @@ finding that someone cannot perform a job. No inferences about protected traits.
 Use requirement excerpts to explain uncertainty, not hard job exclusions.
 """
 import re
+from qualification_domains import identify_specialized_requirements
 
 _NUMBER = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
@@ -159,8 +160,8 @@ def extract_requirements(description, resume=''):
         broad=re.findall(_YEAR,resume)
         years=[int(y) if y.isdigit() else _NUMBER.get(y.lower(),0) for y in broad]
         if years and max(years)>=needed:
-            status=('Resume mentions at least this many years; '
-                    'specific field and duties remain unverified')
+            status=('Resume mentions at least this many total career years; '
+                    'the required field, duties and years in that field are not verified')
         else:
             status='Not verified from resume: number of years and related duties are unknown'
         add('Experience duration',match,status)
@@ -181,37 +182,8 @@ def extract_requirements(description, resume=''):
 
 
 def assess_specialized_experience(job, resume=''):
-    """Report a domain gap only when tied to title or an experience requirement."""
-    title=str(job.get('title') or '')
-    description=str(job.get('description') or '')
-    resume=str(resume or '')
-    hints=[]
-    for domain, phrase, title_hint in DOMAINS:
-        matches=list(re.finditer(phrase,description,re.I))
-        if not matches: continue
-        in_title=bool(re.search(title_hint,title,re.I))
-        # Within nearby posting text: years of experience + relevant domain.
-        required=any(re.search(
-            r'\b(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)'
-            r'(?:\s*\(\d+\))?(?:\+)?\s+years?\b',
-            description[max(0,m.start()-165):min(len(description),m.end()+125)],re.I)
-            for m in matches)
-        if not (required or in_title):continue
-        if re.search(phrase,resume,re.I):
-            status='Related industry terms appear in resume; duties and years still require verification'
-            missing=False
-        else:
-            status='Industry-specific experience not documented in resume (not a disqualification)'
-            missing=True
-        # Explicit specialization in title or near years gets more caution.
-        penalty=(15 if required else 9) if missing else 0
-        if domain=='Government financial administration':
-            penalty=min(penalty,5)
-        hints.append({'area':domain,'listing_excerpt':_around(description,matches[0],100),
-                      'required_context':required,'mentioned_in_title':in_title,
-                      'resume_status':status,'needs_verification':missing,
-                      'ranking_caution':penalty})
-    return hints[:5]
+    """Use focused, text-supported industry experience cues."""
+    return identify_specialized_requirements(job, resume)
 
 
 def role_alignment(title):
@@ -243,8 +215,10 @@ def recalibrate_match(job, qualification, resume_text=''):
     cautions=[]
     for item in specialties:
         if item['needs_verification']:
-            cautions.append('Specialized experience needs verification: '+item['area'])
-    specialty_penalty=min(26,sum(s['ranking_caution'] for s in specialties))
+            cautions.append(item.get('priority','Verify experience')+': '+item['area'])
+    # Requirements stated in the listing carry more weight than generic
+    # title overlap. Keep it a soft ranking caution, not an exclusion.
+    specialty_penalty=min(38,sum(s['ranking_caution'] for s in specialties))
     # Avoid a penalty when a credential is merely listed as preferred.
     restrictions=[r for r in qualification.get('screeners',[])
                   if r['type'] in ('License / certification','Civil-service eligibility')
