@@ -45,13 +45,15 @@ def evidence_sort_key(job):
             str(job.get('company') or '').casefold())
 
 
-def breakdowns_json(jobs):
+def breakdowns_json(jobs, matching_version='', search_run_id=''):
     """Structured ranked information, with no uncited entire-resume export."""
     out = []
     for place, job in enumerate(jobs, 1):
         q = job.get('qualification_match') or {}
         out.append({
             'rank': place,
+            'matching_engine_version': matching_version or 'not recorded',
+            'search_run_id': search_run_id or 'not recorded',
             'job_title': job.get('title') or '',
             'employer': job.get('company') or '',
             'employer_identity_kind': job.get('employer_identity_kind') or
@@ -84,10 +86,10 @@ def breakdowns_json(jobs):
     return out
 
 
-def breakdowns_csv_rows(jobs):
+def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
     """Flat rows for Excel; detailed posting excerpts stay available in JSON."""
     rows = []
-    for item in breakdowns_json(jobs):
+    for item in breakdowns_json(jobs, matching_version, search_run_id):
         def areas(value):
             return '; '.join(x.get('area') or '' for x in value)
         def quotes(value):
@@ -102,6 +104,8 @@ def breakdowns_csv_rows(jobs):
                 for x in value)
         rows.append({
             'Rank': item['rank'],
+            'Matching engine version': item['matching_engine_version'],
+            'Search run ID (UTC)': item['search_run_id'],
             'Comparative fit index (0-96; not hiring probability)': item['comparative_fit_index'],
             'Alignment': item['alignment_label'],
             'Role-family alignment index': item['role_alignment_index'],
