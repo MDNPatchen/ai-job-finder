@@ -1065,6 +1065,7 @@ def score_job(job, resume, words='', qualification_profile=None):
                for pattern in transferable_clues)<3:
             return None
     # User's query is authoritative: title match or strongly related description.
+    query_rank_bonus=0
     search_terms=[x.lower() for x in re.findall(r'[A-Za-z0-9]+',words) if len(x)>2]
     if search_terms:
         title=job['title'].lower()
@@ -1073,7 +1074,7 @@ def score_job(job, resume, words='', qualification_profile=None):
         in_description=sum(w in description for w in search_terms)
         if not (in_title or in_description>=max(1,len(search_terms)//2)):
             return None
-        score+=4 if in_title else 1
+        query_rank_bonus+=4 if in_title else 1
     profile = qualification_profile or compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     qualification = assess_job_qualifications(job, profile, resume)
@@ -1089,6 +1090,7 @@ def score_job(job, resume, words='', qualification_profile=None):
         category,score='Transferable-strength match',8
     else:
         category,score=classified
+    score+=query_rank_bonus
     # Modestly boost jobs where the resume shows relevant evidence. The boost
     # is not an eligibility decision or a hiring-success probability.
     score += qualification['rank_bonus']
