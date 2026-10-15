@@ -100,6 +100,11 @@ def transfer_fit(qualification, job, title_alignment, specialty_penalty=0,
     title_contribution = 0.08 * max(0, min(100, title_alignment))
     raw = round(0.82 * coverage + title_contribution + breadth -
                 specialty_penalty - credential_penalty)
+    # Broad corroborated responsibilities with no field-specific gap are an
+    # unusually clear transfer, even without an executive-sounding title.
+    if (description_matches >= 3 and specialty_penalty == 0 and
+            credential_penalty == 0):
+        raw += 9
     # Very sparse postings cannot substantiate a near-perfect match.
     if len(re.sub(r'\s+', ' ', str(job.get('description') or '')).strip()) < 250:
         raw = min(raw, 74)
