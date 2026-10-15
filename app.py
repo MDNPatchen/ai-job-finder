@@ -16,6 +16,10 @@ import fitz
 from docx import Document
 import pandas as pd
 from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
+from posting_metadata import (
+    affirmative, declared_arrangement, from_explicit_description,
+    employer_identity_kind, greenhouse_workplace_label
+)
 from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 
@@ -332,42 +336,24 @@ def html_to_text(value):
 
 
 def classify_work_arrangement(location, description, declared_remote=False, declared_style=''):
-    """Only label on-site or hybrid when the posting explicitly says so.
+    """Do not infer on-site status merely from a city or street address.
 
-    Employer descriptions can omit workplace details. Those postings are shown
-    as 'Not specified' in the combined search, rather than mislabeled on-site.
+    Prefer an ATS workplace label, then a labeled work location, then explicit
+    job-specific arrangement language in the advertisement. Unknown stays unknown.
     """
-    location_and_style = str(location or '') + ' ' + str(declared_style or '')
-    details = html_to_text(description)[:6500]
-
-    # Employer-provided workplace labels are stronger than text in a job ad.
-    if re.search(r'\bhybrid\b', location_and_style, re.I):
+    style = declared_arrangement(declared_style)
+    if style:
+        return style
+    loc=str(location or '')
+    if re.search(r'\bhybrid\b',loc,re.I):
         return 'Hybrid'
-    if declared_remote or re.search(r'\bremote\b|\bwork from (?:home|anywhere)\b',
-                                    location_and_style, re.I):
+    if affirmative(declared_remote):
         return 'Remote'
-    if re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',
-                 location_and_style, re.I):
+    if re.search(r'\b(?:fully\s+)?remote\b|\bwork from anywhere\b',loc,re.I):
+        return 'Remote'
+    if re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',loc,re.I):
         return 'On-site'
-
-    # Check explicit arrangements in descriptions without assuming a city means on-site.
-    if re.search(r'\bhybrid\s+(?:work|schedule|position|role|arrangement|model)\b|'
-                 r'\b(?:work|schedule|position|role|arrangement)\s+(?:is\s+)?hybrid\b',
-                 details, re.I):
-        return 'Hybrid'
-    if re.search(r'\b(?:fully|100%|entirely|completely|full[- ]time)\s+remote\b|'
-                 r'\bremote[- ]only\b|\bwork from anywhere\b|'
-                 r'\b(?:position|role|job)\s+is\s+(?:fully\s+)?remote\b|'
-                 r'\b100%\s+telework\b', details, re.I):
-        # Avoid treating 'not a fully remote job' as an affirmative remote label.
-        if not re.search(r'\b(?:not|isn.t|no)\s+(?:a\s+)?(?:fully\s+)?remote\b',
-                         details, re.I):
-            return 'Remote'
-    if re.search(r'\b(?:on[- ]site|onsite)\s+(?:position|work|role|attendance|required|schedule)\b|'
-                 r'\b(?:position|role|work)\s+(?:is\s+)?(?:on[- ]site|onsite)\b',
-                 details, re.I):
-        return 'On-site'
-    return 'Not specified'
+    return from_explicit_description(html_to_text(description))
 
 
 def standard_job(title, company, url, location, description, source,
@@ -377,8 +363,14 @@ def standard_job(title, company, url, location, description, source,
     if not title or not company or not isinstance(url, str) or not url.startswith('https://'):
         return None
     arrangement = classify_work_arrangement(location, description, remote, declared_style)
+    explicit_style = declared_arrangement(declared_style)
+    arrangement_source = ('Employer ATS workplace label' if explicit_style else
+                          'Posting location or description text' if arrangement!='Not specified'
+                          else 'No explicit workplace label in public posting')
     return {
         'title': str(title).strip(), 'company': str(company).strip(),
+        'employer_identity_kind': employer_identity_kind(company),
+        'arrangement_source': arrangement_source,
         'url': url, 'location': str(location or 'Location not specified'),
         'description': html_to_text(description)[:12500], 'source': source,
         'remote': arrangement == 'Remote', 'work_style': arrangement,
@@ -598,7 +590,7 @@ def load_lever_employers(catalog_version=None):
                 cats=x.get('categories') or {}
                 loc=cats.get('location') or ''
                 style=str(x.get('workplaceType') or '')
-                remote=bool(re.search('remote',style+' '+loc,re.I))
+                remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
                 eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
                 if remote and not eligible:
                     eligible=us_remote_eligible(loc)
@@ -675,7 +667,7 @@ def load_workable_boards(catalog_version=None):
                 loc,
                 entry.get('description') or entry.get('full_description') or '',
                 'Workable employer',
-                remote=bool(entry.get('telecommuting')),
+                remote=affirmative(entry.get('telecommuting')),
                 posted=entry.get('published_on'), eligible=True,
                 declared_style=style,
             )
@@ -715,9 +707,11 @@ def load_greenhouse_boards(catalog_version=None):
             location=(x.get('location') or {}).get('name') or ''
             country_ok=bool(states_in_location(location) or re.search(r'\b(United States|USA|U\.S\.)\b',location,re.I))
             if not country_ok:continue
+            style = greenhouse_workplace_label(x.get('metadata'))
             job=standard_job(x.get('title'),employer,x.get('absolute_url'),location,
                 x.get('content') or '','Greenhouse',
-                posted=x.get('first_published'),eligible=True)
+                posted=x.get('first_published'),eligible=True,
+                declared_style=style)
             if job:jobs.append(job)
         return jobs
     return retrieve_boards(GREENHOUSE_BOARDS,fetch)
@@ -734,7 +728,9 @@ def load_ashby_boards(catalog_version=None):
         for x in (data.get('jobs') or []):
             if not isinstance(x,dict) or x.get('isListed') is False:continue
             style=str(x.get('workplaceType') or '')
-            if style.lower()=='remote' or x.get('isRemote') and style.lower()!='hybrid':
+            provider_style=declared_arrangement(style)
+            if provider_style=='Remote' or (affirmative(x.get('isRemote')) and
+                                             provider_style!='Hybrid'):
                 continue
             addr=((x.get('address') or {}).get('postalAddress') or {})
             region=addr.get('addressRegion') or ''
@@ -776,7 +772,9 @@ def load_smartrecruiters_boards(catalog_version=None):
             place=x.get('location') or {}
             if str(place.get('country') or '').lower() not in ('us','usa','united states','united states of america'):
                 continue
-            if place.get('remote'):continue
+            declared=declared_arrangement(x.get('locationType'))
+            if declared=='Remote' or (affirmative(place.get('remote')) and declared!='Hybrid'):
+                continue
             candidates.append(x)
         for x in candidates[:30]:
             place=x.get('location') or {}
@@ -796,9 +794,14 @@ def load_smartrecruiters_boards(catalog_version=None):
             description=' '.join(str((sections.get(key) or {}).get('text') or '')
                    for key in ('jobDescription','qualifications','additionalInformation'))
             url=detail.get('postingUrl') or detail.get('applyUrl')
+            # SmartRecruiters' locationType can explicitly be ONSITE/HYBRID/
+            # REMOTE. A city alone never proves an on-site requirement.
+            style=declared_arrangement(
+                detail.get('locationType') or x.get('locationType'))
             job=standard_job(x.get('name'),employer_name,url,loc,description,
                  'SmartRecruiters',False,
-                 posted=x.get('releasedDate'),gov=gov)
+                 posted=x.get('releasedDate'),gov=gov,
+                 declared_style=style)
             if job:jobs.append(job)
         return jobs
     return retrieve_boards(SMARTRECRUITERS_BOARDS,fetch)
@@ -1424,6 +1427,10 @@ elif page == 'Find Jobs':
                             job.get('work_style') or 'Not specified',
                             job['date']]))
                         st.caption('Government' if job['government'] else job['source'])
+                        if job.get('employer_identity_kind','').startswith('Recruiting'):
+                            st.caption('Recruiter named; the client hiring company has not been independently identified.')
+                        if job.get('arrangement_source') and job.get('work_style') != 'Not specified':
+                            st.caption('Work arrangement: '+job['arrangement_source'])
                         if job['salary']:
                             st.write('Pay listed: '+job['salary'])
                         if job.get('reference'):

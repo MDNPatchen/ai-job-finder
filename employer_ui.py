@@ -5,6 +5,7 @@ from pathlib import Path
 
 import streamlit as st
 from employer_checks import check_employer
+from posting_metadata import employer_identity_kind
 
 
 @st.cache_data(ttl=14400, show_spinner=False)
@@ -29,7 +30,16 @@ def money(value):
 
 def render_evidence(report):
     st.caption('Checked ' + report['checked_at'][:16].replace('T',' ') + ' UTC')
-    st.write('**Listed hiring employer:** ' + report['company'])
+    status=employer_identity_kind(report['company'])
+    if status.startswith('Recruiting'):
+        st.warning('This listing names a recruiting firm, not necessarily the hiring client. '
+                   'Identity, age and financial records shown for the recruiting firm are '
+                   'NOT evidence about the undisclosed client employer.')
+        st.write('**Listed recruiter / posting organization:** ' + report['company'])
+        st.write('**Underlying hiring employer:** Not verified')
+    else:
+        st.write('**Employer named by the job provider:** ' + report['company'])
+        st.caption('The posting does not independently establish hiring-company identity.')
     st.caption('Provider: ' + report['source'] +
                ' · Posting host: ' + report['posting']['hostname'])
     st.write('**Posting source:** ' + report['posting']['status'])
