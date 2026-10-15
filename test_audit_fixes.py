@@ -111,6 +111,69 @@ class JobAuditRegressionTests(unittest.TestCase):
                         'Own budget planning and vendor negotiations.')
         self.assertFalse(q['specialized_requirements'])
 
+    def test_black_bear_diner_requires_specific_restaurant_experience(self):
+        q=qualification('General Manager (Black Bear Diner)',
+                        'Requirements: Minimum of 3-5 years of management '
+                        'experience in a full-service restaurant or diner environment. '
+                        'Must oversee food safety, teams and profit margins.')
+        restaurant=critical_area(q,'Restaurant / food-service management')
+        self.assertIsNotNone(restaurant)
+        self.assertTrue(restaurant['needs_verification'])
+        self.assertIn('Required',restaurant['priority'])
+        self.assertLess(evidence_index(q),85)
+
+    def test_assistant_black_bear_diner_uses_casual_dining_context(self):
+        q=qualification('Assistant General Manager (Black Bear Diner)',
+                        'Full-service, casual dining, or high-volume restaurant '
+                        'experience strongly preferred. Managing shifts, staff, '
+                        'guest service, food safety and budget reporting.')
+        restaurant=critical_area(q,'Restaurant / food-service management')
+        self.assertIsNotNone(restaurant)
+        self.assertEqual(restaurant['priority'],'Preferred experience')
+        self.assertLess(restaurant['ranking_caution'],12)
+
+    def test_yugo_student_housing_residential_requirements(self):
+        q=qualification('Assistant General Manager',
+                        'As an Assistant General Manager at a student housing '
+                        'community you will oversee day-to-day property management '
+                        'operations. A minimum of one year of experience, preferably '
+                        'in residential properties, rental operations, or related '
+                        'business operations is required. Support lease renewals, '
+                        'resident accounts, rent collections, and leasing activities.')
+        residential=critical_area(q,'Property / residential operations')
+        self.assertIsNotNone(residential)
+        self.assertTrue(residential['needs_verification'])
+        self.assertTrue(residential['ranking_caution']>0)
+        # The employer accepts related business operations, so do not falsely
+        # call residential experience itself an absolute prerequisite.
+        self.assertIn(residential['priority'],(
+            'Preferred experience',
+            'Required / experience stated — verify exact wording'))
+        self.assertLess(evidence_index(q),90)
+
+    def test_residential_duties_without_experience_clause_still_warn(self):
+        q=qualification('General Manager',
+                        'Lead resident accounts, collect rent payments, '
+                        'support lease renewals and oversee property operations.')
+        residential=critical_area(q,'Property / residential operations')
+        self.assertIsNotNone(residential)
+        self.assertIn(residential['priority'],(
+            'Role responsibility — verify relevant experience',
+            'Experience mentioned — review full posting'))
+        self.assertLessEqual(residential['ranking_caution'],10)
+
+    def test_incidental_diner_mention_does_not_trigger_nonrestaurant_role(self):
+        q=qualification('Director of Operations',
+                        'Coordinate deliveries with a diner client. '
+                        'Oversee publication logistics and advertising contracts.')
+        self.assertIsNone(critical_area(q,'Restaurant / food-service management'))
+
+    def test_generic_publisher_job_is_not_residential_management(self):
+        q=qualification('Regional Operations Director',
+                        'Direct branch operations and vendor contracts. '
+                        'Build community partnerships and manage budgets.')
+        self.assertIsNone(critical_area(q,'Property / residential operations'))
+
     def test_career_years_do_not_verify_construction_years(self):
         q=qualification('Director of Operations – Construction Services',
                         'Minimum 10+ years of construction experience required.')
