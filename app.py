@@ -1046,8 +1046,24 @@ def normalized_key(job):
 def score_job(job, resume, words='', qualification_profile=None):
     classified=role_classification(job['title'])
     if not classified:
-        return None
-    category, score=classified
+        # Expand beyond a preset list of publisher/director titles only when
+        # several responsibility families are visible in the actual job text.
+        if (not resume.strip() or SPECIALIST_EXCLUSIONS.search(job['title']) or
+                len(job.get('description') or '')<300):
+            return None
+        description=job['description']
+        transferable_clues=(
+            r'\b(?:budget|forecast|profit|p\s*&\s*l)\b',
+            r'\b(?:operations?|operational|process improvement|logistics|distribution)\b',
+            r'\b(?:staff|employees?|workforce|personnel|team leadership)\b',
+            r'\b(?:strategic|strategy|business planning)\b',
+            r'\b(?:revenue|sales|marketing|business development)\b',
+            r'\b(?:vendors?|contracts?|procurement|negotiat\w*)\b',
+            r'\b(?:project|program|stakeholders?|community)\b',
+        )
+        if sum(bool(re.search(pattern,description,re.I))
+               for pattern in transferable_clues)<3:
+            return None
     # User's query is authoritative: title match or strongly related description.
     search_terms=[x.lower() for x in re.findall(r'[A-Za-z0-9]+',words) if len(x)>2]
     if search_terms:
@@ -1061,6 +1077,18 @@ def score_job(job, resume, words='', qualification_profile=None):
     profile = qualification_profile or compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     qualification = assess_job_qualifications(job, profile, resume)
+    if classified is None:
+        # A strong actual-duty match can qualify unconventional job titles.
+        documented_duties=[
+            item for item in qualification['resume_matches']
+            if item.get('match_origin') != 'Job title only'
+        ]
+        if (len(documented_duties)<3 or
+                qualification.get('fit_index',0)<58):
+            return None
+        category,score='Transferable-strength match',8
+    else:
+        category,score=classified
     # Modestly boost jobs where the resume shows relevant evidence. The boost
     # is not an eligibility decision or a hiring-success probability.
     score += qualification['rank_bonus']
@@ -1601,8 +1629,8 @@ elif page == 'Find Jobs':
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
             if st.session_state.resume_text.strip():
-                st.write('**Sorted by documented resume qualification match: highest to lowest.**')
-                st.caption('The comparative fit index weighs resume evidence, role-family alignment, and important industry or licensing requirements that are not documented. It is a research ordering tool, NOT a hiring probability, eligibility determination or substitute for checking the complete employer notice.')
+                st.write('**Sorted by transferable strengths supported by your résumé: highest to lowest.**')
+                st.caption('The transferable-strength fit index primarily weighs your actual résumé examples against the job duties. A job title contributes only a small amount; missing industry-specific experience, professional licenses and other requirements lower the ranking but do not automatically disqualify you. This is NOT a hiring probability or eligibility determination.')
                 run_id = stats.get('run_id','')
                 all_breakdowns = breakdowns_json(
                     all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
@@ -1652,7 +1680,15 @@ elif page == 'Find Jobs':
                                     '**#'+str(n+1)+' · '+job['title']+'**')
                         if st.session_state.resume_text.strip():
                             q = job.get('qualification_match') or {}
-                            st.write(f"**Comparative qualification fit: {evidence_index(q)}/96**")
+                            st.write(f"**Transferable-strength fit: {evidence_index(q)}/96**")
+                            transfer=q.get('transferable_strengths') or []
+                            documented=[x['area'] for x in transfer
+                                        if x.get('evidence') == 'Documented in résumé']
+                            if documented:
+                                st.caption('Why your experience transfers: '+
+                                           ' · '.join(documented[:4]))
+                            elif transfer:
+                                st.caption('Transferable experience was confirmed separately; add supporting résumé examples.')
                             st.caption(
                                 f"{len(q.get('resume_matches') or [])} areas supported by resume · "
                                 f"{len(q.get('confirmed_only') or [])} confirmed separately · "
