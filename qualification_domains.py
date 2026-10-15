@@ -35,10 +35,13 @@ DOMAINS = (
      r'(?: operations| management)?|fuel,?\s+convenience[- ]store)\b',
      r'\b(?:travel center|fuel station|convenience store)\b'),
     ('Restaurant / food-service management',
-     r'\b(?:restaurant management|restaurant operations|'
+     r'\b(?:restaurant (?:management|operations|experience|environment)|'
      r'quick[- ]service restaurant|fast[- ]casual (?:restaurant|environment)|'
-     r'food[- ]service management)\b',
-     r'\b(?:restaurant|Sbarro|Taco Bell|Dunkin|Subway|fast food)\b'),
+     r'full[- ]service (?:restaurant|dining|diner)(?: experience| management)?|'
+     r'casual dining(?: experience| management)?|diner (?:management|environment)|'
+     r'food[- ]service management|restaurant[- ]management experience)\b',
+     r'\b(?:restaurant|(?:Black Bear|other) Diner|diner|Sbarro|Taco Bell|'
+     r'Dunkin|Subway|fast food|full[- ]service dining)\b'),
     ('Enterprise B2B sales / quota management',
      r'\b(?:enterprise B2B sales|enterprise (?:sales|selling|business development)|'
      r'quota[- ]carrying|new[- ]logo bookings|complex enterprise (?:deals|sales)|'
@@ -63,9 +66,17 @@ DOMAINS = (
      r'building maintenance|facilities maintenance)\b',
      r'\b(?:custodial|janitorial|facilities)\b'),
     ('Property / residential operations',
-     r'\b(?:property management|residential property|residential community|'
-     r'community management|property managers?|occupancy (?:rates|management))\b',
-     r'\b(?:HOA|COA|property|residential)\b'),
+     r'\b(?:property (?:management|operations|manager(?:s)?|performance)|'
+     r'residential propert(?:y|ies)|residential community|'
+     r'rental (?:operations|propert(?:y|ies)|management|software)|'
+     r'student (?:housing|accommodation|living)|'
+     r'leasing (?:operations|experience|activities|inquiries)|'
+     r'lease (?:renewals|applications|administration)|'
+     r'rent (?:collections?|payments?)|resident (?:accounts|retention|relations|records)|'
+     r'property management software|(?:housing|rental) occupancy|'
+     r'occupancy (?:rates|management))\b',
+     r'\b(?:HOA|COA|property|residential|leasing|student housing|'
+     r'student accommodation)\b'),
     ('Clinical / healthcare operations',
      r'\b(?:healthcare administration|hospital management|clinical operations|'
      r'medical practice management|patient care operations)\b',
@@ -99,6 +110,13 @@ REQUIRED = re.compile(r'\b(?:required|requires?|must (?:have|possess)|minimum|'
 PREFERRED = re.compile(r'\b(?:preferred|strongly preferred|desirable|'
                        r'nice to have|a plus|a bonus)\b', re.I)
 EXPERIENCE = re.compile(r'\b(?:experience|background|expertise)\b', re.I)
+# Duty-language alone can be relevant without making something a mandatory
+# qualification. Only use explicit operating responsibilities close to the
+# subject, not incidental mention of an industry as a client or partner.
+ROLE_DUTY = re.compile(
+    r'\b(?:manage|managing|oversee|overseeing|lead|leading|operate|operating|'
+    r'administer|administering|coordinate|coordinating|handle|handling|'
+    r'support(?:ing)?)\b', re.I)
 
 
 def clean_posting(text):
@@ -149,7 +167,6 @@ def identify_specialized_requirements(job, resume=''):
         match=matches[0] if matches else None
         # Domain words in a title without any backing detail are still worth
         # examining, but not grounds for declaring a formal requirement.
-        target=match.start() if match else 0
         years=any(_years_near_domain(desc,m) for m in matches[:6])
         required_distance=min((x for x in
             (_closest_indicator(desc,m.start(),REQUIRED,85) for m in matches[:6])
@@ -159,13 +176,16 @@ def identify_specialized_requirements(job, resume=''):
             if x is not None),default=None)
         # A specialist domain must have actual job-posting context. A stray
         # reference to marketing, customer service or a vendor isn't sufficient.
+        experience_near=any(
+            _closest_indicator(desc,m.start(),EXPERIENCE,65) is not None
+            for m in matches[:6])
+        duty_near=any(
+            _closest_indicator(desc,m.start(),ROLE_DUTY,70) is not None
+            for m in matches[:6])
         if not (years or required_distance is not None or
-                preferred_distance is not None or title_match):
-            experience_near=any(
-                _closest_indicator(desc,m.start(),EXPERIENCE,65) is not None
-                for m in matches[:6])
-            if not experience_near:
-                continue
+                preferred_distance is not None or title_match or
+                experience_near or duty_near):
+            continue
         if preferred_distance is not None and (
                 required_distance is None or preferred_distance<required_distance):
             priority='Preferred experience'
@@ -176,9 +196,12 @@ def identify_specialized_requirements(job, resume=''):
         elif title_match:
             priority='Specialized role or field — verify experience'
             penalty=11
-        else:
+        elif experience_near:
             priority='Experience mentioned — review full posting'
             penalty=10
+        else:
+            priority='Role responsibility — verify relevant experience'
+            penalty=8
         related=bool(phrase.search(resume))
         if related:
             status='Related field terms appear in resume; domain-specific responsibilities and years remain unverified'
