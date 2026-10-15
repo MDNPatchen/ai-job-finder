@@ -1189,6 +1189,54 @@ def job_competency_hits(job, resume):
     return matches[:5]
 
 
+def tracker_cloud_enabled():
+    return bool(_secret('TRACKER_DATABASE_URL') and _secret('TRACKER_ACCESS_PASSWORD'))
+
+
+def persist_tracker_if_unlocked():
+    """Sync only an explicitly unlocked private workspace, never the Git repo."""
+    if not tracker_cloud_enabled() or not st.session_state.get('tracker_unlocked'):
+        return False
+    try:
+        save_remote_workspace(
+            _secret('TRACKER_DATABASE_URL'),
+            _secret('TRACKER_WORKSPACE_ID') or 'personal',
+            st.session_state.jobs,
+            st.session_state.seen_jobs,
+            st.session_state.search_baseline)
+        st.session_state.tracker_storage_error=''
+        return True
+    except Exception as exc:
+        st.session_state.tracker_storage_error=type(exc).__name__
+        return False
+
+
+def unlock_tracker_workspace(password):
+    if not authenticate(password,_secret('TRACKER_ACCESS_PASSWORD')):
+        return False
+    remote=load_remote_workspace(
+        _secret('TRACKER_DATABASE_URL'),
+        _secret('TRACKER_WORKSPACE_ID') or 'personal')
+    # The saved cloud record is authoritative. Preserve any session-only
+    # entries made before unlock, without discarding the saved cloud history.
+    existing={posting_id({'company':x['Company'],'title':x['Job Title'],
+                          'location':x['Location'],'url':x['Job URL']}):x
+              for x in remote['jobs']}
+    for item in st.session_state.jobs:
+        key=posting_id({'company':item['Company'],'title':item['Job Title'],
+                        'location':item['Location'],'url':item['Job URL']})
+        existing.setdefault(key,item)
+    st.session_state.jobs=list(existing.values())
+    st.session_state.seen_jobs=sorted(set(st.session_state.seen_jobs) |
+                                      set(remote['seen']))
+    st.session_state.search_baseline=(st.session_state.search_baseline
+                                     or remote['has_baseline'])
+    st.session_state.tracker_unlocked=True
+    st.session_state.tracker_loaded=True
+    persist_tracker_if_unlocked()
+    return True
+
+
 st.sidebar.title('💼 AI Job Finder')
 page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Career Matches','Find Jobs','Job Tracker'])
 st.sidebar.caption('Free local resume comparison. No API key or AI usage charges.')
