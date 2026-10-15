@@ -1,5 +1,6 @@
 """Metadata that must not be guessed from a city name or a recruiting firm."""
 import re
+from employer_postings import is_recruiter_employer
 
 
 def affirmative(value):
@@ -64,7 +65,7 @@ RECRUITER_NAMES=frozenset((
 def employer_identity_kind(company):
     """Poster/recruiter is not necessarily the underlying hiring client."""
     name=re.sub(r'\s+',' ',str(company or '')).strip().casefold()
-    if name in RECRUITER_NAMES:
+    if name in RECRUITER_NAMES or is_recruiter_employer(name):
         return 'Recruiting intermediary named; underlying hiring company unverified'
     return 'Company named by source; hiring identity not independently verified'
 
