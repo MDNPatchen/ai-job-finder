@@ -1256,7 +1256,8 @@ if page == 'Dashboard':
         st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
     else:
         st.info('Go to Job Tracker to add a job.')
-    st.caption('Jobs are stored only for this session. Export your CSV to keep a backup.')
+    st.caption('The Job Tracker supports CSV/JSON backups, and can sync to private '
+               'Postgres storage after you configure Streamlit Secrets and unlock it.')
 
 elif page == 'My Resume':
     st.title('📄 My Resume')
@@ -1711,6 +1712,26 @@ elif page == 'Find Jobs':
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
+            board_rows=stats.get('board_health') or []
+            if board_rows:
+                healthy=sum(row['status']=='Active' for row in board_rows)
+                empty=sum(row['status']=='Empty' for row in board_rows)
+                failed=sum(row['status']=='Failed' for row in board_rows)
+                st.write(f'**Career-board health:** {healthy} returned records · '
+                         f'{empty} responded with zero qualifying feed records · '
+                         f'{failed} were unavailable')
+                filter_health=st.selectbox('Board status',[
+                    'All boards','Active','Empty','Failed'],key='board_health_filter')
+                shown=[r for r in board_rows if filter_health=='All boards'
+                       or r['status']==filter_health]
+                st.dataframe(pd.DataFrame(shown),hide_index=True,use_container_width=True)
+                st.caption('Active means the provider returned candidate records, not that an '
+                           'eligible role survived the 45-day, location and resume filters. '
+                           'Empty means no candidate records survived provider parsing; it '
+                           'does not prove an employer has no jobs.')
+            st.write(f"Excluded by extra search preferences: {stats['excluded'].get('preferences',0)}")
+            if stats.get('preferences'):
+                st.caption('Advanced filters: '+str(stats['preferences']))
             st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']} · Hidden by optional employer limit: {stats['excluded'].get('employer_limit',0)}")
             if stats['errors']:
                 st.caption(f"{len(stats['errors'])} feeds had errors or were unavailable; successful feeds still contribute jobs.")
@@ -1718,7 +1739,8 @@ elif page == 'Find Jobs':
                     for err in stats['errors']:
                         st.caption('• ' + err)
             st.caption('USAJOBS can also be included automatically if your account already has its free API credentials in Streamlit Secrets. Paid Adzuna and OpenAI APIs are not used. Indeed and LinkedIn do not provide unrestricted public job-search feeds for this app.')
-    st.caption('Your Job Tracker still uses temporary session storage. Export its CSV to preserve applications.')
+    st.caption('Job Tracker backups include application history and seen-job IDs. '
+               'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
     st.title('📋 Job Application Tracker')
