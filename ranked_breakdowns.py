@@ -71,13 +71,16 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'job_duty_coverage_index': q.get('duty_coverage_index'),
             'transferable_strengths': q.get('transferable_strengths') or [],
             'specialized_experience_to_verify': q.get('specialized_requirements') or [],
+            'career_fit_cautions': q.get('career_fit_cautions') or [],
+            'career_fit_ranking_caution': q.get('career_fit_penalty') or 0,
             'important_cautions': q.get('cautions') or [],
             'description_completeness': q.get('description_completeness') or 'Not assessed',
             'index_explanation': ('Transferable-strength fit index, 0–96: primarily '
                                   'documented résumé strengths shared with listed duties, '
                                   'with minor title influence and caution for specialized '
                                   'requirements or credentials not verified. '
-                                  'Not an eligibility score or hiring probability.'),
+                                  'Specialized role and career-stage fit are checked '
+                                  'separately. Not an eligibility score or hiring probability.'),
             'alignment_label': q.get('label') or 'Not assessed',
             'total_relevant_areas_detected': int(q.get('total_areas') or 0),
             'documented_resume_matches': q.get('resume_matches') or [],
@@ -119,6 +122,10 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
             'Transferable strengths confirmed separately': '; '.join(
                 x['area'] for x in item['transferable_strengths']
                 if x.get('evidence') != 'Documented in résumé'),
+            'Additional career-fit cautions': '; '.join(
+                str(x.get('area') or '') + ': ' + str(x.get('reason') or '')
+                for x in item['career_fit_cautions']),
+            'Career-fit ranking caution (points)': item['career_fit_ranking_caution'],
             'Specialized experience to verify': '; '.join(
                 (x.get('area') or '') + ' [' + (x.get('priority') or 'verify') + ']'
                 for x in item['specialized_experience_to_verify']
