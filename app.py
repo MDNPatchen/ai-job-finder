@@ -1472,6 +1472,24 @@ elif page == 'Find Jobs':
             ['All matching jobs (recommended)',
              'Compact results: up to 3 per employer (10 Mayo Clinic)'],
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
+        with st.expander('Advanced search filters (optional)'):
+            state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
+            include_states=st.multiselect(
+                'Only these states (leave blank for nationwide)',state_names,
+                help='You can pick several states instead of filtering down to one.')
+            exclude_states=st.multiselect('Exclude states',state_names)
+            desired_seniority=st.multiselect('Role level',[
+                'Executive / VP','Publisher','Director','Manager','Other'],
+                help='Leave empty to include all role levels.')
+            minimum_salary=st.number_input('Minimum listed annual salary ($)',
+                min_value=0,max_value=500000,step=10000,value=0,
+                help='Only explicitly annual salary figures are compared. This is not a salary estimate.')
+            include_unknown_pay=st.checkbox(
+                'Include jobs that do not disclose annual compensation',value=True)
+            verified_work=st.checkbox(
+                'Exclude listings with unspecified on-site/hybrid arrangements',
+                value=False,
+                help='This excludes unknown arrangements but still permits explicitly remote Mayo Clinic roles.')
         submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
 
     if submitted:
@@ -1483,14 +1501,31 @@ elif page == 'Find Jobs':
             'regional director','partnerships director']
         with st.spinner('Searching free job boards and government employer feeds…'):
             code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
-            raw, errors, source_counts = fetch_all_free_jobs(tuple(terms), code)
+            raw, errors, source_counts, board_health = fetch_all_free_jobs(tuple(terms), code)
             employer_cap=(3 if chosen_employer_scope.startswith('Compact') else None)
+            preferences={
+                'included_states':[x.split(' ',1)[0] for x in include_states],
+                'excluded_states':[x.split(' ',1)[0] for x in exclude_states],
+                'seniority':desired_seniority,
+                'minimum_salary':minimum_salary,
+                'include_unlisted_salary':include_unknown_pay,
+                'verified_workplace_only':verified_work,
+            }
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
-                search_text,st.session_state.resume_text,employer_cap)
+                search_text,st.session_state.resume_text,employer_cap,preferences)
+        had_baseline=st.session_state.search_baseline
+        matches,new_seen=annotate_new_results(
+            matches,st.session_state.seen_jobs,had_baseline)
+        st.session_state.seen_jobs=new_seen
+        st.session_state.search_baseline=True
+        persist_tracker_if_unlocked()
         st.session_state.search_results=matches
         st.session_state.search_page=0
         st.session_state.search_stats={
             'fetched':len(raw),'sources':source_counts,'errors':errors,
+            'board_health':board_health,'preferences':preferences,
+            'new_count':sum(bool(x['new_since_last_search']) for x in matches),
+            'had_baseline':had_baseline,
             'excluded':excluded,'searched':datetime.now().strftime('%b %d, %Y %I:%M %p'),
             'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
             'matching_version':MATCHING_ENGINE_VERSION,
@@ -1514,6 +1549,12 @@ elif page == 'Find Jobs':
         c1.metric('Total jobs',len(all_results))
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
+        new_count=sum(x.get('new_since_last_search',False) for x in all_results)
+        st.caption(f'{new_count} new postings compared with earlier searches'
+                   if stats.get('had_baseline',False) else
+                   'First search establishes a baseline for identifying new postings.')
+        if not tracker_cloud_enabled():
+            st.caption('New-posting history lasts for this session unless restored from a tracker JSON backup.')
         st.caption(f"{employer_total} distinct employers · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
         if stats['excluded'].get('employer_limit',0):
             st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
@@ -1544,17 +1585,34 @@ elif page == 'Find Jobs':
                         export_filename('detailed',run_id,'json'), 'application/json',
                         use_container_width=True)
                 st.caption('Downloads contain job links, cited resume excerpts, specific industry cautions and requirements to verify. Nothing is sent to an outside AI service. The comparisons are not licensing or hiring decisions.')
+            new_only=st.checkbox('Show only new positions since the previous search',
+                                 value=False,key='new_jobs_only')
+            hide_tracked=st.checkbox('Hide positions already in my Job Tracker',
+                                     value=False,key='hide_tracked_jobs')
+            tracked_ids={posting_id({'company':item['Company'],'title':item['Job Title'],
+                       'url':item['Job URL'],'location':item['Location']})
+                         for item in st.session_state.jobs}
+            display_results=[job for job in all_results
+                 if (not new_only or job.get('new_since_last_search'))
+                 and (not hide_tracked or posting_id(job) not in tracked_ids)]
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
-            page_total=(len(all_results)+PAGE_SIZE-1)//PAGE_SIZE
+            page_total=max(1,(len(display_results)+PAGE_SIZE-1)//PAGE_SIZE)
             page_no=min(max(page_no,0),page_total-1)
             st.session_state.search_page=page_no
-            st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(all_results))} of {len(all_results)} results · '+('Ranked by qualification evidence' if st.session_state.resume_text.strip() else 'Government and private listings mixed for variety'))
-            for n,job in enumerate(all_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE], start=page_no*PAGE_SIZE):
+            if not display_results:
+                st.info('No positions match these display choices. Try turning off New only or Hide tracked.')
+            else:
+                st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(display_results))} of {len(display_results)} displayed jobs · '
+                          +('Ranked by qualification evidence' if st.session_state.resume_text.strip()
+                            else 'Government and private listings mixed for variety'))
+            for n,job in enumerate(display_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE],
+                                    start=page_no*PAGE_SIZE):
                 with st.container(border=True):
                     left,right=st.columns([5,1.7],vertical_alignment='top')
                     with left:
-                        st.markdown('**#'+str(n+1)+' · '+job['title']+'**')
+                        st.markdown(('**NEW · **' if job.get('new_since_last_search') else '')+
+                                    '**#'+str(n+1)+' · '+job['title']+'**')
                         if st.session_state.resume_text.strip():
                             q = job.get('qualification_match') or {}
                             st.write(f"**Comparative qualification fit: {evidence_index(q)}/96**")
