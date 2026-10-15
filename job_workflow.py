@@ -48,7 +48,10 @@ def distinct_posting_key(job):
     title=_normalize(job.get('title'))
     uri=canonical_job_url(job.get('url'))
     path='/' + uri.split('/',1)[1].split('?',1)[0].strip('/') if '/' in uri else '/'
-    if uri and path.casefold() not in GENERIC_PATHS:
+    # A generic /jobs page is still a unique posting when it contains
+    # a nontracking requisition-ID query parameter (e.g., jobId=1234).
+    has_requisition_query='?' in uri
+    if uri and (path.casefold() not in GENERIC_PATHS or has_requisition_query):
         return ('url',employer,title,uri)
     return ('location',employer,title,_normalize(job.get('location')),
             _normalize(job.get('date')))
