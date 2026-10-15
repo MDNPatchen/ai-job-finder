@@ -790,33 +790,38 @@ def load_smartrecruiters_boards(catalog_version=None):
             if declared=='Remote' or (affirmative(place.get('remote')) and declared!='Hybrid'):
                 continue
             candidates.append(x)
-        for x in candidates[:30]:
+        # Fetch detail pages with bounded concurrency. Larger employer boards
+        # may have many recent openings; sequential detail requests made
+        # nationwide searches unnecessarily slow. Keep results in feed order.
+        def read_detail(x):
             place=x.get('location') or {}
             parts=[place.get('city'),place.get('region'),'United States']
             loc=', '.join(str(part) for part in parts if part)
             employer_name=(x.get('company') or {}).get('name') or employer
             id_=x.get('id')
-            if not id_:continue
-            # Public detail provides a real, verifiable postingUrl, rather than
-            # guessing a job URL from an ID. Failure is skipped, not fabricated.
+            if not id_:
+                return None
+            # Public detail provides a verifiable posting URL; never guess it.
             try:
                 detail=fetch_json('https://api.smartrecruiters.com/v1/companies/'+
                                   quote(token)+'/postings/'+quote(str(id_)),timeout=8)
             except (HTTPError,URLError,TimeoutError,ValueError,TypeError,OSError):
-                continue
+                return None
             sections=((detail.get('jobAd') or {}).get('sections') or {})
             description=' '.join(str((sections.get(key) or {}).get('text') or '')
                    for key in ('jobDescription','qualifications','additionalInformation'))
             url=detail.get('postingUrl') or detail.get('applyUrl')
-            # SmartRecruiters' locationType can explicitly be ONSITE/HYBRID/
-            # REMOTE. A city alone never proves an on-site requirement.
             style=declared_arrangement(
                 detail.get('locationType') or x.get('locationType'))
-            job=standard_job(x.get('name'),employer_name,url,loc,description,
+            return standard_job(x.get('name'),employer_name,url,loc,description,
                  'SmartRecruiters',False,
                  posted=x.get('releasedDate'),gov=gov,
                  declared_style=style)
-            if job:jobs.append(job)
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for job in pool.map(read_detail,candidates[:30]):
+                if job:
+                    jobs.append(job)
         return jobs
     return retrieve_boards(SMARTRECRUITERS_BOARDS,fetch)
 
@@ -1349,6 +1354,10 @@ elif page == 'Find Jobs':
     st.title('🔎 Find Jobs')
     st.caption('Matching engine v' + MATCHING_ENGINE_VERSION +
                ' · Rankings and exports are versioned so old results cannot be mistaken for new ones.')
+    board_total=sum(len(JOB_SOURCE_CATALOG[source]) for source in VALID_SOURCE_GROUPS)
+    st.caption(f'{board_total} configured free employer and public-sector career boards'
+               ' · Publishing, media, business leadership and government'
+               ' · A configured board does not guarantee current openings; feed failures appear in diagnostics.')
     if st.session_state.pop('matching_engine_reset', False):
         st.info('The qualification-matching engine was updated. Earlier search results were cleared; run a new search for current rankings.')
     st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Remote Mayo Clinic jobs are allowed; other fully remote jobs are excluded. No paid API required.')
