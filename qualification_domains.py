@@ -17,9 +17,15 @@ DOMAINS = (
      r'employee lifecycle|COBRA administration|onboarding and offboarding)\b',
      r'\b(?:human resources|HR director|people operations)\b'),
     ('K-12 / school operations',
-     r'\b(?:K[- ]?12 (?:school )?operations|school operations experience|'
-     r'charter school operations|education administration|school administration)\b',
-     r'\b(?:K[- ]?12|school (?:director|administrator)|principal)\b'),
+     r'\b(?:K[- ]?12 (?:school )?(?:operations|education|school leadership)'
+     r'(?: experience| background| administration)?|'
+     r'school operations(?: experience| management| leadership)?|'
+     r'charter school (?:operations|experience|leadership)|'
+     r'education (?:administration|experience|leadership)|'
+     r'school administration|'
+     r'(?:managing |executive )?director of school operations)\b',
+     r'\b(?:K[- ]?12|school operations|director of school|'
+     r'school (?:director|administrator)|principal)\b'),
     ('Construction / engineering operations',
      r'\b(?:construction (?:[a-z-]+\s+){0,3}(?:experience|operations|management|industry|services|'
      r'projects?|field teams?)|engineering (?:services|operations|industry))\b',

@@ -54,6 +54,35 @@ class JobAuditRegressionTests(unittest.TestCase):
         self.assertEqual(r['priority'],'Preferred experience')
         self.assertLess(r['ranking_caution'],12)
 
+    def test_kipp_managing_director_school_operations_preferred_experience(self):
+        q=qualification('Managing Director of School Operations, High Schools',
+                        'Direct network school operations and lead teams. '
+                        '5-10 years of work experience, preferably in business '
+                        'or operations management. K-12 education experience '
+                        "preferred. Bachelor's degree required; Master's degree "
+                        'preferred. Manage school budgets and student enrollment.')
+        k12=critical_area(q,'K-12 / school operations')
+        self.assertIsNotNone(k12)
+        self.assertTrue(k12['needs_verification'])
+        self.assertEqual(k12['priority'],'Preferred experience')
+        self.assertLess(k12['ranking_caution'],12)
+        self.assertIn('K-12',k12['listing_excerpt'])
+        self.assertLess(evidence_index(q),90)
+
+    def test_kipp_school_operations_manager_role_is_flagged(self):
+        q=qualification('School Operations Manager (26-27)',
+                        'Manage facilities, school attendance and enrollment. '
+                        'A minimum of two years in operations or education.')
+        k12=critical_area(q,'K-12 / school operations')
+        self.assertIsNotNone(k12)
+        self.assertTrue(k12['needs_verification'])
+
+    def test_newspaper_advertiser_school_mention_is_not_a_school_job(self):
+        q=qualification('Regional Operations Director',
+                        'Coordinate annual advertising with local schools and '
+                        'manage newspaper budgets, printing and distribution.')
+        self.assertIsNone(critical_area(q,'K-12 / school operations'))
+
     def test_food_handling_explicit_requirement(self):
         q=qualification('General Manager',
                         'Lead warehouse operations and food distribution. '

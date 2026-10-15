@@ -8,6 +8,7 @@ import unittest
 from ranked_breakdowns import (
     evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 )
+from posting_metadata import reconcile_workplace_record
 
 
 def make_job(title="Operations Director", documented=0, confirmed=0, total=5,
@@ -53,6 +54,7 @@ def extracted_filter():
         "states_in_location":lambda location:["MN"],
         "normalized_key":lambda j:(j["title"],j["company"]),
         "evidence_sort_key":evidence_sort_key,
+        "reconcile_workplace_record":reconcile_workplace_record,
         "score_job":lambda job,resume,query,profile:dict(job),
     }
     exec(compile(module,"app.py","exec"),namespace)
@@ -112,6 +114,36 @@ class RankedBreakdownTests(unittest.TestCase):
         result,_=func(jobs,None,"On-site + Hybrid","","uploaded resume text")
         self.assertEqual([r["title"] for r in result],
                          ["High government match","Mid employer match","Low employer match"])
+
+    def test_full_results_include_all_qualified_jobs_from_same_employer(self):
+        jobs=[make_job(title=f'Operations Director - District {i}',
+                       company='Example Group',documented=5-i//3,
+                       total=6,rank=20-i) for i in range(6)]
+        func=extracted_filter()
+        full, excluded=func(jobs,None,'On-site + Hybrid','','resume')
+        self.assertEqual(len(full),6)
+        self.assertEqual(excluded['employer_limit'],0)
+        self.assertEqual([j['title'] for j in full],
+                         [j['title'] for j in sorted(full,key=evidence_sort_key)])
+
+    def test_compact_view_shows_three_and_counts_three_hidden(self):
+        jobs=[make_job(title=f'Operations Director - District {i}',
+                       company='Example Group',documented=5-i//3,
+                       total=6,rank=20-i) for i in range(6)]
+        limited, excluded=extracted_filter()(
+            jobs,None,'On-site + Hybrid','','resume',3)
+        self.assertEqual(len(limited),3)
+        self.assertEqual(excluded['employer_limit'],3)
+        self.assertEqual(limited[0]['title'],'Operations Director - District 0')
+
+    def test_optional_compact_view_keeps_mayo_up_to_ten(self):
+        jobs=[make_job(title=f'Operations Director - Unit {i}',
+                       company='Mayo Clinic',source='Mayo Clinic',
+                       documented=4,total=6) for i in range(11)]
+        compact, excluded=extracted_filter()(
+            jobs,None,'On-site + Hybrid','','resume',3)
+        self.assertEqual(len(compact),10)
+        self.assertEqual(excluded['employer_limit'],1)
 
     def test_no_resume_keeps_old_relevance_priority(self):
         jobs=[

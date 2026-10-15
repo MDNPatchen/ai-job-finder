@@ -19,7 +19,8 @@ from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json
 from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_filename
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
-    employer_identity_kind, greenhouse_workplace_label
+    employer_identity_kind, greenhouse_workplace_label,
+    reconcile_workplace_record
 )
 from employer_ui import render_employer_checker
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
@@ -1028,12 +1029,17 @@ def score_job(job, resume, words='', qualification_profile=None):
             'states':states_in_location(job['location'])}
 
 
-def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
+def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
+                         max_per_employer=None):
     qualification_profile = compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
     unique={}
-    excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,'location':0}
-    for job in jobs:
+    excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
+              'location':0,'employer_limit':0}
+    for cached_job in jobs:
+        # Cached provider entries may predate the latest work-style parser.
+        # Repair inconsistent provenance before screening and exporting.
+        job=reconcile_workplace_record(cached_job)
         if not job.get('date'):
             excluded['undated']+=1
             continue
@@ -1083,15 +1089,16 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume):
     else:
         sorted_jobs=sorted(unique.values(),key=lambda j:(
             -j['rank'],-int(j['date'].replace('-','')),j['title'].lower()))
-    # Keep a limited number per employer without disturbing sorted order.
+    # Default: show ALL qualifying jobs in strict match order, including
+    # employers with many openings. The optional compact view retains the
+    # previous three-per-employer cap (up to 10 for Mayo Clinic).
     company_counts=Counter()
     diverse=[]
     for job in sorted_jobs:
-        company=job['company'].casefold()
-        # Give Mayo enough display slots for a mixture of onsite, hybrid and
-        # remote management roles; the normal employer limit remains three.
-        employer_limit = 10 if company == 'mayo clinic' else 3
-        if company_counts[company] >= employer_limit:
+        company=job['company'].strip().casefold()
+        cap=(10 if company=='mayo clinic' else max_per_employer)
+        if max_per_employer is not None and company_counts[company]>=cap:
+            excluded['employer_limit']+=1
             continue
         company_counts[company]+=1
         diverse.append(job)
@@ -1358,6 +1365,11 @@ elif page == 'Find Jobs':
             chosen_work=st.selectbox('Work arrangement',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
                 help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
+        chosen_employer_scope=st.selectbox(
+            'Jobs per employer',
+            ['All matching jobs (recommended)',
+             'Compact results: up to 3 per employer (10 Mayo Clinic)'],
+            help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
         submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
 
     if submitted:
@@ -1370,8 +1382,9 @@ elif page == 'Find Jobs':
         with st.spinner('Searching free job boards and government employer feeds…'):
             code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
             raw, errors, source_counts = fetch_all_free_jobs(tuple(terms), code)
+            employer_cap=(3 if chosen_employer_scope.startswith('Compact') else None)
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
-                search_text,st.session_state.resume_text)
+                search_text,st.session_state.resume_text,employer_cap)
         st.session_state.search_results=matches
         st.session_state.search_page=0
         st.session_state.search_stats={
@@ -1381,6 +1394,7 @@ elif page == 'Find Jobs':
             'matching_version':MATCHING_ENGINE_VERSION,
             'government':sum(bool(x['government']) for x in matches),
             'scope':chosen_state,'work':chosen_work,
+            'employer_scope':chosen_employer_scope,
         }
 
     if 'search_results' not in st.session_state:
@@ -1398,7 +1412,9 @@ elif page == 'Find Jobs':
         c1.metric('Total jobs',len(all_results))
         c2.metric('Government jobs',government_total)
         c3.metric('Private-sector jobs',private_total)
-        st.caption(f"{employer_total} distinct employers · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        st.caption(f"{employer_total} distinct employers · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        if stats['excluded'].get('employer_limit',0):
+            st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
         if not st.session_state.resume_text.strip():
             st.info('For a detailed match review of each vacancy, upload a resume on My Resume and search again.')
         if not all_results:
@@ -1535,7 +1551,7 @@ elif page == 'Find Jobs':
             st.write('Job providers returned:')
             for name,count in sorted(stats['sources'].items()):
                 st.write(f'• {name}: {count}')
-            st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']}")
+            st.write(f"Raw records: {stats['fetched']} · Excluded as old: {stats['excluded']['old']} · No publication date: {stats['excluded']['undated']} · Outside location: {stats['excluded']['location']} · Hidden by optional employer limit: {stats['excluded'].get('employer_limit',0)}")
             if stats['errors']:
                 st.caption(f"{len(stats['errors'])} feeds had errors or were unavailable; successful feeds still contribute jobs.")
                 if st.checkbox('Show unavailable feeds', key='show_unavailable_feeds'):
