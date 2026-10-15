@@ -83,6 +83,55 @@ class JobAuditRegressionTests(unittest.TestCase):
                         'manage newspaper budgets, printing and distribution.')
         self.assertIsNone(critical_area(q,'K-12 / school operations'))
 
+    def test_keller_business_degree_is_not_k12_sector_experience(self):
+        q=qualification('Vice President of Operations (Multi-Site)',
+                        'Required Bachelor\'s degree in business or a related discipline. '
+                        'Significant senior-level operations leadership experience. '
+                        'Preferred MBA or equivalent advanced business education '
+                        'Experience within retail, services, distribution, industrial, '
+                        'manufacturing, logistics, or another operationally intensive environment.')
+        self.assertIsNone(critical_area(q,'K-12 / school operations'))
+        self.assertFalse(any('K-12' in item for item in q['cautions']))
+
+    def test_kipp_school_leadership_is_required_but_k12_history_preferred(self):
+        q=qualification('Managing Director of School Operations, High Schools',
+                        'Qualifications Must Have: Experience and results in a school-based '
+                        'operations leadership role Direct management experience, with a '
+                        'record of developing leaders 5-10 years of work experience, '
+                        'preferably in business or operations management '
+                        'K-12 education experience preferred '
+                        "Bachelor's degree required; Master's degree preferred.")
+        school=critical_area(q,'K-12 / school operations')
+        self.assertIsNotNone(school)
+        self.assertIn('Required school-based operations leadership',school['priority'])
+        self.assertIn('K-12 sector experience preferred',school['priority'])
+        self.assertEqual(school['ranking_caution'],23)
+        self.assertTrue(school['required_context'])
+        self.assertIn('school-based operations leadership',school['listing_excerpt'])
+        self.assertNotIn('business education',school['listing_excerpt'])
+        self.assertLess(evidence_index(q),85)
+
+    def test_kipp_preferred_background_not_converted_to_required_by_degree(self):
+        q=qualification('Managing Director of School Operations, High Schools',
+                        'Direct regional school operations and oversee budgets. '
+                        'K-12 education experience preferred '
+                        "Bachelor's degree required; Master's degree preferred.")
+        school=critical_area(q,'K-12 / school operations')
+        self.assertIsNotNone(school)
+        self.assertEqual(school['priority'],'Preferred experience')
+        self.assertEqual(school['ranking_caution'],5)
+        self.assertFalse(school['required_context'])
+
+    def test_school_based_leadership_directly_required_without_k12_preference(self):
+        q=qualification('Director of School Operations',
+                        'Qualifications: Must Have: Experience and results in '
+                        'a school-based operations leadership role. '
+                        'Manage school budgets, enrollment and facilities.')
+        school=critical_area(q,'K-12 / school operations')
+        self.assertIsNotNone(school)
+        self.assertEqual(school['priority'],'Required school-based operations leadership')
+        self.assertEqual(school['ranking_caution'],23)
+
     def test_food_handling_explicit_requirement(self):
         q=qualification('General Manager',
                         'Lead warehouse operations and food distribution. '

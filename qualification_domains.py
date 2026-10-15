@@ -17,12 +17,14 @@ DOMAINS = (
      r'employee lifecycle|COBRA administration|onboarding and offboarding)\b',
      r'\b(?:human resources|HR director|people operations)\b'),
     ('K-12 / school operations',
+     # The word "education" alone is not school-operating experience: MBA
+     # requirements and advanced business education must not trigger K-12.
      r'\b(?:K[- ]?12 (?:school )?(?:operations|education|school leadership)'
      r'(?: experience| background| administration)?|'
+     r'school[- ]based operations leadership(?: experience| role)?|'
      r'school operations(?: experience| management| leadership)?|'
      r'charter school (?:operations|experience|leadership)|'
-     r'education (?:administration|experience|leadership)|'
-     r'school administration|'
+     r'school (?:administration|leadership)|'
      r'(?:managing |executive )?director of school operations)\b',
      r'\b(?:K[- ]?12|school operations|director of school|'
      r'school (?:director|administrator)|principal)\b'),
@@ -159,6 +161,63 @@ def _years_near_domain(text, match):
     return False
 
 
+# The same posting can require school-based leadership while only
+# *preferring* K-12 industry tenure. Score only the mandatory experience
+# as required; broad "required" or "years" elsewhere in the posting must
+# not transfer to K-12 education by proximity.
+SCHOOL_BASED_LEADERSHIP = re.compile(
+    r'\b(?:experience(?: and results)? in (?:a )?school[- ]based operations '
+    r'leadership (?:role|position)|school[- ]based operations leadership '
+    r'(?:experience|role)|school operations leadership experience)\b', re.I)
+SCHOOL_K12_PREFERRED = re.compile(
+    r'\bK[- ]?12 education experience\s+(?:strongly\s+)?preferred\b', re.I)
+LOCAL_PREFERENCE = re.compile(
+    r'^[\s,:;()\-]*(?:strongly\s+)?(?:preferred|desirable)\b', re.I)
+LOCAL_REQUIREMENT = re.compile(
+    r'^[\s,:;()\-]*(?:required|mandatory|essential)\b', re.I)
+MINIMUM_IN_FIELD = re.compile(
+    r'\b(?:minimum|at least|must have|requires?)\b.{0,75}'
+    r'\b(?:school operations|school[- ]based operations|K[- ]?12)\b', re.I)
+
+
+def _school_priority(desc, matches, title_match):
+    """Classify a *school-related clause*, never unrelated academic degrees.
+
+    School-based operational leadership can be required even when an
+    explicit K-12 teaching/sector history is only preferred.
+    """
+    preferred_school_background=bool(SCHOOL_K12_PREFERRED.search(desc))
+    mandatory_school_leadership=None
+    for school_role in SCHOOL_BASED_LEADERSHIP.finditer(desc):
+        leading=desc[max(0,school_role.start()-170):school_role.start()]
+        trailing=desc[school_role.end():school_role.end()+45]
+        if LOCAL_PREFERENCE.match(trailing):
+            continue
+        if (re.search(r'\b(?:Must Have|Required Qualifications|Minimum Qualifications)\s*:',
+                      leading,re.I) or LOCAL_REQUIREMENT.match(trailing)
+                or re.search(r'\b(?:required|must have)\b',leading[-48:],re.I)):
+            mandatory_school_leadership=school_role
+            break
+    if mandatory_school_leadership is not None:
+        wording=('Required school-based operations leadership; '
+                 'K-12 sector experience preferred' if preferred_school_background
+                 else 'Required school-based operations leadership')
+        return wording,23,True,mandatory_school_leadership
+    for match in matches:
+        trailing=desc[match.end():match.end()+35]
+        if LOCAL_PREFERENCE.match(trailing):
+            return 'Preferred experience',5,False,match
+        if LOCAL_REQUIREMENT.match(trailing):
+            return 'Required / experience stated — verify exact wording',23,True,match
+    if MINIMUM_IN_FIELD.search(desc):
+        return 'Required / experience stated — verify exact wording',23,True,matches[0] if matches else None
+    if title_match:
+        return 'Specialized role or field — verify experience',11,False,matches[0] if matches else None
+    if matches:
+        return 'Experience mentioned — review full posting',10,False,matches[0]
+    return 'Role responsibility — verify relevant experience',8,False,None
+
+
 def identify_specialized_requirements(job, resume=''):
     """Report documented posting domain cues; never infer eligibility."""
     title=str(job.get('title') or '')
@@ -192,7 +251,12 @@ def identify_specialized_requirements(job, resume=''):
                 preferred_distance is not None or title_match or
                 experience_near or duty_near):
             continue
-        if preferred_distance is not None and (
+        if name=='K-12 / school operations':
+            priority, penalty, required_context, school_match = (
+                _school_priority(desc,matches,title_match))
+            if school_match is not None:
+                match=school_match
+        elif preferred_distance is not None and (
                 required_distance is None or preferred_distance<required_distance):
             priority='Preferred experience'
             penalty=5
@@ -208,6 +272,8 @@ def identify_specialized_requirements(job, resume=''):
         else:
             priority='Role responsibility — verify relevant experience'
             penalty=8
+        if name!='K-12 / school operations':
+            required_context=bool(years or required_distance is not None)
         related=bool(phrase.search(resume))
         if related:
             status='Related field terms appear in resume; domain-specific responsibilities and years remain unverified'
@@ -217,7 +283,7 @@ def identify_specialized_requirements(job, resume=''):
         excerpt=(_excerpt(desc,match) if match
                  else 'The job title refers to '+name.lower())
         results.append({'area':name,'listing_excerpt':excerpt,'priority':priority,
-                        'required_context':bool(years or required_distance is not None),
+                        'required_context':required_context,
                         'mentioned_in_title':title_match,
                         'resume_status':status,'needs_verification':not related,
                         'ranking_caution':penalty})
