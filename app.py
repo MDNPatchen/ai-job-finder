@@ -1722,38 +1722,157 @@ elif page == 'Find Jobs':
 
 elif page == 'Job Tracker':
     st.title('📋 Job Application Tracker')
-    with st.expander('➕ Add a New Job', expanded=True):
+    st.caption('Track applications, interviews, offers, skipped openings and notes. '
+               'A JSON backup also includes your previously seen vacancy history.')
+
+    if tracker_cloud_enabled():
+        if st.session_state.tracker_unlocked:
+            st.success('Private cloud tracker unlocked. Changes are synchronized to configured Postgres storage.')
+        else:
+            with st.form('tracker_unlock'):
+                entered_password=st.text_input('Private tracker password',type='password',
+                   help='Configured in Streamlit Secrets, never stored in GitHub.')
+                unlock=st.form_submit_button('Unlock saved applications')
+                if unlock:
+                    try:
+                        if unlock_tracker_workspace(entered_password):
+                            st.success('Private applications loaded.')
+                            st.rerun()
+                        else:
+                            st.error('Incorrect password or password configuration.')
+                    except Exception as exc:
+                        st.error('Could not load cloud tracker: '+type(exc).__name__)
+            st.warning('Not unlocked: edits are session-only. Unlock before searching to '
+                       'retain job history across devices or deployments.')
+    else:
+        st.info('Session-only mode: no private database is configured. '
+                'Use JSON backup/restore to preserve your applications and seen jobs. '
+                'For automatic persistence, configure TRACKER_DATABASE_URL and '
+                'TRACKER_ACCESS_PASSWORD in Streamlit Secrets.')
+    if st.session_state.get('tracker_storage_error'):
+        st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
+                 '). Export a JSON backup now; the latest changes are in this session.')
+
+    st.subheader('Backup and restore')
+    backup_left,backup_right=st.columns(2)
+    with backup_left:
+        st.download_button(
+            '⬇️ Download complete tracker backup (JSON)',
+            export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
+                                  st.session_state.search_baseline),
+            'job_tracker_full_backup.json','application/json',use_container_width=True)
+    with backup_right:
+        st.download_button(
+            '⬇️ Export applications CSV',
+            export_tracker_csv(st.session_state.jobs),'job_tracker.csv',
+            'text/csv',use_container_width=True)
+    with st.expander('Restore applications and job history'):
+        uploaded_backup=st.file_uploader('Choose prior Job Tracker CSV or full JSON backup',
+                                         type=['csv','json'],key='tracker_restore_file')
+        restore_mode=st.radio('Import behavior',[
+            'Merge with existing applications','Replace existing applications'],
+            help='Replacing JSON also replaces seen-job history. CSV backups contain applications only.')
+        if st.button('Restore selected backup',disabled=uploaded_backup is None):
+            try:
+                raw=uploaded_backup.getvalue()
+                if uploaded_backup.name.lower().endswith('.json'):
+                    incoming=import_workspace_json(raw)
+                    restored_jobs=incoming['jobs']
+                else:
+                    restored_jobs=import_tracker_csv(raw)
+                    incoming=None
+                if restore_mode.startswith('Replace'):
+                    st.session_state.jobs=restored_jobs
+                    if incoming is not None:
+                        st.session_state.seen_jobs=incoming['seen']
+                        st.session_state.search_baseline=incoming['has_baseline']
+                else:
+                    merged={posting_id({'company':x['Company'],'title':x['Job Title'],
+                                       'location':x['Location'],'url':x['Job URL']}):x
+                            for x in st.session_state.jobs}
+                    for entry in restored_jobs:
+                        key=posting_id({'company':entry['Company'],
+                                       'title':entry['Job Title'],
+                                       'location':entry['Location'],'url':entry['Job URL']})
+                        merged.setdefault(key,entry)
+                    st.session_state.jobs=list(merged.values())
+                    if incoming is not None:
+                        st.session_state.seen_jobs=sorted(
+                            set(st.session_state.seen_jobs) | set(incoming['seen']))
+                        st.session_state.search_baseline=(
+                            st.session_state.search_baseline or incoming['has_baseline'])
+                synced=persist_tracker_if_unlocked()
+                if tracker_cloud_enabled() and st.session_state.tracker_unlocked and not synced:
+                    st.warning('Imported into this session, but cloud save failed. Keep a backup.')
+                else:
+                    st.success(f'Restored {len(restored_jobs)} saved applications.')
+                st.rerun()
+            except (UnicodeDecodeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                st.error('Backup not imported: '+str(exc)[:280])
+
+    with st.expander('➕ Add a New Job', expanded=False):
         with st.form('add_job'):
-            company = st.text_input('Company')
-            title = st.text_input('Job Title')
-            location = st.text_input('Location')
-            url = st.text_input('Job Posting URL')
-            salary = st.text_input('Salary / Range')
-            status = st.selectbox('Status', STATUSES)
-            recorded = st.date_input('Date Recorded', value=date.today())
-            interview = st.date_input('Interview Date (optional)', value=None)
-            notes = st.text_area('Notes / Next Steps')
+            company=st.text_input('Company')
+            title=st.text_input('Job Title')
+            location=st.text_input('Location')
+            url=st.text_input('Job Posting URL')
+            salary=st.text_input('Salary / Range')
+            status=st.selectbox('Status',STATUSES)
+            recorded=st.date_input('Date Recorded',value=date.today())
+            interview=st.date_input('Interview Date (optional)',value=None)
+            notes=st.text_area('Notes / Next Steps')
             if st.form_submit_button('Save Job'):
                 if company.strip() and title.strip():
-                    st.session_state.jobs.append({'Company':company.strip(),'Job Title':title.strip(),'Location':location.strip(),'Job URL':url.strip(),'Salary':salary.strip(),'Status':status,'Date Recorded':str(recorded),'Interview Date':str(interview) if interview else '', 'Notes':notes.strip()})
-                    st.success('Job added.')
+                    try:
+                        row={'Company':company.strip(),'Job Title':title.strip(),
+                             'Location':location.strip(),'Job URL':url.strip(),
+                             'Salary':salary.strip(),'Status':status,
+                             'Date Recorded':str(recorded),
+                             'Interview Date':str(interview) if interview else '',
+                             'Notes':notes.strip()}
+                        from tracker_store import normalize_tracker_row
+                        row=normalize_tracker_row(row)
+                        identity=posting_id({'company':row['Company'],'title':row['Job Title'],
+                                             'location':row['Location'],'url':row['Job URL']})
+                        existing={posting_id({'company':x['Company'],'title':x['Job Title'],
+                                              'location':x['Location'],'url':x['Job URL']})
+                                  for x in st.session_state.jobs}
+                        if identity in existing:
+                            st.info('This vacancy is already in your tracker.')
+                        else:
+                            st.session_state.jobs.append(row)
+                            persist_tracker_if_unlocked()
+                            st.success('Job added.')
+                            st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
                 else:
                     st.warning('Company and Job Title are required.')
-    jobs = st.session_state.jobs
+
+    jobs=st.session_state.jobs
     if jobs:
-        selected_status = st.selectbox('Filter by status', ['All'] + STATUSES)
-        visible = [j for j in jobs if selected_status == 'All' or j['Status'] == selected_status]
-        st.dataframe(pd.DataFrame(visible), use_container_width=True, hide_index=True)
-        idx = st.selectbox('Update a job', range(len(jobs)), format_func=lambda i: f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
-        job = jobs[idx]
-        new_status = st.selectbox('New status', STATUSES, index=STATUSES.index(job['Status']))
-        new_notes = st.text_area('Update notes', value=job['Notes'], key=f'notes_{idx}')
+        st.metric('Applications tracked',len(jobs))
+        selected_status=st.selectbox('Filter by status',['All']+STATUSES)
+        visible=[j for j in jobs if selected_status=='All' or j['Status']==selected_status]
+        st.dataframe(pd.DataFrame(visible),use_container_width=True,hide_index=True)
+        idx=st.selectbox('Update a job',range(len(jobs)),
+                         format_func=lambda i:f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
+        job=jobs[idx]
+        new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']))
+        new_notes=st.text_area('Update notes',value=job['Notes'],key=f'notes_{idx}')
         if st.button('Save Changes'):
-            jobs[idx]['Status'] = new_status
-            jobs[idx]['Notes'] = new_notes
-            st.success('Changes saved for this session.')
+            jobs[idx]['Status']=new_status
+            jobs[idx]['Notes']=new_notes.strip()[:3000]
+            persist_tracker_if_unlocked()
+            st.success('Changes saved'+(' to cloud.' if st.session_state.tracker_unlocked
+                                         and not st.session_state.get('tracker_storage_error')
+                                         else ' for this session.'))
             st.rerun()
-        st.download_button('⬇️ Export Job Tracker CSV', pd.DataFrame(jobs).to_csv(index=False), 'job_tracker.csv', 'text/csv')
+        if st.checkbox('Enable deletion of selected job',value=False):
+            if st.button('Delete selected job'):
+                jobs.pop(idx)
+                persist_tracker_if_unlocked()
+                st.success('Selected job deleted.')
+                st.rerun()
     else:
-        st.info('No jobs tracked yet.')
-    st.warning('Tracker data is temporary. Export a CSV backup before closing your session. Permanent storage is a future step.')
+        st.info('No jobs tracked yet. Save an opening from Find Jobs or import a prior backup.')
