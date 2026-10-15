@@ -21,7 +21,7 @@ DOMAINS = (
      r'charter school operations|education administration|school administration)\b',
      r'\b(?:K[- ]?12|school (?:director|administrator)|principal)\b'),
     ('Construction / engineering operations',
-     r'\b(?:construction (?:experience|operations|management|industry|services|'
+     r'\b(?:construction (?:[a-z-]+\s+){0,3}(?:experience|operations|management|industry|services|'
      r'projects?|field teams?)|engineering (?:services|operations|industry))\b',
      r'\b(?:construction|engineering services)\b'),
     ('Food handling / safety / distribution',
