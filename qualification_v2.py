@@ -6,6 +6,7 @@ Use requirement excerpts to explain uncertainty, not hard job exclusions.
 """
 import re
 from qualification_domains import identify_specialized_requirements
+from transfer_fit import transfer_fit
 
 _NUMBER = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
@@ -203,14 +204,12 @@ def role_alignment(title):
 
 def recalibrate_match(job, qualification, resume_text=''):
     """Transparent comparative research ordering, never eligibility probability."""
-    if not qualification.get('resume_present'):
-        return {'index':0,'role_alignment':role_alignment(job.get('title')),
-                'cautions':[],'specialties':[],'confidence':'No resume uploaded'}
-    m=len(qualification.get('resume_matches') or [])
-    c=len(qualification.get('confirmed_only') or [])
-    n=int(qualification.get('total_areas') or 0)
-    overlap=100*(m+0.5*c)/max(5,n)
     alignment=role_alignment(job.get('title'))
+    if not qualification.get('resume_present'):
+        return {'index':0,'role_alignment':alignment,
+                'cautions':[],'specialties':[],
+                'transferable_strengths':[], 'duty_coverage':0,
+                'confidence':'No resume uploaded'}
     specialties=assess_specialized_experience(job,resume_text)
     cautions=[]
     for item in specialties:
@@ -227,9 +226,12 @@ def recalibrate_match(job, qualification, resume_text=''):
     credential_penalty=min(20,sum(int(r.get('verification_penalty') or 0) for r in restrictions))
     for item in restrictions:
         cautions.append(item['type']+' to verify: '+item['listing_excerpt'][:145])
-    score=max(0,min(96,round(.58*overlap+.42*alignment-specialty_penalty-credential_penalty)))
-    return {'index':score,'role_alignment':alignment,'cautions':cautions,
-            'specialties':specialties,
+    transfer=transfer_fit(qualification, job, alignment,
+                          specialty_penalty, credential_penalty)
+    return {'index':transfer['index'],'role_alignment':alignment,
+            'cautions':cautions,'specialties':specialties,
+            'transferable_strengths':transfer['transferable_strengths'],
+            'duty_coverage':transfer['duty_coverage'],
             'confidence':('Limited details; inspect the employer posting' if
                           len(str(job.get('description') or ''))<450 else
                           'Based on available public job text; requirements may be incomplete')}

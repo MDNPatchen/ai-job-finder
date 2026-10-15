@@ -1,5 +1,34 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.0 — résumé strengths first (October 15, 2026)
+
+This build does **not** limit your career search to newspaper, publisher or
+executive titles. The default job rankings emphasize **which actual duties in
+a job posting overlap with strengths evidenced by your uploaded résumé**.
+Examples include managing people, budgets and P&L, operations, revenue growth,
+distribution, vendor negotiation, digital work, strategy and partnerships,
+when those capabilities are actually supported by your résumé.
+
+- Documented job-duty matches provide most of the comparative score. An
+  impressive or familiar job title contributes only a small component.
+  Words appearing **only in the job title** no longer get full duty-overlap
+  credit.
+- Jobs with unconventional titles can be included when the real job
+  description documents multiple relevant areas, rather than being discarded
+  solely for missing a predetermined management title.
+- Required specialty experience, professional licenses, civil-service rules
+  and other verification needs remain explicit cautions rather than
+  assumed qualifications or absolute disqualifications.
+- Job cards now show the leading transferable areas, and ranked CSV/JSON
+  exports include documented versus separately confirmed transfer strengths.
+- Your existing U.S.-only, 45-day, direct-employer, hybrid/on-site and Mayo
+  Clinic exception filters remain unchanged.
+- Rankings are research indicators, **not** eligibility decisions or
+  predictions of interview success. Always check the full employer posting.
+- Scoring changes reset old cached rankings. Look for **Matching engine
+  v3.1.0** and new ranked export filenames containing **_v310_**.
+
+
 ## Version 3.0.1 — employer-direct search quality (October 15, 2026)
 
 **New default:** Find Jobs → **Listing sources** → **Direct employers only

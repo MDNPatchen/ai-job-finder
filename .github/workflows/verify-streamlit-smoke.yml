@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "transfer_fit.py"
+      - "qualification_matcher.py"
+      - "qualification_v2.py"
       - "job_workflow.py"
       - "employer_postings.py"
       - "posting_metadata.py"
