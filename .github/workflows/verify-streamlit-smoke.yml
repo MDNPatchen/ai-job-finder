@@ -5,6 +5,7 @@ on:
     paths:
       - "app.py"
       - "transfer_fit.py"
+      - "career_fit_guardrails.py"
       - "qualification_matcher.py"
       - "qualification_v2.py"
       - "job_workflow.py"
