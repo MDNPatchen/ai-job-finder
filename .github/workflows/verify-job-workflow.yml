@@ -1,0 +1,31 @@
+name: Verify complete job finder workflow
+
+on:
+  pull_request:
+    paths:
+      - "app.py"
+      - "job_workflow.py"
+      - "tracker_store.py"
+      - "job_sources.json"
+      - "build_info.py"
+      - "requirements.txt"
+      - "test_job_workflow.py"
+      - "test_tracker_store.py"
+      - "test_source_health.py"
+      - "test_ranked_breakdowns.py"
+      - "test_source_catalog_expansion.py"
+      - ".github/workflows/verify-job-workflow.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile full application and helpers
+        run: python -m py_compile app.py job_workflow.py tracker_store.py
+      - name: Test identities, preferences, imports, new-job history and feed health
+        run: python -m unittest -v test_job_workflow test_tracker_store test_source_health test_ranked_breakdowns test_source_catalog_expansion test_build_version
