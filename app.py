@@ -596,27 +596,28 @@ def load_himalayas(query_terms):
 
 @st.cache_data(ttl=7200, show_spinner=False)
 def load_lever_employers(catalog_version=None):
-    jobs=[]
-    for token, employer in LEVER_BOARDS:
-        try:
-            data=fetch_json('https://api.lever.co/v0/postings/' + quote(token) + '?mode=json&limit=100')
-            for x in data if isinstance(data,list) else []:
-                cats=x.get('categories') or {}
-                loc=cats.get('location') or ''
-                style=str(x.get('workplaceType') or '')
-                remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
-                eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
-                if remote and not eligible:
-                    eligible=us_remote_eligible(loc)
-                job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
-                    loc or 'Location not specified',
-                    (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
-                    'Lever employer',remote,'',x.get('createdAt'),eligible,
-                    declared_style=style)
-                if job:jobs.append(job)
-        except (HTTPError,URLError,TimeoutError,ValueError,TypeError):
-            continue  # Individual failures do not interrupt other sources.
-    return jobs
+    def fetch(board):
+        token, employer=board
+        data=fetch_json('https://api.lever.co/v0/postings/' +
+                        quote(token) + '?mode=json&limit=100')
+        jobs=[]
+        for x in data if isinstance(data,list) else []:
+            cats=x.get('categories') or {}
+            loc=cats.get('location') or ''
+            style=str(x.get('workplaceType') or '')
+            remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
+            eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
+            if remote and not eligible:
+                eligible=us_remote_eligible(loc)
+            job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
+                loc or 'Location not specified',
+                (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
+                'Lever employer',remote,'',x.get('createdAt'),eligible,
+                declared_style=style)
+            if job:jobs.append(job)
+        return jobs
+    return retrieve_boards(LEVER_BOARDS,fetch, max_workers=4)
+
 
 
 # Public job-board URLs identified on employer-hosted posting pages.
@@ -692,17 +693,26 @@ def load_workable_boards(catalog_version=None):
 
 
 def retrieve_boards(boards, worker, max_workers=8):
-    """Small bounded parallelism; return failures rather than silently hiding them."""
-    jobs, failures = [], []
+    """Return jobs, explicit errors AND per-board health, including empty feeds."""
+    jobs, failures, health = [], [], []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         tasks={pool.submit(worker, record): record for record in boards}
         for future in as_completed(tasks):
             info=tasks[future]
             try:
-                jobs.extend(future.result())
-            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,KeyError,OSError) as exc:
+                records=future.result()
+                jobs.extend(records)
+                health.append({'board':info[1], 'feed_id':info[0],
+                               'status':'Active' if records else 'Empty',
+                               'records':len(records)})
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,
+                    KeyError,OSError) as exc:
                 failures.append(f'{info[1]}: {type(exc).__name__}')
-    return jobs, failures
+                health.append({'board':info[1], 'feed_id':info[0],
+                               'status':'Failed', 'records':0,
+                               'error':type(exc).__name__})
+    return jobs, failures, sorted(health,key=lambda x:(x['board'].casefold(),x['feed_id']))
+
 
 
 @st.cache_data(ttl=7200, show_spinner=False)
@@ -964,7 +974,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
     usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
     if usa_key and usa_email:
         tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
-    jobs, errors, counts=[],[],{}
+    jobs, errors, counts, health=[],[],{},[]
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures={executor.submit(fn):label for label,fn in tasks.items()}
         for future in as_completed(futures):
@@ -975,25 +985,43 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                     records,failures,agency_counts=result
                     jobs.extend(records)
                     counts[label]=len(records)
-                    counts['Government agency feeds in location']=sum(state_filter is None or a[2] == state_filter for a in GOVERNMENT_AGENCIES)
-                    counts['Government agencies with RSS items']=sum(n>0 for n in agency_counts.values())
-                    counts['Government feeds empty']=sum(n == 0 for n in agency_counts.values())-len(failures)
+                    counts['Government agency feeds in location']=sum(
+                        state_filter is None or a[2] == state_filter
+                        for a in GOVERNMENT_AGENCIES)
+                    counts['Government agencies with RSS items']=sum(
+                        n>0 for n in agency_counts.values())
+                    counts['Government feeds empty']=sum(
+                        n == 0 for n in agency_counts.values())-len(failures)
                     counts['Government feeds failed']=len(failures)
                     errors.extend(failures)
+                    failed_names={err.split(':',1)[0].strip() for err in failures}
+                    for board,number in agency_counts.items():
+                        health.append({'provider':label,'board':board,
+                                       'status':('Failed' if board in failed_names else
+                                                 'Active' if number else 'Empty'),
+                                       'records':number})
                 elif label in ('Greenhouse public boards','Ashby public boards',
                                'SmartRecruiters public boards','NEOED education RSS',
-                               'Workable public boards'):
-                    records, failures=result
+                               'Workable public boards','Lever employer boards'):
+                    records,failures,board_health=result
                     jobs.extend(records)
                     counts[label]=len(records)
                     errors.extend(f'{label} / {message}' for message in failures)
+                    health.extend({**x,'provider':label} for x in board_health)
                 else:
                     jobs.extend(result)
                     counts[label]=len(result)
+                    health.append({'provider':label,'board':label,
+                                   'status':'Active' if result else 'Empty',
+                                   'records':len(result)})
             except Exception as exc:
                 counts[label]=0
                 errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
-    return jobs,errors,counts
+                health.append({'provider':label,'board':label,
+                               'status':'Failed','records':0,
+                               'error':type(exc).__name__})
+    return jobs,errors,counts,sorted(health,
+                key=lambda x:(x['provider'],x['board'].casefold()))
 
 
 def normalized_key(job):
