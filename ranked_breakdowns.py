@@ -68,12 +68,15 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'evidence_match_index': evidence_index(q),  # legacy JSON key
             'comparative_fit_index': evidence_index(q),
             'role_alignment_index': q.get('role_alignment_index'),
+            'job_duty_coverage_index': q.get('duty_coverage_index'),
+            'transferable_strengths': q.get('transferable_strengths') or [],
             'specialized_experience_to_verify': q.get('specialized_requirements') or [],
             'important_cautions': q.get('cautions') or [],
             'description_completeness': q.get('description_completeness') or 'Not assessed',
-            'index_explanation': ('Comparative fit index, 0–96: resume evidence plus role '
-                                  'alignment, with caution for specialized requirements '
-                                  'and credentials not verified from the resume. '
+            'index_explanation': ('Transferable-strength fit index, 0–96: primarily '
+                                  'documented résumé strengths shared with listed duties, '
+                                  'with minor title influence and caution for specialized '
+                                  'requirements or credentials not verified. '
                                   'Not an eligibility score or hiring probability.'),
             'alignment_label': q.get('label') or 'Not assessed',
             'total_relevant_areas_detected': int(q.get('total_areas') or 0),
@@ -109,6 +112,13 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
             'Comparative fit index (0-96; not hiring probability)': item['comparative_fit_index'],
             'Alignment': item['alignment_label'],
             'Role-family alignment index': item['role_alignment_index'],
+            'Job-duty overlap index': item['job_duty_coverage_index'],
+            'Top transferable strengths documented in resume': '; '.join(
+                x['area'] for x in item['transferable_strengths']
+                if x.get('evidence') == 'Documented in résumé'),
+            'Transferable strengths confirmed separately': '; '.join(
+                x['area'] for x in item['transferable_strengths']
+                if x.get('evidence') != 'Documented in résumé'),
             'Specialized experience to verify': '; '.join(
                 (x.get('area') or '') + ' [' + (x.get('priority') or 'verify') + ']'
                 for x in item['specialized_experience_to_verify']
