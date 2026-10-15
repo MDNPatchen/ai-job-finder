@@ -34,7 +34,7 @@ DOMAINS = (
      r'convenience[- ]store(?: operations| management)?|travel[- ]center'
      r'(?: operations| management)?|fuel,?\s+convenience[- ]store)\b',
      r'\b(?:travel center|fuel station|convenience store)\b'),
-    ('Restaurant / quick-service management',
+    ('Restaurant / food-service management',
      r'\b(?:restaurant management|restaurant operations|'
      r'quick[- ]service restaurant|fast[- ]casual (?:restaurant|environment)|'
      r'food[- ]service management)\b',
@@ -49,7 +49,7 @@ DOMAINS = (
      r'distribution (?:center|facility|warehouse)|industrial operations|'
      r'industrial manufacturing experience|trucking (?:operations|fleet))\b',
      r'\b(?:warehouse|industrial|manufacturing)\b'),
-    ('Public transportation management',
+    ('Public transit / fleet operations',
      r'\b(?:public transport(?:ation)? (?:management|operations|organization|experience)|'
      r'multimodal transit|multi[- ]modal transit|paratransit|transit agency|'
      r'fixed[- ]route transit|fleet operations)\b',
@@ -128,7 +128,9 @@ def _years_near_domain(text, match):
     for years in YEARS.finditer(window):
         # Nearby duration must be framed as experience; "100 years serving" is not.
         around=window[max(0,years.start()-25):min(len(window),years.end()+125)]
-        if EXPERIENCE.search(around) or re.search(r'\b(?:management|operations)\b',around,re.I):
+        if (EXPERIENCE.search(around) or
+                re.search(r'\byears?\s+of\b',around,re.I) or
+                re.search(r'\b(?:management|operations)\b',around,re.I)):
             return True
     return False
 
