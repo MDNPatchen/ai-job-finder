@@ -54,12 +54,17 @@ def breakdowns_json(jobs):
             'rank': place,
             'job_title': job.get('title') or '',
             'employer': job.get('company') or '',
+            'employer_identity_kind': job.get('employer_identity_kind') or
+                                      'Company named by source; identity not independently verified',
+            'work_arrangement_source': job.get('arrangement_source') or
+                                       'No explicit workplace label in public posting',
             'location': job.get('location') or '',
             'work_arrangement': job.get('work_style') or 'Not specified',
             'posted_date': job.get('date') or '',
             'job_url': job.get('url') or '',
             'source': job.get('source') or '',
-            'evidence_match_index': evidence_index(q),
+            'evidence_match_index': evidence_index(q),  # legacy JSON key
+            'comparative_fit_index': evidence_index(q),
             'role_alignment_index': q.get('role_alignment_index'),
             'specialized_experience_to_verify': q.get('specialized_requirements') or [],
             'important_cautions': q.get('cautions') or [],
@@ -97,15 +102,18 @@ def breakdowns_csv_rows(jobs):
                 for x in value)
         rows.append({
             'Rank': item['rank'],
-            'Evidence overlap index (0-100, not hiring probability)': item['evidence_match_index'],
+            'Comparative fit index (0-96; not hiring probability)': item['comparative_fit_index'],
             'Alignment': item['alignment_label'],
             'Role-family alignment index': item['role_alignment_index'],
             'Specialized experience to verify': '; '.join(
-                x.get('area') or '' for x in item['specialized_experience_to_verify']
+                (x.get('area') or '') + ' [' + (x.get('priority') or 'verify') + ']'
+                for x in item['specialized_experience_to_verify']
                 if x.get('needs_verification')),
             'Important qualification cautions': ' | '.join(item['important_cautions']),
             'Job-description completeness': item['description_completeness'],
             'Employer': item['employer'],
+            'Employer identification': item['employer_identity_kind'],
+            'Work arrangement evidence': item['work_arrangement_source'],
             'Job title': item['job_title'],
             'Location': item['location'],
             'Work arrangement': item['work_arrangement'],
