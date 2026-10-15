@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "about": "Editable, per-employer public job-feed catalog. A confirmed career-page identifier does NOT imply RSS is working or jobs are available. Diagnostics checks actual responses.",
+  "about": "Editable catalog of verified public employer career-board identifiers. A career page being active does not guarantee a working public API, a U.S. opening, or a recent relevant role; live feed diagnostics report failures. Fully remote non-Mayo roles remain excluded.",
   "neogov": [
     {
       "id": "alaska",
@@ -579,6 +579,11 @@
       "name": "ARCO/Murray National Construction"
     },
     {
+      "id": "axios",
+      "name": "Axios",
+      "career_page": "https://job-boards.greenhouse.io/axios"
+    },
+    {
       "id": "boldbusiness",
       "name": "Bold Business"
     },
@@ -599,6 +604,11 @@
       "name": "Energy Project Solutions"
     },
     {
+      "id": "forbes",
+      "name": "Forbes",
+      "career_page": "https://job-boards.greenhouse.io/forbes"
+    },
+    {
       "id": "imaginepediatrics",
       "name": "Imagine Pediatrics"
     },
@@ -607,8 +617,18 @@
       "name": "Industrial Electric Manufacturing"
     },
     {
+      "id": "nationalpublicradioinc",
+      "name": "NPR",
+      "career_page": "https://job-boards.greenhouse.io/nationalpublicradioinc"
+    },
+    {
       "id": "powerdigitalmarketing",
       "name": "Power Digital"
+    },
+    {
+      "id": "propublica",
+      "name": "ProPublica",
+      "career_page": "https://job-boards.greenhouse.io/propublica"
     },
     {
       "id": "riseamg",
@@ -619,12 +639,22 @@
       "name": "S&B USA"
     },
     {
+      "id": "semafor",
+      "name": "Semafor",
+      "career_page": "https://job-boards.greenhouse.io/semafor"
+    },
+    {
       "id": "spsnorthamerica",
       "name": "SPS North America"
     },
     {
       "id": "unitedveincenters",
       "name": "United Vein & Vascular Centers"
+    },
+    {
+      "id": "voxmedia",
+      "name": "Vox Media",
+      "career_page": "https://job-boards.greenhouse.io/voxmedia"
     },
     {
       "id": "winnerscirclegroupoftexas1",
@@ -697,9 +727,21 @@
       "government": true
     },
     {
+      "id": "CityofPhiladelphia",
+      "name": "City of Philadelphia",
+      "government": true,
+      "career_page": "https://jobs.smartrecruiters.com/CityofPhiladelphia"
+    },
+    {
       "id": "Dexterra",
       "name": "Dexterra",
       "government": false
+    },
+    {
+      "id": "InformaGroupPlc",
+      "name": "Informa / Taylor & Francis / Informa TechTarget",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/InformaGroupPlc"
     },
     {
       "id": "InternationalDairyQueen",
@@ -717,6 +759,12 @@
       "government": false
     },
     {
+      "id": "NBCUniversal3",
+      "name": "NBCUniversal",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/NBCUniversal3"
+    },
+    {
       "id": "prosidianconsulting",
       "name": "ProSidian Consulting",
       "government": false
@@ -725,6 +773,12 @@
       "id": "PSICRO",
       "name": "PSI CRO",
       "government": false
+    },
+    {
+      "id": "RedBull",
+      "name": "Red Bull North America",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/RedBull"
     }
   ],
   "lever": [
@@ -741,8 +795,18 @@
       "name": "Moments Hospice"
     },
     {
+      "id": "morningbrew",
+      "name": "Morning Brew",
+      "career_page": "https://jobs.lever.co/morningbrew"
+    },
+    {
       "id": "networkconnex",
       "name": "Network Connex"
+    },
+    {
+      "id": "standtogether",
+      "name": "Stand Together",
+      "career_page": "https://jobs.lever.co/standtogether"
     }
   ],
   "workable": [
