@@ -3,7 +3,8 @@
 No mock statistics or generated illustrations are shown as real vacancy data.
 """
 import unittest
-from ui_theme import APP_CSS, brand, hero, listing_head
+from ui_theme import APP_CSS, PALETTE, brand, hero, listing_head
+from pathlib import Path
 
 
 class MinimalUIThemeTests(unittest.TestCase):
@@ -38,6 +39,27 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn("color:#FFFFFF!important",APP_CSS)
         self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
         self.assertIn("background:var(--forest)!important",APP_CSS)
+
+    def test_dark_streamlit_theme_and_readable_contrast(self):
+        theme=Path(__file__).with_name(".streamlit").joinpath("config.toml").read_text()
+        self.assertIn('base = "dark"',theme)
+        self.assertIn('backgroundColor = "#27342F"',theme)
+        self.assertIn('secondaryBackgroundColor = "#34443D"',theme)
+        self.assertIn('textColor = "#F1F6F2"',theme)
+        self.assertIn("Compact Slate",brand("3.1.15"))
+        self.assertEqual(PALETTE["background"],"#27342F")
+        self.assertEqual(PALETTE["panel"],"#34443D")
+        def luminance(hex_color):
+            rgb=[int(hex_color[i:i+2],16)/255 for i in (1,3,5)]
+            rgb=[value/12.92 if value<=0.04045 else
+                 ((value+.055)/1.055)**2.4 for value in rgb]
+            return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]
+        def contrast(a,b):
+            high,low=sorted([luminance(a),luminance(b)],reverse=True)
+            return (high+.05)/(low+.05)
+        self.assertGreaterEqual(contrast("#F1F6F2","#34443D"),7)
+        self.assertGreaterEqual(contrast("#BBCDC2","#34443D"),4.5)
+        self.assertGreaterEqual(contrast("#FFFFFF","#257B5B"),4.5)
 
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
