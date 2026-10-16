@@ -55,7 +55,7 @@ def import_tracker_csv(raw):
         raise ValueError('CSV backup exceeds 5 MB')
     text=raw.decode('utf-8-sig')
     reader=csv.DictReader(StringIO(text))
-    if not reader.fieldnames or not set(COLUMNS).issubset(reader.fieldnames):
+    if not reader.fieldnames or not (set(COLUMNS)-{'Follow-up Date'}).issubset(reader.fieldnames):
         raise ValueError('CSV is missing one or more Job Tracker columns')
     rows=[]
     for row in reader:
