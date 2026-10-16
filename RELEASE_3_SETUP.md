@@ -1,5 +1,36 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.10 — construction degree rigor, finance expertise and Lever feeds
+
+- Treat a required degree in Construction Management, Engineering, Architecture
+  or equivalent technical fields as distinct from a generic Business
+  Management degree. The phrase "related discipline" does not silently turn
+  a management degree into a construction or engineering credential.
+  Explicit employer alternatives such as Business Administration or Operations
+  Management remain valid for review. Genuine required degrees are still
+  verification cautions, never categorical eligibility decisions.
+- Distinguish role-specific corporate-finance/FP&A skills, preconstruction
+  and construction-project experience from broadly transferable P&L,
+  budgets, operations and vendor management. Use both job-specific applicant
+  criteria and narrow title-level cautions; ordinary leadership roles remain
+  searchable and attractive.
+- Paginate the free official Lever Postings API with documented skip/limit
+  parameters, at most 300 vacancies per board in three 100-record pages.
+  Capture individual board returned-postings, US and recently posted counts,
+  pages retrieved, empty/error conditions, and partial page failures.
+  Keep the valid first page when a later page fails; report an unavailable
+  board separately from one that returned zero listings.
+- Source audit is under the existing optional Source coverage and diagnostics
+  section, without adding clutter to the approved minimal dark-emerald UI.
+- Adds focused offline regression tests for v3.1.9 real-export errors, Lever
+  pagination, pagination partial failures and protected cross-industry matches.
+- Matching engine v3.1.10 and exports _v3110_; cached stale rankings reset.
+
+The score is a comparative research index, not a hiring probability. Lever
+API availability and vacancy freshness can still vary, and only an actual
+post-search CSV can confirm how the new ranking performs in live feeds.
+
+
 ## Version 3.1.9 — government source integrity and degree verification
 
 The October 16 v3.1.8 ranked export included duplicate, incorrectly
