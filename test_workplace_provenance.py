@@ -14,6 +14,7 @@ from posting_metadata import (
     NO_WORKPLACE_EVIDENCE, WORKPLACE_SOURCE_UNVERIFIED
 )
 from ranked_breakdowns import breakdowns_csv_rows, breakdowns_json
+from job_workflow import explicitly_remote_title
 
 
 def extract_current_functions():
@@ -31,6 +32,7 @@ def extract_current_functions():
         'strict_onsite_requirement':strict_onsite_requirement,
         'html_to_text':lambda raw:re.sub(r'<[^>]+>',' ',str(raw or '')),
         'employer_identity_kind':employer_identity_kind,
+        'explicitly_remote_title':explicitly_remote_title,
         'parse_posted_date':lambda value:None
     }
     exec(compile(module,'app.py','exec'),env)
