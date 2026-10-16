@@ -85,11 +85,12 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         self.assertIn("'career_matches_export'",self.source)
         self.assertIn("'approved_resume_wording'",self.source)
 
-    def test_light_background_and_spacious_panels(self):
-        self.assertIn("#F5F7F5",APP_CSS)
-        self.assertIn("#FFFFFF",APP_CSS)
-        self.assertIn("padding:1.5rem 1.65rem",APP_CSS)
+    def test_compact_slate_appearance_preserves_native_downloads(self):
+        self.assertIn("#27342F",APP_CSS)
+        self.assertIn("#34443D",APP_CSS)
+        self.assertIn("padding:.87rem 1.05rem",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
+        self.assertIn("Compact Slate",brand(MATCHING_ENGINE_VERSION))
         self.assertNotIn("<img",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("example",listing_head("example","Employer","US",
                                               "On-site",False))
