@@ -1,5 +1,41 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.4 — private-employer specialist minimums (October 15, 2026)
+
+The v3.1.3 audit found highly specialized private-sector jobs still near the
+top with **zero employer-specific or career-fit cautions**. Job descriptions
+often contain escaped HTML, and flattening all whitespace erased critical
+private employer qualification headings.
+
+- Decode ATS HTML entities **before** stripping HTML. Preserve h2/h3/p/li
+  section and list boundaries in up to 26,000 characters of description,
+  including late applicant-criteria sections.
+- Recognize **What You'll Need**, **What You're Great At**, **What We Need
+  From You**, **What You'll Bring**, **Qualifications & Skills**, **Who You
+  Are**, and other employer-specific sections as applicant requirements.
+  **Nice to Have**, **Desired**, and **Preferred** stay nonmandatory.
+- The requirements parser now evaluates all credible occurrences of a
+  specialty and chooses the strongest evidence from the applicant criteria.
+  An early mention of "deliver EHS training" in responsibilities will no
+  longer mask later mandatory EHS experience in Qualifications.
+- Add specialist cues for environmental safety, product/UX design, equity
+  compensation, LC-MS/MS laboratory science, technical IT project delivery,
+  and advanced marketing science. A regular operations/marketing/logistics
+  management title does not trigger these field-specific cautions.
+- Title-specific specialist cautions provide a separate check when listings
+  omit qualifications, but applicants with explicit specialist résumé
+  evidence are not penalized for that specialty.
+- Recognize **TRANSFER ONLY** and similar explicitly employee-transfer-only
+  job titles, with a visible applicant-eligibility caution.
+- Keep all listings browseable, including cross-industry roles, and expose
+  ranking cautions alongside literal posting excerpts in CSV/JSON.
+- Invalidate v3.1.3 cached rankings and export **_v314_** filenames.
+
+This is an explanatory research index, **not a hiring or license decision**.
+Where employers omit detail or a résumé omits specialist experience, users
+must independently verify actual qualifications.
+
+
 ## Version 3.1.3 — official full government bulletins (October 15, 2026)
 
 Version 3.1.2 still ranked some public-sector positions at 96/96 because
