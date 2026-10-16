@@ -147,13 +147,15 @@ def extract_formal_minimums(job, resume=''):
                 continue
             section=_qualification_scope(desc,match.start())
             if not section:
-                # ATS feeds vary: education heading may be in the same
-                # paragraph, on a prior line, or followed by a bullet.
+                # The education heading may precede the degree on the same
+                # line or on an immediately preceding bullet.
                 prefix=desc[max(0,match.start()-200):match.start()]
-                if re.search(r'\b(?:education\s+and/or\s+experience|'
-                             r'education(?:al)?\s+requirements?|'
-                             r'minimum\s+qualifications?)\s*:\s*'
-                             r'(?:[•●*\-]\s*)?
+                heading_re=(r'\b(?:education\s+and/or\s+experience|'
+                            r'education(?:al)?\s+requirements?|'
+                            r'minimum\s+qualifications?)\s*:\s*'
+                            r'(?:[•●*\-]\s*)?$')
+                if re.search(heading_re,prefix,re.I):
+                    section='education'
             if re.search(r"\b(?:benefits|perks|what we offer|"
                          r"tuition reimbursement|professional development)\b",
                          section,re.I):
