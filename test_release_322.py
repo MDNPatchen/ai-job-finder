@@ -146,3 +146,13 @@ class StreamingRSSReliabilityTests(unittest.TestCase):
             list(iter_rss_response(io.BytesIO(b'<error>unavailable</error>')))
         with self.assertRaisesRegex(ValueError,'complete feed not retrieved'):
             list(iter_rss_response(io.BytesIO(b'<rss>'+b' '*100+b'</rss>'),limit=50))
+
+
+class MalformedExportTests(unittest.TestCase):
+    def test_short_row_fails_without_crashing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'broken.csv'
+            path.write_text('Rank,'+FIT+',Job URL,Job title,Matching engine version,Search run ID (UTC),Review order\n1,80\n')
+            result=audit_csv(path)
+            self.assertFalse(result['passed'])
+            self.assertEqual(result['findings'][-1]['check'],'Complete row structure')

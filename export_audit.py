@@ -21,7 +21,9 @@ def audit_csv(path):
     check('Required columns',not missing,'Missing: '+', '.join(missing) if missing else 'All present')
     check('Nonempty export',bool(rows),f'{len(rows)} rows')
     if missing or not rows: return dict(rows=len(rows),findings=findings,passed=False)
-    check('Complete row structure',all(None not in row and all(v is not None for v in row.values()) for row in rows),'No shifted or incomplete CSV rows')
+    complete=all(None not in row and all(v is not None for v in row.values()) for row in rows)
+    check('Complete row structure',complete,'Rows must match the CSV header without missing or extra fields')
+    if not complete:return dict(rows=len(rows),findings=findings,passed=False)
     check('Sequential ranks',[r['Rank'] for r in rows]==[str(i) for i in range(1,len(rows)+1)],'Ranks must be 1 through row count')
     urls=[r['Job URL'] for r in rows]
     check('Unique posting URLs',len(set(urls))==len(urls),f'{len(urls)-len(set(urls))} duplicate URLs')
