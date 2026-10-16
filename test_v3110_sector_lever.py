@@ -1,6 +1,6 @@
 """No-network v3.1.10 regressions for degree fields, sector years, Lever health."""
 import ast
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
 import re
@@ -162,7 +162,8 @@ class LeverSourceHealthTests(unittest.TestCase):
                     'description':description,'source':source,
                     'eligible':eligible,'date':'2026-10-16',
                     'work_style':'On-site','remote':False}
-        env={'ThreadPoolExecutor':ThreadPoolExecutor,'fetch_json':fetch_json,
+        env={'ThreadPoolExecutor':ThreadPoolExecutor,'as_completed':as_completed,
+             'fetch_json':fetch_json,
              'quote':quote,'re':re,'states_in_location':lambda loc:['MN'] if 'MN' in loc else [],
              'declared_arrangement':declared_arrangement,
              'us_remote_eligible':lambda loc:False,
