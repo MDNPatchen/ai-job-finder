@@ -285,8 +285,8 @@ def _priority(clause, term, section=''):
     if REQUIRED.search(clause):
         return 'Required / minimum — verify exact wording'
     if re.search(
-        r'\b(?:qualifications?|requirements?|what you.ll need|'
-        r'what we need|what you.ll bring|what we look for|'
+        r'\b(?:qualifications?|requirements?|what you(?:.ll)? need|'
+        r'what we need|what you(?:.ll)? bring|what we look for|'
         r'what you.re great at|who you are|'
         r'experience and education|experience and qualifications|'
         r'experience and skills|what you bring to)\b',section):
