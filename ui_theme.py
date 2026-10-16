@@ -45,6 +45,32 @@ html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
   background:var(--page)!important;
   border:0!important;border-radius:0!important;
 }
+/* Keep page headings, navigation, filters and results off the content rail.
+   In Streamlit 1.41 the visible widgets live in the root VerticalBlock,
+   so padding only the outer block-container did not inset them. */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
+[data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],
+section.main .block-container > [data-testid="stVerticalBlock"]{
+  box-sizing:border-box!important;
+  padding-inline:clamp(24px,3.1vw,52px)!important;
+  row-gap:.9rem!important;
+}
+/* Explicit heading offsets provide a fallback for older Streamlit DOMs. */
+.job-hero,.job-module-heading,.job-module-caption,.job-topbar{
+  margin-left:0!important;margin-right:0!important;
+}
+[data-testid="stForm"]{
+  margin-top:.3rem!important;
+}
+@media (min-width:901px){
+  [data-testid="stMainBlockContainer"],.block-container,
+  [data-testid="stMain"] .block-container{
+    width:calc(100% - 5rem)!important;
+    max-width:1440px!important;
+    padding:1.65rem 1.25rem 3.5rem!important;
+  }
+}
+
 /* A real dashboard wrapper creates a second modest inset. Do not style
    it as one large rounded card; the six individual metrics are modules. */
 .st-key-dashboard_content,
@@ -288,7 +314,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
     width:100%!important;max-width:100%!important;
     padding:1rem 1.2rem 3rem!important;
   }
-  .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
+  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],\n  [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],\n  section.main .block-container > [data-testid="stVerticalBlock"]{\n    padding-inline:1rem!important;\n  }\n  .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
   .st-key-dashboard_content > div[data-testid="stVerticalBlock"]{
     padding:.2rem .15rem .7rem!important;
   }
