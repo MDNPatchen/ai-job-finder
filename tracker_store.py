@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 STATUSES=('Saved','Applied','Interviewing','Offer','Rejected','Skipped','Withdrawn')
 COLUMNS=('Company','Job Title','Location','Job URL','Salary','Status',
-         'Date Recorded','Interview Date','Notes')
+         'Date Recorded','Interview Date','Follow-up Date','Notes')
 MAX_BYTES=5_000_000
 MAX_JOBS=5000
 MAX_SEEN=25000
@@ -35,7 +35,7 @@ def normalize_tracker_row(row):
     if url and (urlsplit(url).scheme.lower() not in ('http','https') or
                 not urlsplit(url).netloc):
         raise ValueError('Job URL must use http or https')
-    for field in ('Date Recorded','Interview Date'):
+    for field in ('Date Recorded','Interview Date','Follow-up Date'):
         if out[field]:
             try:
                 datetime.strptime(out[field],'%Y-%m-%d')
