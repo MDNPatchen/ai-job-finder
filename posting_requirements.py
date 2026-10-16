@@ -197,11 +197,13 @@ FIELDS = (
     ('Construction / preconstruction delivery experience',
      r'\b(?:preconstruction|construction management|'
      r'commercial construction|federal construction|'
+     r'construction[- ]related (?:experience|work)|construction industry|'
      r'construction projects?|construction estimating|'
      r'construction cost estimation|general contractor|'
      r'construction site management|capital construction projects?)\b',
      r'\b(?:preconstruction|construction management|'
      r'commercial construction|federal construction|'
+     r'construction[- ]related (?:experience|work)|construction industry|'
      r'construction projects?|construction estimating|'
      r'general contractor|construction site management)\b',25),
     ('Advanced marketing science / statistical modeling',
