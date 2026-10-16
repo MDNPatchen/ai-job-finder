@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "test_v3112_education_pathways.py"
       - "specialist_caution_calibration.py"
       - "test_v3110_sector_lever.py"
       - "government_feed_identity.py"
