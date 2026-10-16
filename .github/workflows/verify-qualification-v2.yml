@@ -8,6 +8,8 @@ on:
       - "transfer_fit.py"
       - "test_transfer_fit.py"
       - "career_fit_guardrails.py"
+      - "posting_requirements.py"
+      - "test_posting_requirements.py"
       - "test_career_fit_guardrails.py"
       - "qualification_domains.py"
       - "posting_metadata.py"
@@ -35,6 +37,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile updated modules
-        run: python -m py_compile app.py career_fit_guardrails.py transfer_fit.py qualification_v2.py qualification_domains.py posting_metadata.py employer_ui.py qualification_matcher.py ranked_breakdowns.py mayo_source.py
+        run: python -m py_compile app.py posting_requirements.py career_fit_guardrails.py transfer_fit.py qualification_v2.py qualification_domains.py posting_metadata.py employer_ui.py qualification_matcher.py ranked_breakdowns.py mayo_source.py
       - name: Qualification and export unit tests
-        run: python -m unittest -v test_career_fit_guardrails test_transfer_fit test_qualification_v2 test_qualification_matcher test_ranked_breakdowns test_nyc_qualification_data test_mayo_source test_audit_fixes test_workplace_provenance test_build_version test_source_catalog_expansion
+        run: python -m unittest -v test_posting_requirements test_career_fit_guardrails test_transfer_fit test_qualification_v2 test_qualification_matcher test_ranked_breakdowns test_nyc_qualification_data test_mayo_source test_audit_fixes test_workplace_provenance test_build_version test_source_catalog_expansion
