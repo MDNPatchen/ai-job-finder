@@ -63,35 +63,33 @@ def _line(text,start,end):
 
 
 def _degree_status(line, degree_match, section):
-    """Classify this degree's OWN clause, not a later degree or boilerplate."""
+    """Read the entire applicant degree clause, not just 115 characters."""
     local=line[degree_match.start():]
-    # The old 115-character look-ahead missed "is preferred" at the end
-    # of long employer lists of acceptable degree disciplines.
-    after_first=local[degree_match.end()-degree_match.start():]
-    next_degree=_DEGREE.search(after_first)
-    if next_degree:
-        local=local[:degree_match.end()-degree_match.start()+next_degree.start()]
-    # Bullet and sentence boundaries delimit separate requirements.
+    subsequent=_DEGREE.search(local[degree_match.end()-degree_match.start():])
+    if subsequent:
+        local=local[:degree_match.end()-degree_match.start()+subsequent.start()]
+    # Do not borrow preferred language from separate bullets or degrees.
     local=re.split(r'(?=\s+[•●]\s)|\n',local,maxsplit=1)[0][:450]
     preceding=line[max(0,degree_match.start()-95):degree_match.start()]
-    if re.search(r"\b(?:preferred|desirable|nice to have|optional|a plus)\b",
+    if re.search(r'\b(?:preferred|desirable|nice to have|optional|a plus)\b',
                  local,re.I) or (
-        re.search(r"\b(?:preferred|desirable|nice to have)\b",preceding,re.I) and
-        not re.search(r"\b(?:required|mandatory|must)\b",local,re.I)):
+        re.search(r'\b(?:preferred|desirable|nice to have)\b',preceding,re.I)
+        and not re.search(r'\b(?:required|mandatory|must)\b',local,re.I)):
         return 'Preferred / mentioned'
     if _ALTERNATIVE.search(local) or _ALTERNATIVE.search(
             line[max(0,degree_match.start()-75):degree_match.end()+180]):
         return 'Alternative route or equivalent experience — verify'
-    if re.search(r"\b(?:education\s+and/or\s+experience|"
-                 r"education(?:al)?\s+requirements?)\s*:\s*[•*\-]?\s*$",
+    if re.search(r'\b(?:education\s+and/or\s+experience|'
+                 r'education(?:al)?\s+requirements?)\s*:\s*[•*\-]?\s*$',
                  preceding,re.I):
         return 'Required / minimum — employer education section'
-    if re.search(r"\b(?:required|mandatory|must|minimum)\b",local,re.I):
+    if re.search(r'\b(?:required|mandatory|must|minimum)\b',local,re.I):
         return 'Required / minimum — verify exact wording'
-    if (re.search(r"\b(?:qualifications?|education|requirements?|"
-                  r"what you.ll need|what you need|what you.ll bring)\b",section,re.I)
-            or re.search(r"\b(?:requirements?|qualifications?|education"
-                         r"(?:\s+and/or\s+experience)?)\s*:?\s*$",preceding,re.I)):
+    if (re.search(r'\b(?:qualifications?|education|requirements?|'
+                  r'what you.ll need|what you need|what you.ll bring)\b',section,re.I)
+            or re.search(r'\b(?:requirements?|qualifications?|education'
+                         r'(?:\s+and/or\s+experience)?)\s*:?\s*$',
+                         preceding,re.I)):
         return 'Required / minimum — qualifications section'
     return 'Mentioned — verify status'
 
@@ -147,89 +145,14 @@ def extract_formal_minimums(job, resume=''):
                 continue
             section=_qualification_scope(desc,match.start())
             if not section:
-                # The education heading may precede the degree on the same
-                # line or on an immediately preceding bullet.
+                # Some ATS feeds place EDUCATION and/or EXPERIENCE directly
+                # before the required degree in the same paragraph.
                 prefix=desc[max(0,match.start()-200):match.start()]
                 heading_re=(r'\b(?:education\s+and/or\s+experience|'
                             r'education(?:al)?\s+requirements?|'
                             r'minimum\s+qualifications?)\s*:\s*'
                             r'(?:[•●*\-]\s*)?$')
                 if re.search(heading_re,prefix,re.I):
-                    section='education'
-            if re.search(r"\b(?:benefits|perks|what we offer|"
-                         r"tuition reimbursement|professional development)\b",
-                         section,re.I):
-                continue
-            if re.search(r"\b(?:tuition reimbursement|education assistance|"
-                         r"student loan forgiveness)\b",line,re.I):
-                continue
-            if not (_QUAL_CONTEXT.search(line) or
-                    re.search(r"\b(?:qualifications?|education|requirements?)\b",section,re.I)):
-                continue
-            priority=_degree_status(line,local,section)
-            # Scope only a degree-specific excerpt to avoid nearby preferred
-            # degrees changing the required master's or bachelor's status.
-            key=(level,priority)
-            if key in seen:
-                continue
-            seen.add(key)
-            verified,status=_degree_resume_evidence(resume,level,line)
-            mandatory=priority.startswith('Required')
-            score=(base_penalty if mandatory and not verified else 0)
-            if _TECHNICAL_FIELD.search(line) and mandatory and not verified:
-                score=max(score,22)
-            out.append({
-                'area':level.capitalize()+' degree'+
-                       (' in technical/professional field' if _TECHNICAL_FIELD.search(line) else ''),
-                'type':'Education / professional credential',
-                'priority':priority,
-                'listing_excerpt':re.sub(r'\s+',' ',line)[:280],
-                'resume_status':status,
-                'ranking_caution':score
-            })
-            break
-
-    # Require explicit licensure, not simply a "registered professionals" duty.
-    for match in list(_LICENSE.finditer(desc))[:12]:
-        line=_line(desc,match.start(),match.end())
-        section=_qualification_scope(desc,match.start())
-        if not (_QUAL_CONTEXT.search(line) or
-                re.search(r'\b(?:qualifications?|requirements?|education)\b',section,re.I)):
-            continue
-        local=_LICENSE.search(line)
-        if not local:
-            continue
-        tail=line[local.start():local.end()+120]
-        if _PREFERRED.search(tail):
-            priority='Preferred / mentioned'
-        elif re.search(r'\b(?:required|must|mandatory|active|current)\b',
-                       line,re.I) or re.search(
-                           r'\b(?:qualifications?|requirements?)\b',section,re.I):
-            priority='Required / minimum — verify exact wording'
-        else:
-            priority='Mentioned — verify status'
-        # Never treat "supervise licensed architects" as personal licensing.
-        if re.search(r'\b(?:supervise|manage|work with|coordinate with|'
-                     r'lead teams of)\s+(?:licensed|registered)\b',line,re.I):
-            continue
-        related=bool(re.search(r'\b(?:architectural license|architect licen[sc]e|'
-                               r'licensed architect|PE license|licensed professional '
-                               r'engineer|registered architect)\b',resume,re.I))
-        score=22 if priority.startswith('Required') and not related else 0
-        out.append({
-            'area':'Professional license / registration',
-            'type':'Education / professional credential',
-            'priority':priority,'listing_excerpt':re.sub(r'\s+',' ',line)[:280],
-            'resume_status':('Possible professional credential mentioned in résumé; verify current standing.'
-                             if related else
-                             'Active professional licensure not established by résumé.'),
-            'ranking_caution':score
-        })
-        break
-    return {'checks':out,
-            'ranking_caution':min(38,sum(x['ranking_caution'] for x in out)),
-            'unverified_mandatory':any(x['ranking_caution']>0 for x in out)}
-,prefix,re.I):
                     section='education'
             if re.search(r"\b(?:benefits|perks|what we offer|"
                          r"tuition reimbursement|professional development)\b",
