@@ -11,6 +11,15 @@ from html import unescape
 # Deliberately do not equate general "operations", "management" or
 # "distribution" with experience in these specialized domains.
 DOMAINS = (
+    ('Payroll systems / compliance specialization',
+     r'\b(?:payroll (?:administration|processing|management|systems|compliance)|payroll tax|time capture systems)\b',
+     r'\bpayroll\b'),
+    ('Healthcare revenue cycle specialization',
+     r'\b(?:revenue cycle|patient billing|patient financial services|medical billing|healthcare reimbursement)\b',
+     r'\b(?:revenue cycle|patient billing|patient financial services)\b'),
+    ('Merchant payments specialization',
+     r'\b(?:payments? (?:operations|processing|acceptance|experience)|merchant (?:acquiring|payments?)|card network|payment gateway)\b',
+     r'\b(?:payments? (?:performance|operations|product|strategy)|merchant (?:payments?|acquiring))\b'),
     ('Human resources / employee relations',
      r'\b(?:HR generalist|human resources (?:generalist|experience|management)|'
      r'employee relations (?:experience|background)|HR administration|'

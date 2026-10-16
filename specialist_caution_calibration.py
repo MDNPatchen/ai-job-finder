@@ -10,6 +10,9 @@ The index is not an eligibility verdict.
 # Explicit labels prevent fuzzy keyword overlaps from incorrectly merging
 # independent disciplines (e.g. finance vs accounting; construction vs HVAC).
 _EXPERIENCE_GROUPS={
+    "Payroll systems / compliance specialization":"payroll-experience",
+    "Healthcare revenue cycle specialization":"revenue-cycle-experience",
+    "Merchant payments specialization":"merchant-payments-experience",
     "Construction / engineering operations":"construction-experience",
     "Construction project / preconstruction leadership":"construction-experience",
     "Construction / preconstruction delivery experience":"construction-experience",

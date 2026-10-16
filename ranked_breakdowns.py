@@ -10,7 +10,7 @@ description mentioning one common skill from scoring 100/100.
 
 import re
 from description_quality import assess_description
-from career_priority import leadership_tier
+from career_priority import leadership_tier, review_priority_details
 
 
 def _safe_spreadsheet_value(value):
@@ -55,6 +55,7 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
         out.append({
             'rank': place,
             'review_order':job.get('review_order') or 'Highest fit index',
+            'review_priority':review_priority_details(job),
             'matching_engine_version': matching_version or 'not recorded',
             'search_run_id': search_run_id or 'not recorded',
             'job_title': job.get('title') or '',
@@ -131,6 +132,9 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
         rows.append({
             'Rank': item['rank'],
             'Review order':item['review_order'],
+            'Leadership review priority (not fit score)':item['review_priority']['priority'],
+            'Role-level review adjustment':item['review_priority']['role_adjustment'],
+            'Description review adjustment':item['review_priority']['description_adjustment'],
             'Matching engine version': item['matching_engine_version'],
             'Search run ID (UTC)': item['search_run_id'],
             'Comparative fit index (0-96; not hiring probability)': item['comparative_fit_index'],

@@ -8,7 +8,7 @@ const fs=require('node:fs');
   const output=process.env.ARTIFACT_DIR||'artifacts';
   fs.mkdirSync(output,{recursive:true});
   const url=process.env.APP_URL||'http://127.0.0.1:8501';
-  const version=process.env.EXPECTED_VERSION||'3.2.1';
+  const version=process.env.EXPECTED_VERSION||'3.2.2';
   await page.goto(url);
   let surface;
   const deadline=Date.now()+60000;

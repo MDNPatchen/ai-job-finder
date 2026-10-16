@@ -12,6 +12,15 @@ import re
 # A finance *operations* job can remain relevant even at a hospital, but a
 # senior accountant requires accounting-specific work.
 SPECIALIZED_TITLE_FIELDS = (
+    ("Payroll systems / compliance specialization",
+     r"\bpayroll\b",
+     r"\b(?:payroll (?:administration|processing|management|systems|compliance)|payroll tax|time capture systems)\b", 22),
+    ("Healthcare revenue cycle specialization",
+     r"\b(?:revenue cycle|patient billing|patient financial services)\b",
+     r"\b(?:revenue cycle|patient billing|patient financial services|medical billing|healthcare reimbursement)\b", 24),
+    ("Merchant payments specialization",
+     r"\b(?:payments? (?:performance|operations|product|strategy)|merchant (?:payments?|acquiring))\b",
+     r"\b(?:payments? (?:operations|processing|acceptance|experience)|merchant (?:acquiring|payments?)|card network|payment gateway)\b", 22),
     ("Engineering / skilled technical work",
      r"\b(?:engineer(?:ing)?|HVAC|electrician|mechanic|"
      r"building maintenance|maintenance scheduler|facilities technician)\b",

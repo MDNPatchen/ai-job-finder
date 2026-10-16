@@ -4,9 +4,16 @@ Only reorders jobs already accepted by qualification matching. It does not
 claim an applicant is qualified or silently remove lower-level vacancies.
 """
 import re
+import math
 
 def leadership_tier(title):
     t=str(title or '').lower()
+    # A senior person's title in a support role is not the applicant's level.
+    if re.search(r'\bexecutive assistant\b|\b(?:assistant|coordinator|support)\s+to\b|'
+                 r"\b(?:president|ceo|coo|director)(?:[’']s)?\s+assistant\b",t):
+        return 0
+    if re.search(r'\b(?:assistant|associate)\s+(?:general|regional|district|area)\s+manager\b',t):
+        return 1
     if re.search(r'\b(?:assistant|associate|deputy)\s+(?:manager|director)\b', t):
         return 2
     if re.search(r'\b(?:group publisher|publisher|chief operating officer|chief executive officer|coo|ceo|president|vice president|\bvp\b|executive director|general manager|county manager|city manager)\b',t):
@@ -55,16 +62,25 @@ def has_detailed_description(job):
     return assess_description(job)['detailed']
 
 
-def leadership_review_priority(job):
-    """Explicit review order, separate from the unchanged comparative fit score."""
+def review_priority_details(job):
+    """Auditable review adjustments; never modify the comparative fit index."""
     from description_quality import assess_description
     q=job.get('qualification_match') or {}
-    fit=float(q.get('fit_index') or 0)
-    tier=leadership_tier(job.get('title'))
-    role_caution={4:0,3:0,2:8,1:12,0:18}[tier]
-    quality=assess_description(job)
-    evidence_caution=0 if quality['detailed'] else 15
-    return round(fit-role_caution-evidence_caution,2)
+    try:
+        fit=float(q.get('fit_index') or 0)
+    except (ValueError,TypeError):
+        fit=0
+    if not math.isfinite(fit):
+        fit=0
+    fit=max(0,min(96,fit))
+    role_caution={4:0,3:0,2:8,1:12,0:18}[leadership_tier(job.get('title'))]
+    evidence_caution=0 if assess_description(job)['detailed'] else 15
+    return {'priority':round(fit-role_caution-evidence_caution,2),
+            'role_adjustment':role_caution,'description_adjustment':evidence_caution}
+
+
+def leadership_review_priority(job):
+    return review_priority_details(job)['priority']
 
 
 def order_for_review(jobs, mode):
