@@ -3,45 +3,63 @@
 No mock statistics or generated illustrations are shown as real vacancy data.
 """
 import unittest
-from ui_theme import APP_CSS, brand, hero, listing_head
+from ui_theme import APP_CSS, PALETTE, brand, hero, listing_head
+from pathlib import Path
 
 
 class MinimalUIThemeTests(unittest.TestCase):
-    def test_theme_is_light_legible_and_padded(self):
-        self.assertIn("#F5F7F5",APP_CSS)
-        self.assertIn("#146B54",APP_CSS)
-        self.assertIn('background:var(--paper)',APP_CSS)
-        self.assertIn('padding:1.5rem 1.65rem',APP_CSS)
-        self.assertIn('.st-key-top_navigation',APP_CSS)
+    def test_slate_background_is_dark_not_black(self):
+        self.assertIn("#27342F",APP_CSS)
+        self.assertIn("#34443D",APP_CSS)
+        self.assertIn("#F1F6F2",APP_CSS)
+        self.assertNotIn("#0B1114",APP_CSS)
+        self.assertEqual(APP_CSS.count("<style>"),1)
+        self.assertEqual(APP_CSS.count("</style>"),1)
+        self.assertIn(".st-key-top_navigation",APP_CSS)
         self.assertIn("@media(max-width:900px)",APP_CSS)
 
-    def test_modular_geometry_and_white_text_on_dark_green(self):
-        # Override block intentionally comes after old soft-panel rules.
-        self.assertIn("October 16 modular pass",APP_CSS)
-        self.assertIn("border-radius:4px!important",APP_CSS)
-        self.assertIn("border-radius:3px!important",APP_CSS)
-        self.assertIn("border-radius:2px!important",APP_CSS)
-        self.assertIn("padding:1.95rem 2.1rem",APP_CSS)
-        self.assertIn("job-module-heading",APP_CSS)
+    def test_compact_modules_have_smaller_interiors_without_green_borders(self):
+        self.assertIn("Compact independent modules:",
+                      APP_CSS)
+        self.assertIn("padding:.87rem 1.05rem",APP_CSS)
+        self.assertIn("padding:.85rem 1rem",APP_CSS)
+        self.assertIn("padding:1.1rem 1.3rem",APP_CSS)
+        self.assertIn("min-height:87px",APP_CSS)
+        self.assertIn("min-height:35px",APP_CSS)
+        self.assertIn("font-size:1.01rem",APP_CSS)
+        self.assertIn("font-size:.67rem",APP_CSS)
+        self.assertIn("border:0!important",APP_CSS)
+        self.assertNotIn("border-left:4px",APP_CSS)
+        self.assertNotIn("border-top:3px",APP_CSS)
+        self.assertIn("background:var(--paper)",APP_CSS)
+
+    def test_green_filled_controls_keep_white_text(self):
         self.assertIn("label:has(input:checked) *",APP_CSS)
         self.assertIn('[data-testid="stDownloadButton"] button *',APP_CSS)
         self.assertIn("color:#FFFFFF!important",APP_CSS)
         self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
         self.assertIn("background:var(--forest)!important",APP_CSS)
 
-    def test_no_green_outlines_or_panel_borders(self):
-        section=APP_CSS.split('No colored module outlines.')[-1]
-        self.assertIn('border:0!important',section)
-        self.assertIn('border-left:0!important',section)
-        self.assertIn('border-top:0!important',section)
-        self.assertIn('border-bottom:0!important',section)
-        self.assertIn('box-shadow:0 3px 16px rgba(',section)
-        self.assertIn('stVerticalBlockBorderWrapper',section)
-        self.assertIn('stMetric',section)
-        self.assertIn('stForm',section)
-        self.assertIn('label:has(input:checked)',section)
-        self.assertIn('background:#FFFFFF!important',section)
-        self.assertIn('color:#FFFFFF!important',section)
+    def test_dark_streamlit_theme_and_readable_contrast(self):
+        theme=Path(__file__).with_name(".streamlit").joinpath("config.toml").read_text()
+        self.assertIn('base = "dark"',theme)
+        self.assertIn('backgroundColor = "#27342F"',theme)
+        self.assertIn('secondaryBackgroundColor = "#34443D"',theme)
+        self.assertIn('textColor = "#F1F6F2"',theme)
+        self.assertIn("Compact Slate",brand("3.1.15"))
+        self.assertEqual(PALETTE["background"],"#27342F")
+        self.assertEqual(PALETTE["panel"],"#34443D")
+        def luminance(hex_color):
+            rgb=[int(hex_color[i:i+2],16)/255 for i in (1,3,5)]
+            rgb=[value/12.92 if value<=0.04045 else
+                 ((value+.055)/1.055)**2.4 for value in rgb]
+            return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]
+        def contrast(a,b):
+            high,low=sorted([luminance(a),luminance(b)],reverse=True)
+            return (high+.05)/(low+.05)
+        self.assertGreaterEqual(contrast("#F1F6F2","#34443D"),7)
+        self.assertGreaterEqual(contrast("#BBCDC2","#34443D"),4.5)
+        self.assertGreaterEqual(contrast("#FFFFFF","#257B5B"),4.5)
 
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
