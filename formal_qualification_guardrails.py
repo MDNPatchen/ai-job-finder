@@ -134,14 +134,14 @@ def extract_formal_minimums(job, resume=''):
                 continue
             section=_qualification_scope(desc,match.start())
             if not section:
-                # ATS sites sometimes use an unrecognized EDUCATION and/or
-                # EXPERIENCE heading. Inspect only the immediately prior line
-                # rather than assuming an arbitrary mention is a minimum.
-                prior=desc[:match.start()].rstrip().split('\\n')
+                # Some employer pages use "EDUCATION and/or EXPERIENCE".
+                # Only the immediately preceding heading can establish scope.
+                prior=desc[:match.start()].rstrip().split('\n')
                 heading=prior[-2] if len(prior)>=2 else ''
-                if re.fullmatch(r'(?i)(?:education\\s+and/or\\s+experience|'
-                                r'education(?:al)?\\s+requirements?|'
-                                r'minimum\\s+qualifications?)\\s*:?',heading.strip()):
+                if re.fullmatch(r'(?:education\s+and/or\s+experience|'
+                                r'education(?:al)?\s+requirements?|'
+                                r'minimum\s+qualifications?)\s*:?',
+                                heading.strip(),re.I):
                     section='education'
             if re.search(r"\b(?:benefits|perks|what we offer|"
                          r"tuition reimbursement|professional development)\b",
