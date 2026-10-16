@@ -28,6 +28,7 @@ from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from posting_requirements import _clean as clean_posting_text
+from ui_theme import APP_CSS, brand, hero, listing_head
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
     preferences_allow
@@ -39,7 +40,8 @@ from tracker_store import (
     authenticate
 )
 
-st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
+st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='expanded')
+st.markdown(APP_CSS, unsafe_allow_html=True)
 
 SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
 TITLES = ['Group Newspaper Publisher','Group Publisher','Newspaper Publisher','Publisher','Operations Director','Director of Operations','General Manager','Regional Manager','Operations Manager','Project Manager','Sales Director','Vice President']
@@ -1309,12 +1311,12 @@ def unlock_tracker_workspace(password):
     return True
 
 
-st.sidebar.title('💼 AI Job Finder')
+st.sidebar.markdown(brand(),unsafe_allow_html=True)
 page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Career Matches','Find Jobs','Job Tracker'])
-st.sidebar.caption('Free local resume comparison. No API key or AI usage charges.')
+st.sidebar.caption('Matching v' + MATCHING_ENGINE_VERSION)
 
 if page == 'Dashboard':
-    st.title('📊 Job Search Dashboard')
+    st.markdown(hero('Dashboard','Your applications at a glance'),unsafe_allow_html=True)
     jobs = st.session_state.jobs
     a, b, c = st.columns(3)
     a.metric('Tracked Jobs', len(jobs))
@@ -1332,7 +1334,7 @@ if page == 'Dashboard':
                'Postgres storage after you configure Streamlit Secrets and unlock it.')
 
 elif page == 'My Resume':
-    st.title('📄 My Resume')
+    st.markdown(hero('Resume','Upload and review your experience'),unsafe_allow_html=True)
     file = st.file_uploader('Upload PDF, Word, or TXT resume', type=['pdf','docx','txt'])
     if file:
         try:
@@ -1390,8 +1392,7 @@ elif page == 'My Resume':
         st.info('Upload a resume to begin.')
 
 elif page == 'Career Analysis':
-    st.title('🧭 Publisher Competency & Transferable Skills')
-    st.write('Free, local comparison of your resume with common Group Newspaper Publisher responsibilities. Nothing is sent to an AI service.')
+    st.markdown(hero('Career Analysis','Publisher experience and transferable skills'),unsafe_allow_html=True)
     actual_title = st.text_input('Your actual position', value='Group Newspaper Publisher')
     st.caption('Your real job title stays separate from transferable job categories.')
     verification_editor()
@@ -1467,9 +1468,7 @@ elif page == 'Career Analysis':
             st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
 
 elif page == 'Career Matches':
-    st.title('🎯 Transferable Career Matches')
-    st.write('Explore career paths outside newspaper publishing based on the responsibilities actually mentioned in your resume.')
-    st.info('Free local matching combines resume phrase evidence with responsibilities you explicitly confirmed. Scores are not hiring predictions.')
+    st.markdown(hero('Career Matches','Transferable opportunities'),unsafe_allow_html=True)
     if not st.session_state.resume_text.strip():
         st.warning('First upload your resume on the My Resume page.')
     else:
@@ -1517,42 +1516,34 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Jobs')
-    st.caption('Matching engine v' + MATCHING_ENGINE_VERSION +
-               ' · Rankings and exports are versioned so old results cannot be mistaken for new ones.')
-    board_total=sum(len(JOB_SOURCE_CATALOG[source]) for source in VALID_SOURCE_GROUPS)
-    st.caption(f'{board_total} configured free employer and public-sector career boards'
-               ' · Publishing, media, business leadership and government'
-               ' · A configured board does not guarantee current openings; feed failures appear in diagnostics.')
+    st.markdown(hero('Find Jobs','Nationwide · On-site & hybrid · 45 days'),unsafe_allow_html=True)
     if st.session_state.pop('matching_engine_reset', False):
-        st.info('The qualification-matching engine was updated. Earlier search results were cleared; run a new search for current rankings.')
-    st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Remote Mayo Clinic jobs are allowed; other fully remote jobs are excluded. No paid API required.')
+        st.caption('Search again for updated rankings.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
-        search_text = st.text_input('Job title or keyword (optional)',
-            placeholder='Try city administrator, COO, operations director…',
-            help='Leave empty to search for roles matching your verified publisher leadership experience.')
+        search_text = st.text_input('Search',placeholder='Job title, keyword or agency',
+            help='Leave blank for transferable career matches.')
         col_state, col_type = st.columns([2,1])
         with col_state:
-            chosen_state=st.selectbox('Location',state_choices)
+            chosen_state=st.selectbox('State',state_choices)
         with col_type:
-            chosen_work=st.selectbox('Work arrangement',
+            chosen_work=st.selectbox('Work style',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
                 help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
         chosen_listing_scope=st.selectbox(
-            'Listing sources', [
+            'Employer type', [
                 'Direct employers only (recommended)',
                 'Include recruiter listings with direct job links',
                 'All sources (including directory links)',
             ],
             help='Recommended: employer-specific career boards and public agencies, with a link to an individual vacancy. Recruiting intermediaries, aggregators and general career directories are hidden. This does not prove the vacancy remains open; check the original employer listing.')
         chosen_employer_scope=st.selectbox(
-            'Jobs per employer',
+            'Results per employer',
             ['All matching jobs (recommended)',
              'Compact results: up to 3 per employer (10 Mayo Clinic)'],
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
-        with st.expander('Advanced search filters (optional)'):
+        with st.expander('More filters'):
             state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
             include_states=st.multiselect(
                 'Only these states (leave blank for nationwide)',state_names,
@@ -1570,7 +1561,7 @@ elif page == 'Find Jobs':
                 'Exclude listings with unspecified on-site/hybrid arrangements',
                 value=False,
                 help='This excludes unknown arrangements but still permits explicitly remote Mayo Clinic roles.')
-        submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
+        submitted=st.form_submit_button('Search',type='primary',use_container_width=True)
 
     if submitted:
         # Search multiple related role families behind the scenes. No tokens,
