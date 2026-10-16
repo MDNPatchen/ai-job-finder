@@ -1,5 +1,43 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.7 — requirements, relocation and degree calibration
+
+The v3.1.6 export identified three specific issues. These changes preserve
+existing nationwide coverage, free employer feeds, on-site/hybrid defaults,
+Mayo Clinic remote exception, 45-day listing age and transferable matches.
+
+- **Social-media experience**: distinguish familiarity with SEO, social media
+  or digital trends from hands-on responsibility for social-media campaigns,
+  channel strategy, or paid-social management. An SEO/editorial testing role
+  should not get a 20-point specialist penalty just for basic familiarity.
+  Dedicated social-media management roles and demonstrable campaign duties
+  retain their specialist cautions.
+- **Residency and relocation**: display the actual local-residency
+  requirement but do not deduct comparative fit points when the employer
+  expressly permits relocation to meet it. Requirements without an explicit
+  relocation path remain cautioned. No assumption is made about where the
+  applicant lives or willingness to relocate.
+- **Mandatory professional education**: inspect job-specific advertised
+  bachelor/master/doctoral degrees and regulated professional architect/
+  engineering licenses before assigning 90+ fit indices. Master's-level
+  business/health administration requirements for Mayo MCL Operations and
+  architecture/engineering educational requirements for federal project
+  executives are examples. The app distinguishes **required** from
+  **preferred**, and explicitly allowed equivalent work experience from a
+  strictly required degree. Absence of résumé evidence leads to a review
+  caution and bounded ranking, not an eligibility rejection.
+- Add exact requirement excerpts and résumé-evidence statuses to the existing
+  job breakdown and CSV/JSON exports; do not claim an active credential.
+  Comprehensive synthetic regression tests cover the false-positive and
+  true-positive cases.
+- Ranking version is **3.1.7**; stale session rankings are cleared and
+  new downloads contain **_v317_**.
+
+A résumé is an imperfect record, so these results are only comparative
+career-research scores. They are not hiring probabilities or determinations
+of degree, license, or residency eligibility.
+
+
 ## Version 3.1.6 — targeted equity-grants and specialist-career corrections
 
 Version 3.1.5 correctly removed many compensation false positives but its
