@@ -100,35 +100,73 @@ _CONSTRUCTION_DEGREE_WORDS = re.compile(
 _CONSTRUCTION_EXPERIENCE_WORDS = re.compile(
     r'\b(?:experience|experienced|professional background|work history|'
     r'track record|hands.on)\b',re.I)
-_SEPARATE_WORK_DURATION = re.compile(
-    r'\b(?:\d+|three|five|seven|eight|ten|fifteen|twenty)'
-    r'(?:\s*(?:-|–|to)\s*\d+)?\+?\s*years?\b'
-    r'.{0,90}\b(?:experience|working|manag(?:ing|ement))\b',re.I)
+_CONSTRUCTION_YEARS = re.compile(
+    r'\b(?:\d+|one|two|three|four|five|six|seven|eight|ten|'
+    r'fifteen|twenty)(?:\s*(?:-|–|to)\s*\d+)?\+?\s+years?\b',re.I)
+_CONSTRUCTION_FIELD = re.compile(
+    r'\b(?:preconstruction|construction(?:[- ]related)?|'
+    r'construction project management|construction management|'
+    r'construction estimating|commercial building|'
+    r'general contractor|building construction)\b',re.I)
 _DEGREE_EQUIVALENT_ONLY = re.compile(
     r'\b(?:or\s+(?:an?\s+)?equivalent\s+(?:amount\s+of\s+)?'
     r'(?:work\s+)?experience|equivalent\s+combination\s+of\s+'
     r'(?:education|training)\s+(?:and|or)\s+experience|'
     r'experience\s+in\s+lieu\s+of\s+(?:a\s+)?degree)\b',re.I)
+_CONSTRUCTION_REQUIREMENT_WORD = re.compile(
+    r'\b(?:required|requires?|must(?:\s+have)?|minimum|at\s+least)\b',re.I)
 
 
 def _required_construction_work_experience(clause):
-    """Check the *work experience* requirement, not a degree field name.
+    """Require evidence of professional work, not a construction degree.
 
-    This is deliberately local to one bullet/sentence. A degree with an
-    'equivalent experience' alternative does not independently establish
-    years of work in the construction industry. A separate construction
-    work-history clause is assessed normally.
+    Explicit '10+ years in preconstruction' and '5+ years of work in
+    construction project management' are work-history requirements even
+    when the item never uses the literal word 'experience'.
     """
-    if not _CONSTRUCTION_EXPERIENCE_WORDS.search(clause):
+    if not _CONSTRUCTION_FIELD.search(clause):
         return False
-    if _CONSTRUCTION_DEGREE_WORDS.search(clause):
-        if not _SEPARATE_WORK_DURATION.search(clause):
-            return False
-        # A numbered years-of-work minimum is independent of the
-        # offered educational pathway in a mixed qualification item.
-    if _DEGREE_EQUIVALENT_ONLY.search(clause) and not _SEPARATE_WORK_DURATION.search(clause):
+    years=bool(_CONSTRUCTION_YEARS.search(clause))
+    work=bool(_CONSTRUCTION_EXPERIENCE_WORDS.search(clause))
+    degree=bool(_CONSTRUCTION_DEGREE_WORDS.search(clause))
+    equivalent=bool(_DEGREE_EQUIVALENT_ONLY.search(clause))
+    if years:
+        # 'four-year college degree' is not 'four years' of work and is
+        # intentionally excluded by the duration expression.
+        return True
+    if degree or equivalent:
+        # 'Degree or equivalent experience' is ONE qualification pathway;
+        # don't invent an independent experience minimum without work years.
         return False
-    return True
+    return work
+
+
+def _construction_work_priority(clause, initial_priority):
+    """Resolve required construction years separately from later preferences.
+
+    '2-5 years ... required, previous design/build work preferred'
+    still contains a required first criterion. The phrase preferred must
+    not overrule a different earlier construction experience minimum.
+    """
+    if not _required_construction_work_experience(clause):
+        return 'Education or responsibilities mentioned — no separate work-experience minimum'
+    required=list(_CONSTRUCTION_REQUIREMENT_WORD.finditer(clause))
+    preferred=list(PREFERRED.finditer(clause))
+    if not preferred:
+        return initial_priority
+    # Only override a generic 'preferred' result when the employer's
+    # required condition is explicitly tied to construction work years
+    # BEFORE a separate preferred clause.
+    if required and _CONSTRUCTION_YEARS.search(clause):
+        for req in required:
+            for pref in preferred:
+                if req.start() >= pref.start():
+                    continue
+                left=clause[:req.end()]
+                if (_CONSTRUCTION_FIELD.search(left) and
+                        _CONSTRUCTION_YEARS.search(left)):
+                    return 'Required / minimum — verify exact wording'
+    return initial_priority
 
 
 OPPORTUNITY_TO_OBTAIN = re.compile(
@@ -501,9 +539,8 @@ def extract_posting_requirements(job, resume=''):
             if _employer_offer_text(section,clause,area):
                 continue
             priority=_priority(clause,local,section)
-            if (area=='Construction / preconstruction delivery experience' and
-                    not _required_construction_work_experience(clause)):
-                priority='Education or responsibilities mentioned — no separate work-experience minimum'
+            if area=='Construction / preconstruction delivery experience':
+                priority=_construction_work_priority(clause,priority)
             if (area=='Dedicated social media campaign leadership' and
                     not _required_social_media_experience(clause)):
                 priority='Familiarity / related marketing mentioned — not proven mandatory specialist experience'
