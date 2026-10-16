@@ -8,6 +8,7 @@ import re
 from qualification_domains import identify_specialized_requirements
 from transfer_fit import transfer_fit
 from career_fit_guardrails import evaluate_career_fit
+from posting_requirements import extract_posting_requirements
 
 _NUMBER = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
@@ -210,6 +211,8 @@ def recalibrate_match(job, qualification, resume_text=''):
         return {'index':0,'role_alignment':alignment,
                 'cautions':[],'specialties':[],
                 'career_fit_cautions':[], 'career_fit_penalty':0,
+                'posting_requirement_checks':[], 'posting_requirement_penalty':0,
+                'application_restricted':False,
                 'transferable_strengths':[], 'duty_coverage':0,
                 'confidence':'No resume uploaded'}
     specialties=assess_specialized_experience(job,resume_text)
@@ -234,11 +237,23 @@ def recalibrate_match(job, qualification, resume_text=''):
     for note in career_fit['cautions']:
         cautions.append('Career fit to review: '+note['area']+
                         ' — '+note['reason'])
-    adjusted=max(0,transfer['index']-career_fit['penalty'])
+    posting_requirements=extract_posting_requirements(job,resume_text)
+    for check in posting_requirements['checks']:
+        if check['ranking_caution'] or check['type'] in ('Application eligibility','Residency / location'):
+            cautions.append(check['type']+' to verify: '+check['area']+
+                            ' — '+check['listing_excerpt'][:135])
+    # Avoid stacking unlimited penalties for overlapping descriptions. The
+    # app keeps specialized experience, career-stage and explicit posting
+    # requirements separately for transparent applicant review.
+    adjusted=max(0,transfer['index']-career_fit['penalty']-
+                 posting_requirements['ranking_caution'])
     return {'index':adjusted,'role_alignment':alignment,
             'cautions':cautions,'specialties':specialties,
             'career_fit_cautions':career_fit['cautions'],
             'career_fit_penalty':career_fit['penalty'],
+            'posting_requirement_checks':posting_requirements['checks'],
+            'posting_requirement_penalty':posting_requirements['ranking_caution'],
+            'application_restricted':posting_requirements['application_restricted'],
             'transferable_strengths':transfer['transferable_strengths'],
             'duty_coverage':transfer['duty_coverage'],
             'confidence':('Limited details; inspect the employer posting' if
