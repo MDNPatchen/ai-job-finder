@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "ui_theme.py"
+      - ".streamlit/config.toml"
+      - "test_ui_theme.py"
       - "transfer_fit.py"
       - "career_fit_guardrails.py"
       - "posting_requirements.py"

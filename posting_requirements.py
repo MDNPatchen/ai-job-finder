@@ -60,11 +60,17 @@ _SOCIAL_MEDIA_FAMILIARITY = re.compile(
     r'\b(?:familiarity|knowledge|understanding|awareness|exposure|'
     r'working knowledge|conversant|basic skills)\b.{0,95}'
     r'\b(?:SEO|social.media|social platforms?|paid social)\b',re.I)
+_SOCIAL_MEDIA_SCALING = re.compile(
+    r'\b(?:\d+\s*[-–]\s*\d+|\d+\+?)\s*years?\s+of\s+'
+    r'(?:professional\s+)?social.media\s+experience\b'
+    r'.{0,160}\b(?:demonstrated\s+track\s+record|'
+    r'building|scaling|growing|expanding)\b',re.I)
 _SOCIAL_MEDIA_YEARS = re.compile(
     r'\b\d+(?:\s*[-–]\s*\d+)?\+?\s*years?\b.{0,95}'
     r'\b(?:social.media|paid social|social campaigns?|social content)\b',re.I)
 _RELOCATION_ALLOWED = re.compile(
-    r'\b(?:(?:willing|able|prepared|agree|expect(?:ed)?)\s+to\s+relocat(?:e|ing)|'
+    r'\b(?:reside\s+in\s+or\s+relocat(?:e|ing)\s+to|'
+    r'(?:willing|able|prepared|agree|expect(?:ed)?)\s+to\s+relocat(?:e|ing)|'
     r'(?:may|can|could|option\s+to|allowed\s+to|permitted\s+to)\s+'
     r'relocat(?:e|ing)|(?:relocat(?:e|ion|ing))\s+'
     r'(?:is\s+)?(?:permitted|allowed|acceptable|an option)|'
@@ -75,6 +81,8 @@ _RELOCATION_ALLOWED = re.compile(
 
 def _required_social_media_experience(clause):
     """Reserve specialist penalties for campaign/channel work, not familiarity."""
+    if _SOCIAL_MEDIA_SCALING.search(clause):
+        return True
     if _SOCIAL_MEDIA_FAMILIARITY.search(clause):
         # The same item can explicitly require both SEO familiarity and
         # years of hands-on social work; preserve that specific requirement.

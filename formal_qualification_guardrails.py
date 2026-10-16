@@ -78,6 +78,10 @@ def _degree_status(line, degree_match, section):
     if _ALTERNATIVE.search(line) or _ALTERNATIVE.search(
             line[max(0,degree_match.start()-75):degree_match.end()+180]):
         return 'Alternative route or equivalent experience — verify'
+    if re.search(r"\b(?:education\s+and/or\s+experience|"
+                 r"education(?:al)?\s+requirements?)\s*:\s*[•*\-]?\s*$",
+                 leading,re.I):
+        return 'Required / minimum — employer education section'
     if re.search(r"\b(?:required|mandatory|must|minimum)\b",ahead,re.I):
         return 'Required / minimum — verify exact wording'
     if (re.search(r"\b(?:qualifications?|education|requirements?|"

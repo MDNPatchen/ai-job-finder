@@ -1,5 +1,37 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.8 — minimal interface and exported-results refinements
+
+The redesigned application has a restrained charcoal/forest-emerald theme,
+responsive spacing, text-only geometric branding (NO generated pictures,
+briefcase illustrations, clip art or stock imagery), and real Streamlit controls.
+
+- Keep navigation, résumé upload, nationwide search, filtering, 45-day
+  listings, direct-employer screening, on-site/hybrid preferences and
+  Mayo-only remote exception intact.
+- Simplify visible search copy, form labels, KPI tiles, job result cards and
+  action buttons. Display true job counts, employer/location, source category,
+  work arrangement and relative fit **index out of 96**, not invented scores
+  or a probability of getting hired.
+- Place employer background checks, qualifications and provenance evidence
+  behind optional expanders instead of verbose repeating paragraphs.
+  CSV/JSON detailed exports remain available.
+- Correct three specific edge cases from the v3.1.7 ranked CSV:
+  "reside in or relocate to" is a valid relocation alternative for Hennepin
+  County, an inline "EDUCATION and/or EXPERIENCE" heading can make BRPH's
+  required engineering/architecture degree mandatory, and demonstrated
+  5–8 years scaling social media channels is more than casual SEO familiarity.
+- Retain specialist and formal qualification safeguards without excluding
+  career transitions based on missing résumé words alone. Preserve previous
+  technical tests and add separate aesthetic/safe-output and export-regression
+  test suites.
+- Matching engine **3.1.8**, exports **_v318_**; existing in-session
+  prior-version rankings are cleared.
+
+The provided static design mockup is a direction, not a screenshot of live
+search results: all metrics and listings in the actual app use fetched data.
+
+
 ## Version 3.1.7 — requirements, relocation and degree calibration
 
 The v3.1.6 export identified three specific issues. These changes preserve

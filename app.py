@@ -28,6 +28,7 @@ from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from posting_requirements import _clean as clean_posting_text
+from ui_theme import APP_CSS, brand, hero, listing_head
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
     preferences_allow
@@ -39,7 +40,8 @@ from tracker_store import (
     authenticate
 )
 
-st.set_page_config(page_title='AI Job Finder', page_icon='💼', layout='wide')
+st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='expanded')
+st.markdown(APP_CSS, unsafe_allow_html=True)
 
 SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
 TITLES = ['Group Newspaper Publisher','Group Publisher','Newspaper Publisher','Publisher','Operations Director','Director of Operations','General Manager','Regional Manager','Operations Manager','Project Manager','Sales Director','Vice President']
@@ -1309,12 +1311,12 @@ def unlock_tracker_workspace(password):
     return True
 
 
-st.sidebar.title('💼 AI Job Finder')
+st.sidebar.markdown(brand(),unsafe_allow_html=True)
 page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Career Matches','Find Jobs','Job Tracker'])
-st.sidebar.caption('Free local resume comparison. No API key or AI usage charges.')
+st.sidebar.caption('Matching v' + MATCHING_ENGINE_VERSION)
 
 if page == 'Dashboard':
-    st.title('📊 Job Search Dashboard')
+    st.markdown(hero('Dashboard','Your applications at a glance'),unsafe_allow_html=True)
     jobs = st.session_state.jobs
     a, b, c = st.columns(3)
     a.metric('Tracked Jobs', len(jobs))
@@ -1327,12 +1329,11 @@ if page == 'Dashboard':
     if jobs:
         st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
     else:
-        st.info('Go to Job Tracker to add a job.')
-    st.caption('The Job Tracker supports CSV/JSON backups, and can sync to private '
-               'Postgres storage after you configure Streamlit Secrets and unlock it.')
+        st.caption('No tracked jobs yet.')
+
 
 elif page == 'My Resume':
-    st.title('📄 My Resume')
+    st.markdown(hero('Resume','Upload and review your experience'),unsafe_allow_html=True)
     file = st.file_uploader('Upload PDF, Word, or TXT resume', type=['pdf','docx','txt'])
     if file:
         try:
@@ -1390,8 +1391,7 @@ elif page == 'My Resume':
         st.info('Upload a resume to begin.')
 
 elif page == 'Career Analysis':
-    st.title('🧭 Publisher Competency & Transferable Skills')
-    st.write('Free, local comparison of your resume with common Group Newspaper Publisher responsibilities. Nothing is sent to an AI service.')
+    st.markdown(hero('Career Analysis','Publisher experience and transferable skills'),unsafe_allow_html=True)
     actual_title = st.text_input('Your actual position', value='Group Newspaper Publisher')
     st.caption('Your real job title stays separate from transferable job categories.')
     verification_editor()
@@ -1463,13 +1463,11 @@ elif page == 'Career Analysis':
             approved = list(dict.fromkeys(verified_drafts + approved))
             st.session_state.approved_suggestions = approved
             if approved:
-                st.download_button('⬇️ Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
+                st.download_button('Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
             st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
 
 elif page == 'Career Matches':
-    st.title('🎯 Transferable Career Matches')
-    st.write('Explore career paths outside newspaper publishing based on the responsibilities actually mentioned in your resume.')
-    st.info('Free local matching combines resume phrase evidence with responsibilities you explicitly confirmed. Scores are not hiring predictions.')
+    st.markdown(hero('Career Matches','Transferable opportunities'),unsafe_allow_html=True)
     if not st.session_state.resume_text.strip():
         st.warning('First upload your resume on the My Resume page.')
     else:
@@ -1507,7 +1505,7 @@ elif page == 'Career Matches':
                         st.write('All mapped areas had phrase matches; verify that the duties were actually performed.')
                     st.write('**Resume tailoring idea:**', r['focus'])
                     st.caption('Only add achievements, responsibilities and numbers you can substantiate. Use Career Analysis to edit and approve suggested wording.')
-            st.download_button('⬇️ Export Career Matches CSV',
+            st.download_button('Export Career Matches CSV',
                 pd.DataFrame([{'Career':r['title'], 'Industry':r['industry'],
                     'Documented overlap (%)':r['score'],
                     'Matched areas':'; '.join(r['matched']),
@@ -1517,42 +1515,34 @@ elif page == 'Career Matches':
                 'career_matches.csv', 'text/csv')
 
 elif page == 'Find Jobs':
-    st.title('🔎 Find Jobs')
-    st.caption('Matching engine v' + MATCHING_ENGINE_VERSION +
-               ' · Rankings and exports are versioned so old results cannot be mistaken for new ones.')
-    board_total=sum(len(JOB_SOURCE_CATALOG[source]) for source in VALID_SOURCE_GROUPS)
-    st.caption(f'{board_total} configured free employer and public-sector career boards'
-               ' · Publishing, media, business leadership and government'
-               ' · A configured board does not guarantee current openings; feed failures appear in diagnostics.')
+    st.markdown(hero('Find Jobs','Nationwide · On-site & hybrid · 45 days'),unsafe_allow_html=True)
     if st.session_state.pop('matching_engine_reset', False):
-        st.info('The qualification-matching engine was updated. Earlier search results were cleared; run a new search for current rankings.')
-    st.caption('Search recent U.S. government and private-sector jobs from a separate nationwide source catalog. Remote Mayo Clinic jobs are allowed; other fully remote jobs are excluded. No paid API required.')
+        st.caption('Search again for updated rankings.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
     with st.form('clean_search'):
-        search_text = st.text_input('Job title or keyword (optional)',
-            placeholder='Try city administrator, COO, operations director…',
-            help='Leave empty to search for roles matching your verified publisher leadership experience.')
+        search_text = st.text_input('Search',placeholder='Job title, keyword or agency',
+            help='Leave blank for transferable career matches.')
         col_state, col_type = st.columns([2,1])
         with col_state:
-            chosen_state=st.selectbox('Location',state_choices)
+            chosen_state=st.selectbox('State',state_choices)
         with col_type:
-            chosen_work=st.selectbox('Work arrangement',
+            chosen_work=st.selectbox('Work style',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
                 help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
         chosen_listing_scope=st.selectbox(
-            'Listing sources', [
+            'Employer type', [
                 'Direct employers only (recommended)',
                 'Include recruiter listings with direct job links',
                 'All sources (including directory links)',
             ],
             help='Recommended: employer-specific career boards and public agencies, with a link to an individual vacancy. Recruiting intermediaries, aggregators and general career directories are hidden. This does not prove the vacancy remains open; check the original employer listing.')
         chosen_employer_scope=st.selectbox(
-            'Jobs per employer',
+            'Results per employer',
             ['All matching jobs (recommended)',
              'Compact results: up to 3 per employer (10 Mayo Clinic)'],
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
-        with st.expander('Advanced search filters (optional)'):
+        with st.expander('More filters'):
             state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
             include_states=st.multiselect(
                 'Only these states (leave blank for nationwide)',state_names,
@@ -1570,7 +1560,7 @@ elif page == 'Find Jobs':
                 'Exclude listings with unspecified on-site/hybrid arrangements',
                 value=False,
                 help='This excludes unknown arrangements but still permits explicitly remote Mayo Clinic roles.')
-        submitted=st.form_submit_button('Search jobs',type='primary',use_container_width=True)
+        submitted=st.form_submit_button('Search',type='primary',use_container_width=True)
 
     if submitted:
         # Search multiple related role families behind the scenes. No tokens,
@@ -1637,18 +1627,14 @@ elif page == 'Find Jobs':
         # Use the same deduplicated, filtered jobs for all three metrics.
         government_total=sum(1 for job in all_results if job['government'])
         private_total=len(all_results)-government_total
-        employer_total=len({job['company'].strip().casefold() for job in all_results})
-        c1,c2,c3=st.columns(3)
-        c1.metric('Total jobs',len(all_results))
-        c2.metric('Government jobs',government_total)
-        c3.metric('Private-sector jobs',private_total)
         new_count=sum(x.get('new_since_last_search',False) for x in all_results)
-        st.caption(f'{new_count} new postings compared with earlier searches'
-                   if stats.get('had_baseline',False) else
-                   'First search establishes a baseline for identifying new postings.')
-        if not tracker_cloud_enabled():
-            st.caption('New-posting history lasts for this session unless restored from a tracker JSON backup.')
-        st.caption(f"{employer_total} distinct employers · {stats.get('listing_scope','Direct employers only (recommended)')} · {stats.get('employer_scope','All matching jobs')} · Updated {stats['searched']} · Matching v{stats.get('matching_version','not recorded')} · Search ID {stats.get('run_id','not recorded')} · Posted within 45 days · Remote allowed for Mayo Clinic only · Other remote jobs excluded · Unspecified arrangements require verification.")
+        m1,m2,m3,m4=st.columns(4)
+        m1.metric('Total jobs',len(all_results))
+        m2.metric('Government',government_total)
+        m3.metric('Private',private_total)
+        m4.metric('New',new_count)
+        st.caption('Matching v'+stats.get('matching_version','')+
+                   ' · '+stats.get('searched',''))
         screened=stats['excluded']
         if any(screened.get(k,0) for k in ('recruiter','directory_link','indirect_source','foreign_location')):
             st.info(f"Listing screening removed {screened.get('recruiter',0)} recruiting-firm posts, "
@@ -1661,15 +1647,14 @@ elif page == 'Find Jobs':
         if bulletin.get('attempted'):
             st.caption(f"Official government bulletin lookup: {bulletin.get('full_bulletins',0)} full descriptions retrieved from {bulletin['attempted']} attempts. {bulletin.get('summary_only',0)} government listings still have summary-only job text and conservative confidence caps.")
         if stats['excluded'].get('employer_limit',0):
-            st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
+            st.caption(f"{stats['excluded']['employer_limit']} more jobs hidden by employer limit.")
         if not st.session_state.resume_text.strip():
             st.info('For a detailed match review of each vacancy, upload a resume on My Resume and search again.')
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
             if st.session_state.resume_text.strip():
-                st.write('**Sorted by transferable strengths supported by your résumé: highest to lowest.**')
-                st.caption('Transferable-strength fit compares résumé evidence to actual duties, then checks employer-stated minimum qualifications, internal-only restrictions, residency rules and specialized credentials. High-ranking short government RSS summaries are supplemented with complete official bulletins where accessible; remaining summary-only results are capped to avoid false 96/96 scores. Preferred experience is not mandatory. The index is NOT eligibility verification or a hiring probability.')
+                st.markdown('**Best match**')
                 run_id = stats.get('run_id','')
                 all_breakdowns = breakdowns_json(
                     all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
@@ -1680,15 +1665,15 @@ elif page == 'Find Jobs':
                 export_left, export_right = st.columns(2)
                 with export_left:
                     st.download_button(
-                        '⬇️ Export ranked match breakdowns (CSV)', export_csv,
+                        'Export CSV', export_csv,
                         export_filename('ranked',run_id,'csv'), 'text/csv',
                         use_container_width=True)
                 with export_right:
                     st.download_button(
-                        '⬇️ Export full evidence breakdowns (JSON)', export_json,
+                        'Export JSON', export_json,
                         export_filename('detailed',run_id,'json'), 'application/json',
                         use_container_width=True)
-                st.caption('Downloads contain job links, cited resume excerpts, specific industry cautions and requirements to verify. Nothing is sent to an outside AI service. The comparisons are not licensing or hiring decisions.')
+
             new_only=st.checkbox('Show only new positions since the previous search',
                                  value=False,key='new_jobs_only')
             hide_tracked=st.checkbox('Hide positions already in my Job Tracker',
@@ -1707,78 +1692,43 @@ elif page == 'Find Jobs':
             if not display_results:
                 st.info('No positions match these display choices. Try turning off New only or Hide tracked.')
             else:
-                st.caption(f'Showing {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(display_results))} of {len(display_results)} displayed jobs · '
-                          +('Ranked by qualification evidence' if st.session_state.resume_text.strip()
-                            else 'Government and private listings mixed for variety'))
+                st.caption(f'{len(display_results)} results · {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(display_results))}')
             for n,job in enumerate(display_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE],
                                     start=page_no*PAGE_SIZE):
                 with st.container(border=True):
                     left,right=st.columns([5,1.7],vertical_alignment='top')
                     with left:
-                        st.markdown(('**NEW · **' if job.get('new_since_last_search') else '')+
-                                    '**#'+str(n+1)+' · '+job['title']+'**')
-                        if st.session_state.resume_text.strip():
-                            q = job.get('qualification_match') or {}
-                            st.write(f"**Transferable-strength fit: {evidence_index(q)}/96**")
-                            transfer=q.get('transferable_strengths') or []
-                            documented=[x['area'] for x in transfer
-                                        if x.get('evidence') == 'Documented in résumé']
-                            if documented:
-                                st.caption('Why your experience transfers: '+
-                                           ' · '.join(documented[:4]))
-                            elif transfer:
-                                st.caption('Transferable experience was confirmed separately; add supporting résumé examples.')
-                            st.caption(
-                                f"{len(q.get('resume_matches') or [])} areas supported by resume · "
-                                f"{len(q.get('confirmed_only') or [])} confirmed separately · "
-                                f"{len(q.get('not_documented') or [])} to investigate")
-                            if q.get('career_fit_cautions'):
-                                st.caption('Career fit to verify: '+
-                                    ' · '.join(x['area'] for x in
-                                             q['career_fit_cautions'][:2]))
-                            if q.get('application_restricted'):
-                                st.warning('Posting indicates internal applicants only; verify you are eligible to apply.')
-                            if q.get('posting_requirement_checks'):
-                                flagged=[x['area'] for x in q['posting_requirement_checks']
-                                         if x['ranking_caution']]
-                                if flagged:
-                                    st.caption('Employer minimums / restrictions to review: '+
-                                               ' · '.join(flagged[:3]))
-                        st.caption(' · '.join([
-                            job['company'],job['location'],
-                            job.get('work_style') or 'Not specified',
-                            job['date']]))
-                        st.caption('Government' if job['government'] else job['source'])
-                        if job.get('description_source'):
-                            st.caption('Job text: '+job['description_source'])
-                        if job.get('workplace_conflict'):
-                            st.warning('Work arrangement conflict: '+job['workplace_conflict'])
+                        q=job.get('qualification_match') or {}
+                        flagged=[v for v in (q.get('posting_requirement_checks') or [])
+                                 if v.get('ranking_caution',0)]
+                        relocation=any('Relocation' in (v.get('priority') or '')
+                                       for v in (q.get('posting_requirement_checks') or []))
+                        check_degree=any(
+                            v.get('type')=='Education / professional credential'
+                            for v in (q.get('posting_requirement_checks') or []))
                         quality=posting_quality(job)
-                        if quality['recruiter']:
-                            st.warning('Recruiting intermediary: the underlying hiring employer is not established.')
-                        elif quality['direct_source'] and quality['individual_url']:
-                            st.caption('Employer/agency career feed · Individual vacancy link · Current availability not independently verified')
-                        elif not quality['individual_url']:
-                            st.caption('General careers directory only — no vacancy-specific application link')
-                        else:
-                            st.caption('Third-party source — confirm the original employer posting')
-                        if job.get('employer_identity_kind','').startswith('Recruiting'):
-                            st.caption('Recruiter named; the client hiring company has not been independently identified.')
-                        if job.get('arrangement_source') and job.get('work_style') != 'Not specified':
-                            st.caption('Work arrangement: '+job['arrangement_source'])
-                        if job['salary']:
-                            st.write('Pay listed: '+job['salary'])
-                        if job.get('reference'):
-                            st.caption(job['reference'])
-                            st.caption(job.get('posting_link_kind', 'Check the official NYC jobs site for the position; a direct job URL was not supplied.'))
+                        st.markdown(listing_head(
+                            job['title'],job['company'],job['location'],
+                            job.get('work_style'),job['government'],
+                            evidence_index(q) if st.session_state.resume_text.strip() else None,
+                            is_new=job.get('new_since_last_search',False),
+                            restricted=bool(q.get('application_restricted')),
+                            verify=bool(flagged or q.get('career_fit_cautions')),
+                            degree=check_degree,relocation=relocation,
+                            direct=bool(quality['direct_source'] and quality['individual_url'])
+                        ),unsafe_allow_html=True)
+                        if job.get('salary'):
+                            st.caption(job['salary'])
+                        if job.get('workplace_conflict'):
+                            st.caption('Work arrangement: verify')
                         qualification = job.get('qualification_match')
                         if qualification and qualification['resume_present']:
                             st.caption('**Resume alignment:** ' + qualification['label'])
-                            with st.expander('Qualification breakdown — why I match, and what to check'):
+                            with st.expander('Match details'):
                                 st.write(
                                     f"Resume evidence in {len(qualification['resume_matches'])} "
                                     f"of {qualification['total_areas']} relevant areas mentioned in this listing.")
-                                st.caption('These are topics visible in the listing, not necessarily formal minimum criteria. The fit index is not an employment prediction. Some feeds omit the full requirements.')
+
                                 if qualification['resume_matches']:
                                     st.write('**Matches supported by your uploaded resume**')
                                     for item in qualification['resume_matches'][:7]:
@@ -1823,15 +1773,16 @@ elif page == 'Find Jobs':
                                 if not qualification['total_areas'] and not qualification['screeners']:
                                     st.info('The public feed has limited job requirements. Read the full employer posting before deciding.')
                                 st.write('**Resume focus:** ' + qualification['resume_focus'])
-                                st.caption('Confirmations never rewrite your resume. Update Career Analysis to confirm experience you have but did not include. Verify employer screening criteria directly.')
+
                     with right:
-                        st.link_button('Open directory; search job ID' if job.get('reference') and not posting_quality(job)['individual_url'] else 'View individual vacancy' if posting_quality(job)['individual_url'] else 'Open listing source',job['url'],use_container_width=True)
-                        if st.button('Save job',key=f'clean_save_{n}',use_container_width=True):
+                        st.link_button('View job',job['url'],use_container_width=True)
+                        if st.button('Save',key=f'clean_save_{n}',use_container_width=True):
                             if save_result_to_tracker(job):
                                 st.success('Saved')
                             else:
                                 st.info('Already saved')
-                    render_employer_checker(job,n,_secret('SEC_CONTACT_EMAIL'))
+                    with st.expander('Employer verification'):
+                        render_employer_checker(job,n,_secret('SEC_CONTACT_EMAIL'))
             before, middle, after=st.columns([1,2,1],vertical_alignment='center')
             with before:
                 if st.button('← Previous',disabled=page_no==0,use_container_width=True):
@@ -1885,7 +1836,7 @@ elif page == 'Find Jobs':
                'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
-    st.title('📋 Job Application Tracker')
+    st.markdown(hero('Job Tracker','Applications and follow-ups'),unsafe_allow_html=True)
     st.caption('Track applications, interviews, offers, skipped openings and notes. '
                'A JSON backup also includes your previously seen vacancy history.')
 
@@ -1909,10 +1860,7 @@ elif page == 'Job Tracker':
             st.warning('Not unlocked: edits are session-only. Unlock before searching to '
                        'retain job history across devices or deployments.')
     else:
-        st.info('Session-only mode: no private database is configured. '
-                'Use JSON backup/restore to preserve your applications and seen jobs. '
-                'For automatic persistence, configure TRACKER_DATABASE_URL and '
-                'TRACKER_ACCESS_PASSWORD in Streamlit Secrets.')
+        st.caption('Session-only · Export a backup to keep your history.')
     if st.session_state.get('tracker_storage_error'):
         st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
                  '). Export a JSON backup now; the latest changes are in this session.')
@@ -1921,13 +1869,13 @@ elif page == 'Job Tracker':
     backup_left,backup_right=st.columns(2)
     with backup_left:
         st.download_button(
-            '⬇️ Download complete tracker backup (JSON)',
+            'Export backup JSON',
             export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
                                   st.session_state.search_baseline),
             'job_tracker_full_backup.json','application/json',use_container_width=True)
     with backup_right:
         st.download_button(
-            '⬇️ Export applications CSV',
+            'Export applications CSV',
             export_tracker_csv(st.session_state.jobs),'job_tracker.csv',
             'text/csv',use_container_width=True)
     with st.expander('Restore applications and job history'):
@@ -1974,7 +1922,7 @@ elif page == 'Job Tracker':
             except (UnicodeDecodeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
                 st.error('Backup not imported: '+str(exc)[:280])
 
-    with st.expander('➕ Add a New Job', expanded=False):
+    with st.expander('Add a job', expanded=False):
         with st.form('add_job'):
             company=st.text_input('Company')
             title=st.text_input('Job Title')
