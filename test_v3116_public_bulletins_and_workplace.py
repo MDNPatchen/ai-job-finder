@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 
 from official_bulletins import (
     official_bulletin_url,fetch_official_bulletin,
-    enrich_priority_government_jobs
+    enrich_priority_government_jobs, parse_bulletin_html
 )
 from posting_metadata import rss_workplace_style
 from test_official_bulletins import FULL,URL,_FakeResponse
@@ -72,7 +72,7 @@ class PublicBulletinFallbackTests(unittest.TestCase):
         jobs=[{**JOB,'url':URL},{'title':'Other','source':'Workable employer',
              'url':'https://example.org/another','description':'Unrelated'}]
         updated,stats=enrich_priority_government_jobs(
-            jobs,jobs,fetch=lambda job:FULL,limit=1)
+            jobs,jobs,fetch=lambda job:parse_bulletin_html(FULL,job['title']),limit=1)
         self.assertEqual(len(updated),2)
         self.assertEqual(stats['attempted'],1)
         self.assertEqual(stats['full_bulletins'],1)
