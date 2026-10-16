@@ -65,22 +65,30 @@ def _line(text,start,end):
 
 
 def _degree_status(line, degree_match, section):
-    """Read the entire applicant degree clause, not just 115 characters."""
+    """Classify the *degree's* own requirement, including a leading 'Requires'."""
     local=line[degree_match.start():]
     subsequent=_DEGREE.search(local[degree_match.end()-degree_match.start():])
     if subsequent:
         local=local[:degree_match.end()-degree_match.start()+subsequent.start()]
-    # Do not borrow preferred language from separate bullets or degrees.
     local=re.split(r'(?=\s+[•●]\s)|\n',local,maxsplit=1)[0][:450]
     preceding=line[max(0,degree_match.start()-95):degree_match.start()]
+    explicit_lead=bool(re.search(
+        r'\b(?:requires?|requiring|must\s+(?:have|hold|possess)|'
+        r'mandates?|minimum\s+(?:of\s+)?)\s+(?:an?\s+)?$',
+        preceding,re.I))
+    # Do not allow "master's preferred" or an employer-approved equivalent
+    # to become a hard minimum merely because a leading verb says Requires.
     if re.search(r'\b(?:preferred|desirable|nice to have|optional|a plus)\b',
-                 local,re.I) or (
-        re.search(r'\b(?:preferred|desirable|nice to have)\b',preceding,re.I)
-        and not re.search(r'\b(?:required|mandatory|must)\b',local,re.I)):
+                 local,re.I):
         return 'Preferred / mentioned'
     if _ALTERNATIVE.search(local) or _ALTERNATIVE.search(
             line[max(0,degree_match.start()-75):degree_match.end()+180]):
         return 'Alternative route or equivalent experience — verify'
+    if explicit_lead:
+        return 'Required / minimum — explicit degree requirement'
+    if (re.search(r'\b(?:preferred|desirable|nice to have)\b',preceding,re.I)
+            and not re.search(r'\b(?:required|mandatory|must)\b',local,re.I)):
+        return 'Preferred / mentioned'
     if re.search(r'\b(?:education\s+and/or\s+experience|'
                  r'education(?:al)?\s+requirements?)\s*:\s*[•*\-]?\s*$',
                  preceding,re.I):
@@ -94,7 +102,6 @@ def _degree_status(line, degree_match, section):
                          preceding,re.I)):
         return 'Required / minimum — qualifications section'
     return 'Mentioned — verify status'
-
 
 def _degree_resume_evidence(resume, level, required_line):
     """Verify the exact eligible discipline, not generic 'management'.

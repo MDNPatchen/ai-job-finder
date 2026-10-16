@@ -1,5 +1,39 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.13 — explicit construction work minimums and required degrees
+
+The v3.1.12 export revealed four precision regressions:
+Red Bull's "5+ years of work in Construction Project Management",
+S&B USA's "10+ years in preconstruction", and two ARCO/Murray
+"2–5 years of construction management experience required" vacancies
+were not receiving field-work cautions. ARCO's separate *preferred*
+design/build experience had incorrectly overridden the earlier mandatory
+criterion. Broward County's "Requires a Bachelor's degree" was still
+labeled as a mention rather than as required technical education.
+
+- Treat explicit stated years of professional construction work as a
+  requirement even without the exact word "experience" (e.g. years of
+  *work in* a specialist domain, and *years in preconstruction*).
+- Keep distinct required-versus-preferred clauses separate within one
+  combined bullet. A later preferred specialty does not erase an
+  explicitly required earlier construction experience criterion.
+- Recognize the narrow pre-degree "Requires a Bachelor's..." and
+  "Must have a Bachelor's..." formulations as mandatory education;
+  continue to honor explicitly preferred degrees and stated equivalent-
+  experience substitutions.
+- Keep degree-only construction requirements distinct from actual
+  professional construction experience. Employer-approved bachelor's
+  or associate-degree pathways remain noncumulative.
+- Fifteen no-network synthetic regression cases reflect the precise
+  v3.1.12 exported examples and cover required, preferred, alternative
+  and misleading duty-language scenarios.
+- v3.1.13 scoring and _v3113_ exports; no changes to sources, tracking
+  or the approved charcoal/emerald interface.
+
+A comparative fit index is not a hiring probability. Employer minimum
+qualifications should be independently confirmed before application.
+
+
 ## Version 3.1.12 — professional experience vs. degree routes
 
 The v3.1.11 ranked export identified construction degree paragraphs
