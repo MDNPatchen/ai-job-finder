@@ -27,6 +27,7 @@ from employer_ui import render_employer_checker
 from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
+from posting_requirements import _clean as clean_posting_text
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
     preferences_allow
@@ -366,7 +367,9 @@ def is_recent_posting(job, today=None):
 
 
 def html_to_text(value):
-    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', str(value or '')))).strip()
+    # Preserve ATS <h2>/<h3> and bullet boundaries so formal qualifications
+    # remain distinguishable from responsibilities and preferred experience.
+    return clean_posting_text(value)
 
 
 def classify_work_arrangement(location, description, declared_remote=False, declared_style=''):
@@ -419,7 +422,7 @@ def standard_job(title, company, url, location, description, source,
         'arrangement_source': arrangement_source,
         'workplace_conflict': workplace_conflict,
         'url': url, 'location': str(location or 'Location not specified'),
-        'description': html_to_text(description)[:12500], 'source': source,
+        'description': html_to_text(description)[:26000], 'source': source,
         'remote': arrangement == 'Remote', 'work_style': arrangement,
         'salary': str(salary or ''),
         'date': posted_date.isoformat() if posted_date else '',
