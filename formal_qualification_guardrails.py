@@ -137,7 +137,7 @@ def extract_formal_minimums(job, resume=''):
                 # Some employer pages use "EDUCATION and/or EXPERIENCE".
                 # Only the immediately preceding heading can establish scope.
                 prior=desc[:match.start()].rstrip().split('\n')
-                heading=prior[-2] if len(prior)>=2 else ''
+                heading=prior[-1] if prior else ''
                 if re.fullmatch(r'(?:education\s+and/or\s+experience|'
                                 r'education(?:al)?\s+requirements?|'
                                 r'minimum\s+qualifications?)\s*:?',
