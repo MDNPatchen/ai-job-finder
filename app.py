@@ -1718,12 +1718,12 @@ elif page == 'Career Matches':
                 'career_matches.csv','text/csv','career_matches_export')
 
 elif page == 'Find Jobs':
-    st.markdown(hero('Find Jobs','Nationwide · On-site & hybrid · 45 days'),unsafe_allow_html=True)
+    st.markdown(hero('Find Jobs','Nationwide · 45-day listings'),unsafe_allow_html=True)
     if st.session_state.pop('matching_engine_reset', False):
         st.caption('Search again for updated rankings.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
-    st.markdown('<div class="job-module-heading">01 / Search filters</div>',unsafe_allow_html=True)
+    st.markdown('<div class="job-module-heading">Search filters</div>',unsafe_allow_html=True)
     with st.form('clean_search'):
         search_text = st.text_input('Search',placeholder='Job title, keyword or agency',
             help='Leave blank for transferable career matches.')
@@ -2042,7 +2042,7 @@ elif page == 'Find Jobs':
                'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
-    st.markdown(hero('Job Tracker','Applications and follow-ups'),unsafe_allow_html=True)
+    st.markdown(hero('Job Tracker'),unsafe_allow_html=True)
     st.caption('Track applications, interviews, offers, skipped openings and notes. '
                'A JSON backup also includes your previously seen vacancy history.')
 
@@ -2066,7 +2066,7 @@ elif page == 'Job Tracker':
             st.warning('Not unlocked: edits are session-only. Unlock before searching to '
                        'retain job history across devices or deployments.')
     else:
-        st.caption('Session-only · Export a backup to keep your history.')
+        st.caption('Session-only storage · Download a backup to preserve changes.')
     if st.session_state.get('tracker_storage_error'):
         st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
                  '). Export a JSON backup now; the latest changes are in this session.')
