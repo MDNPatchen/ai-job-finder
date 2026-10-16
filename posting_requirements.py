@@ -122,7 +122,10 @@ def _clean(value):
     text=re.split(r'\b(?:Similar Jobs|Jobs for you|Recently Viewed Jobs|'
                   r'Top Matches for You|Insights from previous hires)\b',
                   text,maxsplit=1,flags=re.I)[0]
-    return re.sub(r'\s+', ' ',text).strip()[:16000]
+    # Full official bulletins use headings to separate minimum from
+    # preferred qualifications. Preserve these boundaries.
+    lines=[re.sub(r'[ \t]+',' ',line).strip() for line in text.splitlines()]
+    return '\n'.join(line for line in lines if line)[:26000]
 
 
 def _context(text, found, radius=145):
@@ -144,20 +147,41 @@ def _clause(text, match):
     return window[a:b].strip()
 
 
-def _priority(clause, term):
-    # "X experience preferred" must not be marked as required just because
-    # another requirement occurs in a neighboring section.
+_HEADINGS = re.compile(
+    r'(?im)^\s*(minimum qualifications?|required qualifications?|qualifications?|'
+    r'desired qualifications?|preferred qualifications?|experience and education|'
+    r'job responsibilities|position description|duties and responsibilities|'
+    r'additional information)\s*:?\s*$')
+
+
+def _qualification_scope(text, position):
+    current=''
+    for match in _HEADINGS.finditer(text):
+        if match.start()>position:
+            break
+        current=match.group(1).strip().casefold()
+    return current
+
+
+def _priority(clause, term, section=''):
+    if 'desired' in section or 'preferred' in section:
+        return 'Preferred / mentioned'
     tail=clause[max(0,term.end()-3):term.end()+95]
     lead=clause[max(0,term.start()-100):term.start()]
     if PREFERRED.search(tail) or re.search(
         r'\b(?:preferred|desirable|nice to have)\b',lead[-45:],re.I):
         return 'Preferred / mentioned'
-    if REQUIRED.search(lead) or REQUIRED.search(tail) or (
-            FIELD_QUALIFIER.search(clause) and
+    if REQUIRED.search(lead) or REQUIRED.search(tail):
+        return 'Required / minimum — verify exact wording'
+    if (section in ('qualifications','qualification',
+                    'minimum qualifications','minimum qualification',
+                    'required qualifications','required qualification',
+                    'experience and education')
+            and FIELD_QUALIFIER.search(clause)):
+        return 'Required / minimum — employer qualifications section'
+    if (FIELD_QUALIFIER.search(clause) and
             re.search(r'\b(?:minimum qualifications|requirements)\b',clause,re.I)):
         return 'Required / minimum — verify exact wording'
-    # Some descriptions use "X experience" as a required condition without
-    # repeating "required". We flag the clause but don't claim it is mandatory.
     return 'Field expertise mentioned — verify'
 
 
@@ -213,7 +237,7 @@ def extract_posting_requirements(job, resume=''):
             local=re.search(pattern,clause,re.I)
             if local is None:
                 continue
-            priority=_priority(clause,local)
+            priority=_priority(clause,local,_qualification_scope(desc,match.start()))
             if (not FIELD_QUALIFIER.search(clause)
                     and priority=='Field expertise mentioned — verify'):
                 continue
@@ -235,7 +259,7 @@ def extract_posting_requirements(job, resume=''):
             local=re.search(pattern,clause,re.I)
             if not local:
                 continue
-            priority=_priority(clause,local)
+            priority=_priority(clause,local,_qualification_scope(desc,match.start()))
             if priority=='Preferred / mentioned':
                 score=0
             elif priority.startswith('Required'):
