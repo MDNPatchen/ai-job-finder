@@ -33,6 +33,17 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertNotIn("border-top:3px",APP_CSS)
         self.assertIn("background:var(--paper)",APP_CSS)
 
+    def test_roomier_modules_have_balanced_side_margins(self):
+        self.assertIn("max-width:1390px",APP_CSS)
+        self.assertIn("width:calc(100% - 6.5rem)",APP_CSS)
+        self.assertIn("margin-left:auto!important",APP_CSS)
+        self.assertIn("margin-right:auto!important",APP_CSS)
+        self.assertIn("padding:1.65rem 2.55rem 3.5rem",APP_CSS)
+        self.assertIn("width:100%!important;max-width:100%!important",APP_CSS)
+        self.assertIn("min-height:105px",APP_CSS)
+        self.assertIn("min-height:40px",APP_CSS)
+        self.assertNotIn("border-left:4px",APP_CSS)
+
     def test_green_filled_controls_keep_white_text(self):
         self.assertIn("label:has(input:checked) *",APP_CSS)
         self.assertIn('[data-testid="stDownloadButton"] button *',APP_CSS)
