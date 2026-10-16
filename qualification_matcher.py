@@ -137,6 +137,9 @@ def assess_job_qualifications(job, profile, resume_text=''):
     result['description_completeness'] = review['confidence']
     result['career_fit_cautions'] = review.get('career_fit_cautions') or []
     result['career_fit_penalty'] = review.get('career_fit_penalty') or 0
+    result['posting_requirement_checks'] = review.get('posting_requirement_checks') or []
+    result['posting_requirement_penalty'] = review.get('posting_requirement_penalty') or 0
+    result['application_restricted'] = bool(review.get('application_restricted'))
     result['transferable_strengths'] = review['transferable_strengths']
     result['duty_coverage_index'] = review['duty_coverage']
     if review['cautions'] and label.startswith('Strong resume overlap'):

@@ -58,6 +58,7 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'employer': job.get('company') or '',
             'employer_identity_kind': job.get('employer_identity_kind') or
                                       'Company named by source; identity not independently verified',
+            'work_arrangement_conflict': job.get('workplace_conflict') or '',
             'work_arrangement_source': job.get('arrangement_source') or
                                        'No explicit workplace label in public posting',
             'location': job.get('location') or '',
@@ -73,14 +74,20 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'specialized_experience_to_verify': q.get('specialized_requirements') or [],
             'career_fit_cautions': q.get('career_fit_cautions') or [],
             'career_fit_ranking_caution': q.get('career_fit_penalty') or 0,
+            'posting_requirement_checks': q.get('posting_requirement_checks') or [],
+            'posting_requirement_caution': q.get('posting_requirement_penalty') or 0,
+            'internal_only_restriction': bool(q.get('application_restricted')),
             'important_cautions': q.get('cautions') or [],
             'description_completeness': q.get('description_completeness') or 'Not assessed',
             'index_explanation': ('Transferable-strength fit index, 0–96: primarily '
                                   'documented résumé strengths shared with listed duties, '
                                   'with minor title influence and caution for specialized '
                                   'requirements or credentials not verified. '
-                                  'Specialized role and career-stage fit are checked '
-                                  'separately. Not an eligibility score or hiring probability.'),
+                                  'Specialized role and career-stage fit, employer '
+                                  'minimum qualifications and application restrictions '
+                                  'are checked separately. Preferred criteria do not '
+                                  'count as required. Not an eligibility score '
+                                  'or hiring probability.'),
             'alignment_label': q.get('label') or 'Not assessed',
             'total_relevant_areas_detected': int(q.get('total_areas') or 0),
             'documented_resume_matches': q.get('resume_matches') or [],
@@ -135,6 +142,14 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
             'Employer': item['employer'],
             'Employer identification': item['employer_identity_kind'],
             'Work arrangement evidence': item['work_arrangement_source'],
+            'Workplace labeling conflict': item['work_arrangement_conflict'],
+            'Posting explicitly restricts to internal applicants': (
+                'Yes — verify eligibility' if item['internal_only_restriction'] else 'No explicit restriction detected'),
+            'Employer minimum requirements to verify': ' | '.join(
+                x['area'] + ' [' + x['priority'] + '] ' +
+                x['listing_excerpt']
+                for x in item['posting_requirement_checks']),
+            'Employer-specific ranking cautions (points)': item['posting_requirement_caution'],
             'Job title': item['job_title'],
             'Location': item['location'],
             'Work arrangement': item['work_arrangement'],
