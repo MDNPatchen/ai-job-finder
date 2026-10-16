@@ -57,6 +57,38 @@ SPECIALIZED_TITLE_FIELDS = (
      r"principal of (?:a )?school|STEM education)\b",
      r"\b(?:classroom teaching|school curriculum|teaching credential|"
      r"education program consultant|K-12 instruction)\b", 20),
+    ("Industrial environmental health & safety specialization",
+     r"\b(?:EHS|HSE)\s+(?:specialist|manager|director|coordinator)\b|"
+     r"\b(?:environmental (?:health\s*(?:and|&)\s*)?safety)\s+"
+     r"(?:specialist|manager|director)\b",
+     r"\b(?:environmental health (?:and|&) safety|EHS management|"
+     r"OSHA compliance|industrial safety management)\b", 25),
+    ("Professional UX / product design",
+     r"\b(?:product design|UX design|UI design|user.experience design|"
+     r"product designer|UX designer)\b",
+     r"\b(?:product design|UX design|UI design|user.experience design|"
+     r"Figma|professional design portfolio)\b", 25),
+    ("Equity compensation and total rewards specialty",
+     r"\b(?:compensation\s*(?:&|and)\s*equity|equity compensation|"
+     r"compensation manager|total rewards manager)\b",
+     r"\b(?:equity compensation|stock (?:option|award) administration|"
+     r"compensation administration|total rewards strategy|"
+     r"salary benchmarking|pay equity analysis)\b", 24),
+    ("Laboratory science / mass spectrometry",
+     r"\b(?:senior scientist|sr\.?\s*scientist|mass spec|"
+     r"LC[- ]?MS/?MS|bioanalytical scientist|research scientist)\b",
+     r"\b(?:laboratory research|mass spectrometry|LC[- ]?MS/?MS|"
+     r"bioanalytical testing|analytical chemistry)\b", 32),
+    ("IT technical project delivery",
+     r"\b(?:IT project manager|information technology project manager|"
+     r"technical project manager|systems implementation project manager)\b",
+     r"\b(?:IT project management|technology project management|"
+     r"enterprise IT implementation|software systems integration)\b", 23),
+    ("Marketing science / statistical analysis",
+     r"\b(?:marketing science|marketing analytics scientist|"
+     r"measurement science director)\b",
+     r"\b(?:marketing science|marketing mix modeling|"
+     r"econometric modeling|statistical programming)\b", 22),
 )
 
 # Apply only where the user resume establishes a long senior-management career.
