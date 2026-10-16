@@ -1,5 +1,39 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.15 — real Mayo titles, specialist manufacturing buying, no green borders
+
+An audit of the live v3.1.14 ranked CSV found two Mayo Clinic postings
+both incorrectly titled "Breakthrough". This was the marketing heading
+on a Mayo detail page, not a job name. The official job URLs identify
+separate delivery management and information-security management roles.
+Mayo title parsing now uses a matching actual role heading if available,
+a clean employer search-result label, or the official posting URL role
+slug as fallback. Title validation is specific to each vacancy URL,
+rather than accepting the first h1 or a marketing slogan.
+
+Industrial Electric Manufacturing's Purchasing Supervisor was ranked 95
+while the employer explicitly requires at least three years of purchasing
+or buying experience **in a manufacturing environment**. General
+newspaper supplier negotiations and broad P&L experience alone do not
+verify that separate professional background. A targeted 24-point
+posting qualification caution now applies absent documented
+manufacturing procurement, buying or purchasing work. Specific resume
+evidence of that field clears the caution, and preferred-only
+experience or non-manufacturing purchasing does not trigger it.
+
+The user also requested zero green borders around the app interface.
+Panels, form wrappers, metrics, expanders, navigation and module headings
+now have no accent outlines; separate white modules use gutters and
+quiet neutral shadows. Filled forest-green tabs and download/primary
+buttons retain clear white lettering. Existing native CSV/JSON export
+fragments, top navigation and employer/source coverage are preserved.
+
+The matching engine and downloadable result filenames change to v3.1.15.
+The score remains a research fit index, never an eligibility guarantee.
+A fresh post-deployment nationwide search is needed to confirm actual
+live posting changes.
+
+
 ## Modular layout and explicit remote-title repair (matching 3.1.14)
 
 The October 16 ranked v3.1.13 CSV from a real download was parsed:

@@ -401,6 +401,64 @@ html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
  }
 }
 
+
+/* No colored module outlines. Panels are separated by whitespace and an
+   understated neutral shadow, never green sidebars or green top borders. */
+[data-testid="stMetric"],
+[data-testid="stForm"],
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stExpander"],
+[data-testid="stDataFrame"]{
+  border:0!important;
+  border-left:0!important;
+  border-right:0!important;
+  border-top:0!important;
+  border-bottom:0!important;
+  box-shadow:0 3px 16px rgba(31,47,43,.07)!important;
+  background:#FFFFFF!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]>div[data-testid="stVerticalBlock"]{
+  border:0!important;
+  background:#FFFFFF!important;
+}
+[data-testid="stMetric"]{padding:1.8rem 1.95rem!important;}
+[data-testid="stForm"]{padding:2rem 2.2rem!important;}
+[data-testid="stVerticalBlockBorderWrapper"]{
+  margin-bottom:18px!important;
+}
+.job-topbar,.job-module-heading,
+.st-key-top_navigation [role="radiogroup"]{
+  border-bottom:0!important;
+}
+.job-module-heading{
+  padding-bottom:.5rem!important;
+  margin-top:2.4rem!important;
+}
+.st-key-top_navigation [role="radiogroup"] label{
+  border:0!important;
+}
+.st-key-top_navigation [role="radiogroup"] label:has(input:checked),
+.st-key-top_navigation [role="radiogroup"] label:hover{
+  border:0!important;
+}
+.job-pill.mint{
+  border:0!important;
+  color:#FFFFFF!important;
+}
+.stButton button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[kind="primary"],
+[data-testid="stDownloadButton"] button,
+.stButton button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+[data-testid="stDownloadButton"] button:hover{
+  border:0!important;
+  color:#FFFFFF!important;
+}
+@media(max-width:900px){
+  [data-testid="stMetric"]{padding:1.3rem 1.4rem!important;}
+  [data-testid="stForm"]{padding:1.5rem 1.4rem!important;}
+}
+
 </style>
 """
 

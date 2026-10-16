@@ -29,6 +29,20 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
         self.assertIn("background:var(--forest)!important",APP_CSS)
 
+    def test_no_green_outlines_or_panel_borders(self):
+        section=APP_CSS.split('No colored module outlines.')[-1]
+        self.assertIn('border:0!important',section)
+        self.assertIn('border-left:0!important',section)
+        self.assertIn('border-top:0!important',section)
+        self.assertIn('border-bottom:0!important',section)
+        self.assertIn('box-shadow:0 3px 16px rgba(',section)
+        self.assertIn('stVerticalBlockBorderWrapper',section)
+        self.assertIn('stMetric',section)
+        self.assertIn('stForm',section)
+        self.assertIn('label:has(input:checked)',section)
+        self.assertIn('background:#FFFFFF!important',section)
+        self.assertIn('color:#FFFFFF!important',section)
+
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
         self.assertNotIn("briefcase",APP_CSS.casefold()+brand().casefold())

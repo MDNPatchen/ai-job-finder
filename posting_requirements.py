@@ -187,6 +187,18 @@ OPPORTUNITY_TO_OBTAIN = re.compile(
 # word; the company industry or role title alone does not create a required
 # qualification. A separately confirmed résumé term must be field-specific.
 FIELDS = (
+    ('Manufacturing purchasing / buying experience',
+     r'\b(?:purchas(?:ing|e)|buying|buyer|procurement)'
+     r'\s+(?:or\s+(?:purchasing|buying|buyer)\s+)?'
+     r'(?:experience|background)\s+(?:in|within)\s+(?:an?\s+)?'
+     r'(?:industrial\s+)?manufactur(?:ing|e)(?:\s+environment|\s+industry)?\b|'
+     r'\bmanufactur(?:ing|e)\s+'
+     r'(?:purchasing|buying|buyer|procurement)\s+'
+     r'(?:experience|background)\b',
+     r'\b(?:manufacturing\s+(?:procurement|purchasing|buying|buyer)|'
+     r'industrial\s+(?:procurement|purchasing|buyer)|'
+     r'(?:procurement|purchasing|buying)\s+(?:experience|background)\s+'
+     r'in\s+(?:an?\s+)?manufacturing)\b',24),
     ('Water utilities / transmission operations',
      r'\b(?:water distribution|water treatment|water utility|'
      r'water transmission|drinking water systems?|water operator|'

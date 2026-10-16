@@ -15,6 +15,8 @@ on:
       - "transfer_fit.py"
       - "career_fit_guardrails.py"
       - "posting_requirements.py"
+      - "mayo_source.py"
+      - "test_v3115_mayo_procurement.py"
       - "formal_qualification_guardrails.py"
       - "official_bulletins.py"
       - "test_official_bulletins.py"
