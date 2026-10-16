@@ -389,13 +389,13 @@ def brand(version=""):
     return ('<div class="job-topbar"><div class="job-brand">'
             '<span class="job-mark" aria-hidden="true"></span>'
             '<span class="job-brand-title">AI Job Finder</span></div>'
-            + ('<span class="job-version">Version '+_safe(version)+' · Compact Slate</span>'
+            + ('<span class="job-version">Version '+_safe(version)+'</span>'
                if version else '') + '</div>')
 
 
 def hero(title,subtitle=""):
     # The same small typographic hierarchy on Dashboard, Search and Tracker.
-    return ('<div class="job-hero"><div class="job-section-kicker">CAREER INTELLIGENCE</div>'
+    return ('<div class="job-hero">'
             '<h1>'+_safe(title)+'</h1>'+
             ('<div class="job-subline">'+_safe(subtitle)+'</div>' if subtitle else '')+
             '</div>')
