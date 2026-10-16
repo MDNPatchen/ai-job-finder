@@ -36,4 +36,4 @@ def career_sort_key(job, evidence_key):
         fit=float(fit)
     except (ValueError,TypeError):
         fit=0
-    return (-int(fit//5), -leadership_priority(job), evidence_key(job))
+    return (-fit, -leadership_priority(job), evidence_key(job))
