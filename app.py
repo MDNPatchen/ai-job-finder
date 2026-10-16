@@ -21,7 +21,7 @@ from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
     strict_onsite_requirement,
     employer_identity_kind, greenhouse_workplace_label,
-    reconcile_workplace_record
+    reconcile_workplace_record, rss_workplace_style
 )
 from employer_ui import render_employer_checker
 from employer_postings import posting_quality
@@ -553,7 +553,8 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
                 continue
             job = standard_job(field('title'), employer, link,
                 f'{employer}, {state}', field('description'), 'NEOGOV',
-                posted=field('pubDate') or field('date'), gov=True)
+                posted=field('pubDate') or field('date'), gov=True,
+                declared_style=rss_workplace_style(item))
             if job:
                 job['government_agency_slug']=token
                 jobs.append(job)
@@ -1040,7 +1041,8 @@ def load_schooljobs_feeds(state_filter=None, catalog_version=None):
                 continue
             job=standard_job(f('title'),employer,link,
                 employer+', '+state,f('description'),'NEOED Schooljobs',
-                posted=f('pubDate') or f('date'),gov=True)
+                posted=f('pubDate') or f('date'),gov=True,
+                declared_style=rss_workplace_style(entry))
             if job:
                 job['government_agency_slug']=token
                 jobs.append(job)
@@ -1770,7 +1772,7 @@ elif page == 'Find Jobs':
                     search_text,st.session_state.resume_text,None,preferences,
                     chosen_listing_scope)
                 raw,bulletin_stats=enrich_priority_government_jobs(
-                    raw,preview,limit=28)
+                    raw,preview,limit=40)
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
                 search_text,st.session_state.resume_text,employer_cap,preferences,
                 chosen_listing_scope)
