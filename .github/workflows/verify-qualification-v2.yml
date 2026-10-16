@@ -11,6 +11,7 @@ on:
       - "specialist_caution_calibration.py"
       - "test_v3111_overlap_calibration.py"
       - "test_v3112_education_pathways.py"
+      - "test_v3113_construction_minima.py"
       - "posting_requirements.py"
       - "ui_theme.py"
       - "test_ui_theme.py"
