@@ -1,5 +1,38 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.9 — government source integrity and degree verification
+
+The October 16 v3.1.8 ranked export included duplicate, incorrectly
+attributed NEOGOV vacancies. A City of Boise accounts-payable and
+accounts-receivable requisition appeared under Charlotte County (FL) and
+City of Boston (MA), because some government RSS endpoints return the
+same vacancies regardless of the requested agency.
+
+- An NEOGOV vacancy must contain the exact configured agency slug in a
+  verified HTTPS governmentjobs.com/careers/<slug>/jobs/<id> URL.
+  NEOED school vacancies use equivalent schooljobs.com paths.
+  Cross-agency, generic, or unverified URLs are skipped, never
+  mislabeled as belonging to the configured hiring agency.
+- Older cached records are independently revalidated before matching.
+  Duplicate verified government vacancy URLs are removed regardless
+  of the feed that supplied them. Distinct requisition IDs stay separate.
+- The degree classifier examines the entire individual degree clause
+  instead of stopping 115 characters after the title. Thus a long
+  "Bachelor's in Engineering, Operations, Business, Industrial Technology
+  or related field is preferred" correctly has zero mandatory-degree
+  penalty. Explicit degree requirements remain reviewable, including
+  BRPH's inline EDUCATION and/or EXPERIENCE section.
+- Preserve real business/management degree alternatives if a posting
+  expressly permits either business or engineering education.
+- Retain the premium, uncluttered dark-emerald UI from version 3.1.8.
+  Version identifiers and exports now use 3.1.9 / _v319_.
+
+This change prioritizes accuracy over count: noncanonical agency listings
+may disappear until independently verified. Absence of a degree in the
+uploaded resume is not proof of ineligibility, and the 0–96 score is not
+a hiring probability.
+
+
 ## Version 3.1.8 — minimal interface and exported-results refinements
 
 The redesigned application has a restrained charcoal/forest-emerald theme,
