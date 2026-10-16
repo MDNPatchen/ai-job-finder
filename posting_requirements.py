@@ -16,6 +16,13 @@ INTERNAL_ONLY = re.compile(
     r'current employees? (?:only|may apply)|'
     r'(?:applications?|applicants?) (?:are |is )?(?:limited|restricted) '
     r'to (?:current|existing|internal) (?:employees|staff))\b', re.I)
+TRANSFER_ONLY_TITLE = re.compile(
+    r'\b(?:internal\s+)?transfers?\s+only\b', re.I)
+TRANSFER_ONLY_APPLICATION = re.compile(
+    r'\b(?:applicants?|candidates?|employees?|staff)\b.{0,65}'
+    r'\b(?:internal\s+)?transfers?\s+only\b|'
+    r'\b(?:internal\s+)?transfers?\s+only\b.{0,65}'
+    r'\b(?:applicants?|candidates?|employees?|staff)\b', re.I)
 INTERNAL_NEGATION = re.compile(
     r'\b(?:not restricted to|not limited to|open to both|'
     r'internal and external|external and internal)\b', re.I)
@@ -118,13 +125,26 @@ CREDENTIALS = (
 
 
 def _clean(value):
-    text=unescape(re.sub(r'<[^>]{0,300}>', ' ', str(value or '')))
+    # Employers can supply raw HTML OR entity-escaped HTML. Unescape *before*
+    # stripping tags so <h3>What You're Great At</h3> stays a section header.
+    text=str(value or '')
+    for _ in range(2):
+        newer=unescape(text)
+        if newer==text:
+            break
+        text=newer
+    # Preserve HTML list items, headings and paragraph boundaries; without
+    # these, a required design background may be mistaken for a preference
+    # from a nearby, unrelated sentence.
+    text=re.sub(r'(?is)<\s*(?:br|hr)\b[^>]*>', '\n', text)
+    text=re.sub(r'(?is)<\s*/?\s*(?:h[1-6]|p|li|ul|ol|div|section|'
+                r'header|strong|b)\b[^>]*>', '\n', text)
+    text=re.sub(r'(?is)<[^>]{0,350}>', ' ', text)
     text=re.split(r'\b(?:Similar Jobs|Jobs for you|Recently Viewed Jobs|'
                   r'Top Matches for You|Insights from previous hires)\b',
                   text,maxsplit=1,flags=re.I)[0]
-    # Full official bulletins use headings to separate minimum from
-    # preferred qualifications. Preserve these boundaries.
-    lines=[re.sub(r'[ \t]+',' ',line).strip() for line in text.splitlines()]
+    lines=[re.sub(r'\s+',' ',line.replace('\xa0',' ')).strip()
+           for line in text.splitlines()]
     return '\n'.join(line for line in lines if line)[:26000]
 
 
@@ -133,25 +153,37 @@ def _context(text, found, radius=145):
 
 
 def _clause(text, match):
-    # Preserve enough preceding wording to catch "minimum qualifications:"
-    # but stop at full stops/semicolons to avoid adjacent unrelated duties.
-    lo=max(0,match.start()-115)
-    hi=min(len(text),match.end()+90)
+    # Bullet boundaries matter. If qualifications appear in consecutive <li>
+    # items, don't let a preferred requirement negate the preceding minimum.
+    lo=max(0,match.start()-145)
+    hi=min(len(text),match.end()+145)
     window=text[lo:hi]
     start=match.start()-lo
-    preceding=max((window.rfind(c,0,start) for c in '.;!?'),default=-1)
-    following=[window.find(c,match.end()-lo) for c in '.;!?']
-    following=[v for v in following if v>=0]
-    a=preceding+1 if preceding>=0 else 0
-    b=min(following) if following else len(window)
-    return window[a:b].strip()
+    end=match.end()-lo
+    preceding=max((window.rfind(ch,0,start) for ch in '.;!?\n'),default=-1)
+    following=[window.find(ch,end) for ch in '.;!?\n']
+    following=[pos for pos in following if pos>=0]
+    return window[preceding+1 if preceding>=0 else 0:
+                  min(following) if following else len(window)].strip()
 
 
+# Private ATS platforms use different labels for the applicant criteria.
+# These match a standalone line only, not casual phrases in job duties.
 _HEADINGS = re.compile(
-    r'(?im)^\s*(minimum qualifications?|required qualifications?|qualifications?|'
-    r'desired qualifications?|preferred qualifications?|experience and education|'
-    r'job responsibilities|position description|duties and responsibilities|'
-    r'additional information)\s*:?\s*$')
+    r"(?im)^\s*((?:(?:minimum|basic|required|desired|preferred)\s+)?"
+    r"qualifications?(?:\s*(?:&|and)\s*(?:skills|experience))?|"
+    r"experience\s*(?:&|and)\s*(?:education|qualifications?|skills)|"
+    r"requirements?(?:\s*(?:&|and)\s*(?:qualifications?|skills))?|"
+    r"what\s+(?:you[’']ll|we)\s+(?:need|bring|look\s+for|expect)"
+    r"(?:\s+(?:from\s+you|to\s+the\s+team))?|"
+    r"what\s+you[’']re\s+great\s+at|"
+    r"what\s+you\s+(?:bring|need)\s+to\s+(?:the\s+)?(?:table|team|role)|"
+    r"who\s+you\s+are|"
+    r"(?:nice\s+to\s+have|preferred\s+(?:experience|skills)|"
+    r"desired\s+(?:experience|skills)|bonus\s+points)|"
+    r"(?:job\s+)?responsibilities|position\s+description|"
+    r"duties\s+and\s+responsibilities|additional\s+information|"
+    r"what\s+you[’']ll\s+do|about\s+the\s+(?:role|job))\s*:?\s*$")
 
 
 def _qualification_scope(text, position):
@@ -164,28 +196,22 @@ def _qualification_scope(text, position):
 
 
 def _priority(clause, term, section=''):
-    if 'desired' in section or 'preferred' in section:
+    section=section.casefold()
+    if re.search(r'\b(?:desired|preferred|nice to have|bonus)\b',section):
         return 'Preferred / mentioned'
-    tail=clause[max(0,term.end()-3):term.end()+95]
-    lead=clause[max(0,term.start()-100):term.start()]
-    # Only read preference language within the same qualification clause,
-    # not from the next heading in a full bulletin.
-    nearby_line=clause[max(0,term.start()-80):term.end()+95].split('\n',1)[0]
-    if (PREFERRED.search(nearby_line) or
-            re.search(r'\b(?:preferred|desirable|nice to have)\b',
-                      lead.rsplit('\n',1)[-1][-45:],re.I)):
+    # Work within ONE item, never borrow a "preferred" from the next bullet.
+    nearby=clause[max(0,term.start()-105):term.end()+120]
+    if PREFERRED.search(nearby):
         return 'Preferred / mentioned'
-    if REQUIRED.search(lead) or REQUIRED.search(tail.split('\n',1)[0]):
+    if REQUIRED.search(clause):
         return 'Required / minimum — verify exact wording'
-    if (section in ('qualifications','qualification',
-                    'minimum qualifications','minimum qualification',
-                    'required qualifications','required qualification',
-                    'experience and education')
-            and FIELD_QUALIFIER.search(clause)):
-        return 'Required / minimum — employer qualifications section'
-    if (FIELD_QUALIFIER.search(clause) and
-            re.search(r'\b(?:minimum qualifications|requirements)\b',clause,re.I)):
-        return 'Required / minimum — verify exact wording'
+    if re.search(
+        r'\b(?:qualifications?|requirements?|what you.ll need|'
+        r'what we need|what you.ll bring|what we look for|'
+        r'what you.re great at|who you are|'
+        r'experience and education|experience and qualifications|'
+        r'experience and skills|what you bring to)\b',section):
+        return 'Required / minimum — employer applicant-criteria section'
     return 'Field expertise mentioned — verify'
 
 
@@ -214,7 +240,9 @@ def extract_posting_requirements(job, resume=''):
     # A title that explicitly states "IN-HOUSE ONLY" is sufficient;
     # descriptions may independently contain a restriction.
     for scope in (title,desc):
-        match=INTERNAL_ONLY.search(scope)
+        match=(INTERNAL_ONLY.search(scope) or
+               (TRANSFER_ONLY_TITLE.search(scope) if scope==title else
+                TRANSFER_ONLY_APPLICATION.search(scope)))
         if match and not INTERNAL_NEGATION.search(_context(scope,match,100)):
             add('Internal applicants only','Application eligibility',
                 'Explicit restriction — verify eligibility',
@@ -231,58 +259,65 @@ def extract_posting_requirements(job, resume=''):
             'Residence or willingness and ability to relocate is not established by the résumé.')
 
     for area,pattern,evidence,penalty in FIELDS:
-        finder=re.compile(pattern,re.I)
-        matched=list(finder.finditer(desc))
-        if not matched:
-            continue
-        for match in matched[:6]:
+        # The first mention is often a responsibility. Prefer the strongest
+        # *applicant qualification* later in the advertisement. An early
+        # "deliver EHS training" must not mask "five years of EHS experience".
+        candidates=[]
+        for match in list(re.finditer(pattern,desc,re.I))[:35]:
             clause=_clause(desc,match)
-            relative_start=max(0,match.start()-(desc.find(clause) if clause else match.start()))
             local=re.search(pattern,clause,re.I)
             if local is None:
                 continue
-            priority=_priority(clause,local,_qualification_scope(desc,match.start()))
-            if (not FIELD_QUALIFIER.search(clause)
-                    and priority=='Field expertise mentioned — verify'):
+            section=_qualification_scope(desc,match.start())
+            priority=_priority(clause,local,section)
+            if (priority=='Field expertise mentioned — verify'
+                    and not FIELD_QUALIFIER.search(clause)):
                 continue
-            has_evidence=bool(re.search(evidence,resume,re.I))
-            required=priority.startswith('Required')
-            score=(penalty if required and not has_evidence else
-                   0 if has_evidence else 0)
-            add(area,'Field-specific experience',priority,clause,score,
-                'Related specialist field is mentioned in résumé; duties and duration still need verification.'
-                if has_evidence else
-                'No matching field-specific résumé evidence found; verify before applying.')
-            # Once a field is added use the first credible qualification
-            break
+            weight=(2 if priority.startswith('Required') else
+                    1 if priority=='Field expertise mentioned — verify' else 0)
+            # Within equivalent priority prefer a clause explicitly stating
+            # years or specialized experience to make the explanation useful.
+            weight2=bool(re.search(
+                r'\b(?:\d+\+?\s*years?|experience|expertise|portfolio|'
+                r'certification|proficiency)\b',clause,re.I))
+            candidates.append((weight,int(weight2),match.start(),priority,clause))
+        if not candidates:
+            continue
+        _,_,_,priority,clause=max(candidates,key=lambda x:(x[0],x[1],-x[2]))
+        has_evidence=bool(re.search(evidence,resume,re.I))
+        score=penalty if priority.startswith('Required') and not has_evidence else 0
+        add(area,'Field-specific experience',priority,clause,score,
+            'Related specialist field is mentioned in résumé; duties and duration still need verification.'
+            if has_evidence else
+            'No matching field-specific résumé evidence found; verify before applying.')
 
     for area,pattern,evidence,penalty in CREDENTIALS:
-        matches=list(re.finditer(pattern,desc,re.I))
-        for match in matches[:5]:
+        candidates=[]
+        for match in list(re.finditer(pattern,desc,re.I))[:25]:
             clause=_clause(desc,match)
             local=re.search(pattern,clause,re.I)
             if not local:
                 continue
             priority=_priority(clause,local,_qualification_scope(desc,match.start()))
-            if priority=='Preferred / mentioned':
-                score=0
-            elif priority.startswith('Required'):
-                score=penalty
-            else:
-                score=0
             if OPPORTUNITY_TO_OBTAIN.search(clause):
                 priority='May be obtained later — verify deadline'
-                score=min(6,score)
-            # A textual mention of a credential on a résumé is not proof that
-            # it is active; flag verification even where it appears.
-            resume_has=bool(re.search(evidence,resume,re.I))
-            if resume_has:
-                score=0
-            add(area,'License / portfolio',priority,clause,score,
-                'Related credential mentioned in résumé; verify validity and level.'
-                if resume_has else
-                'Required credential/portfolio not established by the résumé; verify the exact condition.')
-            break
+            weight=(3 if priority.startswith('Required') else
+                    2 if priority.startswith('May be obtained later') else
+                    1 if priority=='Field expertise mentioned — verify' else 0)
+            candidates.append((weight,-match.start(),priority,clause))
+        if not candidates:
+            continue
+        _,_,priority,clause=max(candidates,key=lambda x:(x[0],x[1]))
+        score=(penalty if priority.startswith('Required') else
+               min(6,penalty) if priority.startswith('May be obtained later') else 0)
+        resume_has=bool(re.search(evidence,resume,re.I))
+        if resume_has:
+            score=0
+        add(area,'License / portfolio',priority,clause,score,
+            'Related credential mentioned in résumé; verify validity and level.'
+            if resume_has else
+            'Required credential/portfolio not established by the résumé; verify the exact condition.')
+
     penalty=min(65,sum(x['ranking_caution'] for x in checks))
     restricted=any(x['area']=='Internal applicants only' for x in checks)
     return {'checks':checks,'ranking_caution':penalty,
