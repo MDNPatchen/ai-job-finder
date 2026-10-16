@@ -122,7 +122,8 @@ def _job_title(page, url, search_title=''):
         # Search-anchor text may contain a city or schedule after the role.
         # The URL slug remains the clean authoritative fallback.
         normalized=' '.join(search_title.split())
-        if len(normalized)<=75:
+        tokens=set(re.findall(r'[a-z0-9]+',normalized.casefold()))
+        if len(normalized)<=75 and len(tokens-canonical_tokens)<=1:
             return normalized
     return canonical
 
