@@ -1,5 +1,45 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.11 — count overlapping specialist experience only once
+
+The October 16 v3.1.10 export showed industry-specialist positions at
+0/96 despite substantial, documented transferable operations experience.
+For construction-management roles, essentially the same lack of field-specific
+experience triggered a generic industry penalty, an additional specialized
+title penalty, and a third explicit employer-experience penalty.
+
+- The strongest caution in an explicitly mapped professional-experience
+  family wins; matching domain/title/posting cues are still shown for review
+  but no longer deducted three times. Categories are conservative and
+  explicit—not fuzzy substring matches. Different industries and distinct
+  requirements continue to score independently.
+- Mandatory professional *degrees*, occupational licenses, residency and
+  internal-only application rules stay separate from required industry
+  *experience*. For example, the construction posting keeps its 25-point
+  experience caution and separate 22-point bachelor's-in-construction-
+  management/engineering caution; only the duplicate generic/title experience
+  deductions are removed.
+- A job with no documented transferable evidence can still have index zero,
+  and a missing mandatory degree cannot produce a score above 89. There is
+  no artificial global score floor and no implication that the employer would
+  waive a degree or years-of-field-experience condition.
+- A special clean-match bonus must *not* become available just because a
+  specialist penalty moves from the generic domain layer into the employer-
+  requirements layer.
+- CSV and JSON record applied caution points and an additional column
+  "Overlapping specialist deductions avoided (points)". In the minimal
+  interface a short explanation is visible only inside the optional
+  Match details expander.
+- This changes the matching engine to v3.1.11 and downloads to _v3111_.
+  The approved charcoal/emerald layout, search providers and remote
+  employer exceptions do not change.
+
+Synthetic regressions check Senior Capital Project Manager, Senior
+Construction Project Manager, Manager Corporate Finance, unrelated senior
+operations roles, separate formal credentials, and genuine zero-evidence jobs.
+The next live ranking export remains necessary to measure empirical effects.
+
+
 ## Version 3.1.10 — construction degree rigor, finance expertise and Lever feeds
 
 - Treat a required degree in Construction Management, Engineering, Architecture

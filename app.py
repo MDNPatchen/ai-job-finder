@@ -1838,6 +1838,10 @@ elif page == 'Find Jobs':
                         if qualification and qualification['resume_present']:
                             st.caption('**Resume alignment:** ' + qualification['label'])
                             with st.expander('Match details'):
+                                if qualification.get('ranking_overlap_relief',0):
+                                    st.caption('Overlapping experience cautions counted once · '
+                                               + str(qualification['ranking_overlap_relief'])
+                                               + ' duplicate points avoided. Degree and license checks remain separate.')
                                 st.write(
                                     f"Resume evidence in {len(qualification['resume_matches'])} "
                                     f"of {qualification['total_areas']} relevant areas mentioned in this listing.")

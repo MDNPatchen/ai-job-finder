@@ -78,7 +78,10 @@ class EmployerOfferVsQualificationTests(unittest.TestCase):
         self.assertTrue(any(x["area"]=="Compensation and equity administration"
                             and x["ranking_caution"]>0
                             for x in q["posting_requirement_checks"]))
-        self.assertGreater(q["career_fit_penalty"],0)
+        self.assertTrue(any(c["ranking_caution"]>0
+                            for c in q["career_fit_cautions"]))
+        self.assertGreater(q["posting_requirement_penalty"],0)
+        self.assertGreater(q["ranking_overlap_relief"],0)
 
     def test_real_compensation_experience_keeps_specialist_penalty_zero(self):
         desc="<h2>Qualifications</h2><li>7 years of equity compensation administration experience.</li>"

@@ -70,7 +70,7 @@ def supported_transfer_areas(qualification):
 
 
 def transfer_fit(qualification, job, title_alignment, specialty_penalty=0,
-                 credential_penalty=0):
+                 credential_penalty=0, specialist_gap=False):
     """Rank the demonstrated overlap of job duties with reusable strengths.
 
     Job-title matches are discounted, uncorroborated confirmations get partial
@@ -103,7 +103,7 @@ def transfer_fit(qualification, job, title_alignment, specialty_penalty=0,
     # Broad corroborated responsibilities with no field-specific gap are an
     # unusually clear transfer, even without an executive-sounding title.
     if (description_matches >= 3 and specialty_penalty == 0 and
-            credential_penalty == 0):
+            credential_penalty == 0 and not specialist_gap):
         raw += 9
     # A short government RSS summary often omits ALL formal qualifications.
     # Avoid an unsupported 96/96 when the full official bulletin was not

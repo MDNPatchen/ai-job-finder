@@ -77,6 +77,8 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'career_fit_ranking_caution': q.get('career_fit_penalty') or 0,
             'posting_requirement_checks': q.get('posting_requirement_checks') or [],
             'posting_requirement_caution': q.get('posting_requirement_penalty') or 0,
+            'overlapping_specialist_deductions_avoided': q.get('ranking_overlap_relief') or 0,
+            'ranking_caution_calibration': q.get('ranking_overlap_note') or '',
             'internal_only_restriction': bool(q.get('application_restricted')),
             'important_cautions': q.get('cautions') or [],
             'description_completeness': q.get('description_completeness') or 'Not assessed',
@@ -84,9 +86,10 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
                                   'documented résumé strengths shared with listed duties, '
                                   'with minor title influence and caution for specialized '
                                   'requirements or credentials not verified. '
-                                  'Specialized role and career-stage fit, employer '
-                                  'minimum qualifications and application restrictions '
-                                  'are checked separately. Preferred criteria do not '
+                                  'Overlapping field-experience cautions are counted only once '
+                                  'across title, domain and stated requirements; '
+                                  'required degrees and application rules stay separate. '
+                                  'Preferred criteria do not '
                                   'count as required. Not an eligibility score '
                                   'or hiring probability.'),
             'alignment_label': q.get('label') or 'Not assessed',
@@ -134,6 +137,8 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
                 str(x.get('area') or '') + ': ' + str(x.get('reason') or '')
                 for x in item['career_fit_cautions']),
             'Career-fit ranking caution (points)': item['career_fit_ranking_caution'],
+            'Overlapping specialist deductions avoided (points)': item['overlapping_specialist_deductions_avoided'],
+            'Ranking caution calibration': item['ranking_caution_calibration'],
             'Specialized experience to verify': '; '.join(
                 (x.get('area') or '') + ' [' + (x.get('priority') or 'verify') + ']'
                 for x in item['specialized_experience_to_verify']

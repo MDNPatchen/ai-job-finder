@@ -5,7 +5,7 @@ or exported record format changes.
 """
 import re
 
-MATCHING_ENGINE_VERSION = "3.1.10"
+MATCHING_ENGINE_VERSION = "3.1.11"
 
 
 def needs_search_refresh(previous_version, current_version=MATCHING_ENGINE_VERSION):
