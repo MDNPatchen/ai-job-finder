@@ -7,41 +7,37 @@ from ui_theme import APP_CSS, brand, hero, listing_head
 
 
 class MinimalUIThemeTests(unittest.TestCase):
-    def test_theme_is_light_legible_and_padded(self):
-        self.assertIn("#F5F7F5",APP_CSS)
-        self.assertIn("#146B54",APP_CSS)
-        self.assertIn('background:var(--paper)',APP_CSS)
-        self.assertIn('padding:1.5rem 1.65rem',APP_CSS)
-        self.assertIn('.st-key-top_navigation',APP_CSS)
+    def test_slate_background_is_dark_not_black(self):
+        self.assertIn("#27342F",APP_CSS)
+        self.assertIn("#34443D",APP_CSS)
+        self.assertIn("#F1F6F2",APP_CSS)
+        self.assertNotIn("#0B1114",APP_CSS)
+        self.assertEqual(APP_CSS.count("<style>"),1)
+        self.assertEqual(APP_CSS.count("</style>"),1)
+        self.assertIn(".st-key-top_navigation",APP_CSS)
         self.assertIn("@media(max-width:900px)",APP_CSS)
 
-    def test_modular_geometry_and_white_text_on_dark_green(self):
-        # Override block intentionally comes after old soft-panel rules.
-        self.assertIn("October 16 modular pass",APP_CSS)
-        self.assertIn("border-radius:4px!important",APP_CSS)
-        self.assertIn("border-radius:3px!important",APP_CSS)
-        self.assertIn("border-radius:2px!important",APP_CSS)
-        self.assertIn("padding:1.95rem 2.1rem",APP_CSS)
-        self.assertIn("job-module-heading",APP_CSS)
+    def test_compact_modules_have_smaller_interiors_without_green_borders(self):
+        self.assertIn("Single source of truth for the compact slate-and-forest theme",
+                      APP_CSS)
+        self.assertIn("padding:.87rem 1.05rem",APP_CSS)
+        self.assertIn("padding:.85rem 1rem",APP_CSS)
+        self.assertIn("padding:1.1rem 1.3rem",APP_CSS)
+        self.assertIn("min-height:87px",APP_CSS)
+        self.assertIn("min-height:35px",APP_CSS)
+        self.assertIn("font-size:1.01rem",APP_CSS)
+        self.assertIn("font-size:.67rem",APP_CSS)
+        self.assertIn("border:0!important",APP_CSS)
+        self.assertNotIn("border-left:4px",APP_CSS)
+        self.assertNotIn("border-top:3px",APP_CSS)
+        self.assertIn("background:var(--paper)",APP_CSS)
+
+    def test_green_filled_controls_keep_white_text(self):
         self.assertIn("label:has(input:checked) *",APP_CSS)
         self.assertIn('[data-testid="stDownloadButton"] button *',APP_CSS)
         self.assertIn("color:#FFFFFF!important",APP_CSS)
         self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
         self.assertIn("background:var(--forest)!important",APP_CSS)
-
-    def test_no_green_outlines_or_panel_borders(self):
-        section=APP_CSS.split('No colored module outlines.')[-1]
-        self.assertIn('border:0!important',section)
-        self.assertIn('border-left:0!important',section)
-        self.assertIn('border-top:0!important',section)
-        self.assertIn('border-bottom:0!important',section)
-        self.assertIn('box-shadow:0 3px 16px rgba(',section)
-        self.assertIn('stVerticalBlockBorderWrapper',section)
-        self.assertIn('stMetric',section)
-        self.assertIn('stForm',section)
-        self.assertIn('label:has(input:checked)',section)
-        self.assertIn('background:#FFFFFF!important',section)
-        self.assertIn('color:#FFFFFF!important',section)
 
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
