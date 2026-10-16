@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "government_feed_identity.py"
       - "ui_theme.py"
       - ".streamlit/config.toml"
       - "test_ui_theme.py"

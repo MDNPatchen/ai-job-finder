@@ -10,6 +10,7 @@ from ranked_breakdowns import (
 )
 from posting_metadata import reconcile_workplace_record
 from job_workflow import preferences_allow
+from government_feed_identity import dedupe_vacancy_urls, belongs_to_configured_agency
 from employer_postings import posting_quality
 
 
@@ -59,6 +60,10 @@ def extracted_filter():
         "reconcile_workplace_record":reconcile_workplace_record,
         "preferences_allow":preferences_allow,
         "posting_quality":posting_quality,
+        "dedupe_vacancy_urls":dedupe_vacancy_urls,
+        "belongs_to_configured_agency":belongs_to_configured_agency,
+        "GOVERNMENT_AGENCIES":[("boiseid","City of Boise","ID")],
+        "SCHOOLJOBS_AGENCIES":[],
         "score_job":lambda job,resume,query,profile:dict(job),
     }
     exec(compile(module,"app.py","exec"),namespace)
@@ -113,7 +118,12 @@ class RankedBreakdownTests(unittest.TestCase):
             make_job(title="High government match",documented=5,total=6,source="NEOGOV",rank=7),
             make_job(title="Mid employer match",documented=3,total=5,rank=40)
         ]
-        jobs[1]["government"]=True
+        jobs[1].update({
+            "government":True,
+            "company":"City of Boise",
+            "location":"Boise, ID",
+            "url":"https://www.governmentjobs.com/careers/boiseid/jobs/5504395-0",
+        })
         func=extracted_filter()
         result,_=func(jobs,None,"On-site + Hybrid","","uploaded resume text")
         self.assertEqual([r["title"] for r in result],
