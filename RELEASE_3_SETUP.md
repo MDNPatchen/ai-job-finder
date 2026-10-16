@@ -1,5 +1,35 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Compact Slate UI refresh — 3.1.15 scoring unchanged
+
+The uploaded Oct. 16 live v3.1.15 CSV was audited before changing the
+interface. It contains 429 job rows, 38 columns, 429 distinct nonblank
+application URLs, correct sequential ranks and strictly descending
+comparative fit indices. All dated postings are within 45 days as of
+Oct. 16, 2026. No non-Mayo remote jobs or generic "Breakthrough" Mayo
+job titles remain. Mayo's Delivery Manager and Manager Information
+Security titles are correct. Industrial Electric Manufacturing's
+Purchasing Supervisor has a 71/96 index and a 24-point manufacturing
+purchasing caution. The revised v3.1.15 qualification rules are
+therefore visible in a real exported file.
+
+The visual styling has been rebuilt from a single coherent stylesheet:
+dark charcoal/gray-green page (#27342F), noticeably lighter slate
+modules (#34443D), muted green inputs (#3C4E45) and soft white text
+(#F1F6F2). This is NOT a black background. Individual metrics,
+job cards, forms, menus and exports have smaller interior padding,
+more compact typography, smaller controls and 3-4px corners. Clear
+background contrast and whitespace separate the modules. No green
+borders or enclosing navigation capsule. Green-filled controls retain
+white text with tested WCAG contrast.
+
+The app displays a "Compact Slate" design marker alongside matching
+v3.1.15. This is a purely visual release: no ranking logic, data
+source, export columns, tracker or remote-filter changes. Existing
+user search state is retained by leaving the matching engine version
+unchanged. Native CSV/JSON download fragments are preserved.
+
+
 ## Version 3.1.15 — real Mayo titles, specialist manufacturing buying, no green borders
 
 An audit of the live v3.1.14 ranked CSV found two Mayo Clinic postings
