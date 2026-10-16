@@ -216,6 +216,191 @@ hr{border-color:var(--border)!important;margin:1.45rem 0!important;}
  .st-key-top_navigation [role="radiogroup"] label{padding:9px 11px!important;}
  h1{font-size:1.7rem!important;}
 }
+
+/* October 16 modular pass: squared sections, clearer gutters, and strong
+   contrast on every dark-green control. Last declarations intentionally win
+   over the earlier soft-card rules above. */
+:root {
+  --page:#F3F5F6;--paper:#FFFFFF;--quiet:#F7F9F8;
+  --ink:#20312B;--muted:#617269;--forest:#14634A;
+  --border:#D9E1DE;--hover:#EDF4F0;
+}
+html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
+[data-testid="stMain"],[data-testid="stMainBlockContainer"],
+[data-testid="stHeader"] {
+  background-color:var(--page)!important;
+}
+[data-testid="block-container"]{
+  max-width:1460px!important;
+  padding:2.1rem 3.1rem 5rem!important;
+}
+/* Remove the continuous rounded navigation capsule: six distinct tabs
+   on a simple rule, each with its own large touch target. */
+.job-topbar{
+  padding:.1rem 0 1.2rem!important;
+  margin-bottom:1.25rem!important;border-bottom:1px solid var(--border);
+}
+.job-mark{border-radius:2px!important;}
+.st-key-top_navigation [role="radiogroup"]{
+  background:transparent!important;
+  box-shadow:none!important;border:0!important;
+  border-bottom:1px solid #CAD8D2!important;
+  border-radius:0!important;
+  padding:0 0 8px!important;
+  gap:10px!important;
+}
+.st-key-top_navigation [role="radiogroup"] label{
+  border-radius:3px!important;
+  border:1px solid #D8E2DC!important;
+  background:#FFFFFF!important;
+  padding:12px 19px!important;
+  min-height:47px!important;
+  margin:0!important;
+}
+.st-key-top_navigation [role="radiogroup"] label:hover{
+  background:#EDF5F0!important;border-color:#9AB9AA!important;
+}
+.st-key-top_navigation [role="radiogroup"] label:has(input:checked){
+  background:var(--forest)!important;
+  border-color:var(--forest)!important;
+  box-shadow:none!important;
+}
+.st-key-top_navigation [role="radiogroup"] label:has(input:checked) p,
+.st-key-top_navigation [role="radiogroup"] label:has(input:checked) span,
+.st-key-top_navigation [role="radiogroup"] label:has(input:checked) *{
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+}
+.st-key-top_navigation [role="radiogroup"] label:not(:has(input:checked)) p{
+  color:#244A3B!important;
+}
+.job-hero{padding:1.1rem 0 1.55rem!important;margin-bottom:.8rem!important;}
+.job-hero h1{line-height:1.25!important;}
+/* All real modules use the same tidy rectangular geometry instead of bubbles. */
+[data-testid="stMetric"],
+[data-testid="stForm"],
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stVerticalBlockBorderWrapper"]>div[data-testid="stVerticalBlock"],
+[data-testid="stExpander"],
+[data-testid="stDataFrame"],
+[data-testid="stAlert"]{
+  border-radius:4px!important;
+  box-shadow:none!important;
+}
+[data-testid="stMetric"]{
+  padding:1.75rem 1.85rem!important;
+  min-height:138px;
+  border-left:4px solid #94B6A6!important;
+}
+[data-testid="stForm"]{
+  padding:2rem 2.15rem!important;
+  border-top:3px solid #9ABCAA!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]{
+  background:#FFFFFF!important;
+  border:1px solid #D5DFDA!important;
+  border-left:4px solid #9BBCAA!important;
+  margin-bottom:13px!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]>div[data-testid="stVerticalBlock"]{
+  padding:1.95rem 2.1rem!important;
+  background:#FFFFFF!important;
+}
+/* Spacing inside bordered cards, not only around them. */
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
+  row-gap:1rem!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] p{
+  margin:.3rem 0 .7rem!important;
+  line-height:1.65!important;
+}
+[data-testid="stExpander"] summary{
+  padding:14px 18px!important;min-height:48px;
+}
+[data-testid="stExpander"] [data-testid="stExpanderDetails"]{
+  padding:1.1rem 1.6rem 1.5rem!important;
+}
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"]>div>div,
+[data-testid="stMultiSelect"]>div>div{
+  border-radius:3px!important;
+}
+.stButton button,[data-testid="stDownloadButton"] button,
+[data-testid="stLinkButton"] a,
+[data-testid="stFormSubmitButton"] button{
+  border-radius:3px!important;min-height:47px!important;
+  padding:11px 19px!important;
+}
+/* The old global p color could override white labels on filled controls.
+   Bind the descendants' colors, not just the button element. */
+.stButton button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[kind="primary"],
+[data-testid="stDownloadButton"] button{
+  background:var(--forest)!important;
+  border-color:var(--forest)!important;
+  color:#FFFFFF!important;
+}
+.stButton button[kind="primary"] *,
+[data-testid="stFormSubmitButton"] button[kind="primary"] *,
+[data-testid="stDownloadButton"] button *,
+.stButton button[kind="primary"] p,
+[data-testid="stFormSubmitButton"] button[kind="primary"] p,
+[data-testid="stDownloadButton"] button p{
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+}
+.stButton button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+[data-testid="stDownloadButton"] button:hover{
+  background:#0D4D39!important;border-color:#0D4D39!important;
+}
+.stButton button[kind="primary"]:hover *,
+[data-testid="stFormSubmitButton"] button[kind="primary"]:hover *,
+[data-testid="stDownloadButton"] button:hover *{
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+}
+[data-testid="stDownloadButton"] button:focus-visible,
+.stButton button[kind="primary"]:focus-visible{
+  outline:3px solid #A5D9C0!important;outline-offset:3px;
+}
+/* Tags resemble small rectangular metadata chips, never floating pills. */
+.job-pill,.job-pill.mint,.job-pill.warn,.job-pill.blue{
+  border-radius:2px!important;padding:6px 10px!important;
+  font-size:.76rem!important;line-height:1.35!important;
+}
+.job-pill.mint{
+  background:var(--forest)!important;border-color:var(--forest)!important;
+  color:#FFFFFF!important;
+}
+.job-card-top{margin:0 0 1rem!important;}
+.job-role{font-size:1.18rem;line-height:1.47!important;}
+.job-meta{line-height:1.65!important;margin-top:9px!important;}
+.job-tags{gap:8px!important;margin-top:16px!important;}
+.job-score{margin-top:15px!important;}
+/* Distinct section heading sits outside cards; minimal rule underneath. */
+.job-module-heading{
+  margin:2.15rem 0 1.1rem;
+  padding:0 0 .78rem;border-bottom:1px solid #CEDAD3;
+  font-size:1.12rem;font-weight:760;letter-spacing:-.018em;
+  color:var(--ink);
+}
+.job-module-caption{
+  color:var(--muted);font-size:.9rem;line-height:1.55;
+  margin:-.5rem 0 1.3rem;
+}
+@media(max-width:900px){
+ [data-testid="block-container"]{padding:1.1rem 1.1rem 4rem!important;}
+ [data-testid="stMetric"]{padding:1.35rem 1.4rem!important;}
+ [data-testid="stForm"]{padding:1.45rem 1.35rem!important;}
+ [data-testid="stVerticalBlockBorderWrapper"]>div[data-testid="stVerticalBlock"]{
+   padding:1.45rem 1.35rem!important;
+ }
+ .st-key-top_navigation [role="radiogroup"]{gap:6px!important;}
+ .st-key-top_navigation [role="radiogroup"] label{
+   padding:11px 13px!important;min-height:43px!important;
+ }
+}
+
 </style>
 """
 
