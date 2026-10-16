@@ -89,7 +89,10 @@ class PrivateEmployerMinimumTests(unittest.TestCase):
         found=flagged(job)['checks']
         self.assertTrue(any(x['area']=='Compensation and equity administration'
                             and x['ranking_caution']>0 for x in found))
-        self.assertGreater(scored(job)['career_fit_penalty'],0)
+        assessment=scored(job)
+        self.assertGreater(assessment['posting_requirement_penalty'],0)
+        self.assertTrue(any(item['ranking_caution']>0 for item in assessment['career_fit_cautions']))
+        self.assertGreater(assessment['ranking_overlap_relief'],0)
 
     def test_mass_spec_scientist_not_business_management(self):
         job=html_job('Senior Scientist - Mass Spec Production (LC-MS/MS)',
