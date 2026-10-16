@@ -183,6 +183,27 @@ FIELDS = (
      r'\b(?:music rights? administration|music licensing|music clearances?|'
      r'music copyright administration|synchronization licens(?:es?|ing)|'
      r'sync licensing|music publishing rights)\b',24),
+    ('Corporate finance / FP&A specialization',
+     r'\b(?:corporate finance|financial (?:planning\s*(?:and|&)\s*analysis|'
+     r'model(?:ing|ling)|statement analysis|due diligence)|'
+     r'FP&A|treasury management|capital allocation|'
+     r'finance\s*(?:,\s*data|\s+(?:or|and)\s+analytics?)|'
+     r'\d+\s*(?:[-–]\s*\d+)?\+?\s*years?\s+(?:of\s+)?'
+     r'(?:professional\s+)?experience\s+in\s+(?:a\s+)?finance)\b',
+     r'\b(?:corporate finance|financial (?:planning\s*(?:and|&)\s*analysis|'
+     r'model(?:ing|ling)|statement analysis)|FP&A|'
+     r'treasury management|capital allocation|'
+     r'finance\s+(?:professional|analyst|department|director))\b',22),
+    ('Construction / preconstruction delivery experience',
+     r'\b(?:preconstruction|construction management|'
+     r'commercial construction|federal construction|'
+     r'construction projects?|construction estimating|'
+     r'construction cost estimation|general contractor|'
+     r'construction site management|capital construction projects?)\b',
+     r'\b(?:preconstruction|construction management|'
+     r'commercial construction|federal construction|'
+     r'construction projects?|construction estimating|'
+     r'general contractor|construction site management)\b',25),
     ('Advanced marketing science / statistical modeling',
      r'\b(?:marketing science|marketing mix model(?:ing|ling)|'
      r'econometric modeling|statistical programming|'
