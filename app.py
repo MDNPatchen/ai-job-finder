@@ -22,6 +22,7 @@ import tracker_sync
 from copy import deepcopy
 from career_priority import career_sort_key, career_review_category, has_detailed_description, order_for_review
 from coverage_health import coverage_messages
+from employer_evidence import attach_saved_evidence
 from description_quality import assess_description
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
@@ -128,6 +129,7 @@ def ranked_exports(all_results,run_id):
     File downloads are isolated from app reruns and preserve real job URLs
     and whatever qualification evidence is available for that search.
     """
+    all_results=attach_saved_evidence(all_results,st.session_state.get('employer_checks',{}))
     all_breakdowns=breakdowns_json(
         all_results,matching_version=MATCHING_ENGINE_VERSION,
         search_run_id=run_id)
@@ -295,6 +297,7 @@ SEARCH_TERMS = [
 # Source coverage is necessarily partial: NEOGOV has per-agency feeds, not
 # a public national jobs API. Failed feeds and undated vacancies are excluded.
 from concurrent.futures import as_completed
+from source_rss import iter_public_rss
 from source_http import ContextPool as ThreadPoolExecutor, request_budget, open_response
 
 MAX_POSTING_AGE_DAYS = 45
@@ -564,12 +567,8 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
         url = 'https://www.governmentjobs.com/SearchEngine/JobsFeed?' + urlencode({'agency': token})
         req = Request(url, headers={'User-Agent':'Mozilla/5.0 (personal job research)',
                                     'Accept':'application/rss+xml, application/xml, text/xml, */*'})
-        with open_response(req, timeout=7) as response:
-            raw = response.read(3_000_000)
-        root = parse_public_rss(raw)
-        items = root.findall('.//item')
         jobs = []
-        for item in items[:350]:
+        for item in iter_public_rss(req,timeout=12):
             def field(key):
                 return (item.findtext(key) or '').strip()
             link=field('link')
@@ -1001,10 +1000,8 @@ def load_schooljobs_feeds(state_filter=None, catalog_version=None):
         url='https://www.schooljobs.com/SearchEngine/JobsFeed?'+urlencode({'agency':token})
         req=Request(url,headers={'User-Agent':'Mozilla/5.0 (personal job research)',
                                  'Accept':'application/rss+xml, application/xml, text/xml, */*'})
-        with open_response(req,timeout=9) as response:
-            root=parse_public_rss(response.read(3_000_000))
         jobs=[]
-        for entry in root.findall('.//item')[:250]:
+        for entry in iter_public_rss(req,timeout=12):
             f=lambda name:(entry.findtext(name) or '').strip()
             link=f('link')
             if not belongs_to_configured_agency(link,token,'NEOED Schooljobs'):
@@ -1165,7 +1162,8 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                             health.append({'provider':label,'board':board,
                                            'status':('Failed' if board in failed_names else
                                                      'Active' if number else 'Empty'),
-                                           'records':number})
+                                           'records':number,
+                                           'error':next((err.split(':',1)[1].strip() for err in failures if err.split(':',1)[0].strip()==board),'')})
                     elif label in ('Greenhouse public boards','Ashby public boards',
                                    'SmartRecruiters public boards','NEOED education RSS',
                                    'Workable public boards','Lever employer boards'):

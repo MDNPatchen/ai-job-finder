@@ -42,7 +42,7 @@ def fetch_json(url,timeout=12,opener=None,sleep=time.sleep):
     for attempt in range(3):
         try:
             with opener(request,timeout=remaining(timeout)) as response:
-                raw=response.read(12_000_001)
+                raw=read_bounded(response)
             if len(raw)>12_000_000: raise ValueError('Provider response exceeds 12 MB')
             return json.loads(raw)
         except HTTPError as exc:
@@ -53,3 +53,18 @@ def fetch_json(url,timeout=12,opener=None,sleep=time.sleep):
             if attempt==2: raise
             delay=.25*(2**attempt)
         sleep(remaining(delay))
+
+
+def read_bounded(response,limit=12_000_000,chunk_size=65_536):
+    """Read a complete body or fail explicitly; never parse a cut-off prefix."""
+    chunks=[]
+    total=0
+    while True:
+        remaining(10)
+        chunk=response.read(min(chunk_size,limit-total+1))
+        if not chunk:
+            return b''.join(chunks)
+        total+=len(chunk)
+        if total>limit:
+            raise ValueError(f'Provider response exceeds {limit} bytes; complete feed not retrieved')
+        chunks.append(chunk)

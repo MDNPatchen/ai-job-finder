@@ -92,9 +92,8 @@ def render_employer_checker(job, number, sec_email='',on_change=None):
     """Show one button, only check external services if it is clicked."""
     if 'employer_checks' not in st.session_state:
         st.session_state.employer_checks={}
-    identifier=hashlib.sha256(
-        (str(job['company'])+'|'+str(job['source'])+'|'+str(job['url'])).encode('utf-8')
-    ).hexdigest()[:24]
+    from employer_evidence import evidence_key
+    identifier=evidence_key(job)
     if st.button('Check employer',key=f'employer_check_{number}',
                  help='Free on-demand check: job posting URL, legal identity, operating history and public financial records.'):
         location=Path(__file__).resolve().parent/'employer_profiles.json'

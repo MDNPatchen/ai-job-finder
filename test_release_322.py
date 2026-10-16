@@ -82,3 +82,67 @@ class SpecialtyEvidenceTests(unittest.TestCase):
         from qualification_domains import identify_specialized_requirements
         findings=identify_specialized_requirements({'title':'Payroll Director','description':'Payroll systems experience preferred.'},'')
         self.assertEqual(findings[0]['priority'],'Preferred experience')
+
+class EmployerExportTests(unittest.TestCase):
+    def test_saved_evidence_is_exact_posting_scoped_and_dated(self):
+        from datetime import datetime,timezone
+        from employer_evidence import evidence_key,attach_saved_evidence
+        a=dict(company='Example',source='Greenhouse',url='https://example.org/1')
+        b=dict(a,url='https://example.org/2')
+        checks={evidence_key(a):dict(checked_at='2026-10-16T12:00:00+00:00',identity={'status':'Exact-name legal entity match'},posting={'status':'Page responds','vacancy_status':'Open status not established'})}
+        now=datetime(2026,10,16,13,tzinfo=timezone.utc)
+        rows=breakdowns_csv_rows(attach_saved_evidence([a,b],checks,now))
+        self.assertEqual(rows[0]['Employer check freshness'],'Current (within 24 hours)')
+        self.assertEqual(rows[1]['Saved legal identity check'],'Not checked')
+        self.assertEqual(rows[0]['Saved posting availability check'],'Open status not established')
+        self.assertNotIn('employer_evidence_summary',a)
+        stale=attach_saved_evidence([a],checks,datetime(2026,10,18,tzinfo=timezone.utc))[0]
+        self.assertIn('Stale',stale['employer_evidence_summary']['freshness'])
+    def test_future_or_undated_checks_never_claim_freshness(self):
+        from datetime import datetime,timezone
+        from employer_evidence import evidence_key,attach_saved_evidence
+        a=dict(company='Example',source='Board',url='https://example.org/1')
+        for date in ['bad','2027-01-01T00:00:00+00:00','2026-10-16T12:00:00']:
+            row=attach_saved_evidence([a],{evidence_key(a):{'checked_at':date}},datetime(2026,10,16,tzinfo=timezone.utc))[0]
+            self.assertNotIn('Current',row['employer_evidence_summary']['freshness'])
+
+class CompleteFeedTests(unittest.TestCase):
+    def test_feed_larger_than_old_limit_is_complete(self):
+        import io,xml.etree.ElementTree as ET
+        from source_http import read_bounded
+        body=b'<rss><channel><item><description>'+b'x'*3_500_000+b'</description></item></channel></rss>'
+        received=read_bounded(io.BytesIO(body))
+        self.assertEqual(len(received),len(body))
+        self.assertEqual(len(ET.fromstring(received).findall('.//item')),1)
+    def test_oversized_feed_has_size_error_not_fake_xml_error(self):
+        import io
+        from source_http import read_bounded
+        self.assertEqual(read_bounded(io.BytesIO(b'1234'),limit=4),b'1234')
+        with self.assertRaisesRegex(ValueError,'complete feed not retrieved'):
+            read_bounded(io.BytesIO(b'12345'),limit=4)
+    def test_deadline_applies_during_body_read(self):
+        import io
+        from source_http import read_bounded,request_budget
+        with request_budget(-1):
+            with self.assertRaises(TimeoutError):read_bounded(io.BytesIO(b'abc'))
+
+class StreamingRSSReliabilityTests(unittest.TestCase):
+    def test_large_feed_and_more_than_previous_item_caps(self):
+        import io
+        from source_rss import iter_rss_response
+        body=b'<rss><channel>'+b'<item><title>Director</title><description>'+b'x'*3_100_000+b'</description></item>'+b'<item><title>Manager</title></item>'*750+b'</channel></rss>'
+        titles=[x.findtext('title') for x in iter_rss_response(io.BytesIO(body))]
+        self.assertEqual(len(titles),751)
+        self.assertEqual(titles[0],'Director')
+    def test_incomplete_document_is_not_successful(self):
+        import io
+        from source_rss import iter_rss_response
+        with self.assertRaisesRegex(ValueError,'Malformed RSS'):
+            list(iter_rss_response(io.BytesIO(b'<rss><channel><item><title>A</title></item>')))
+    def test_provider_error_and_byte_limit_are_explicit(self):
+        import io
+        from source_rss import iter_rss_response
+        with self.assertRaisesRegex(ValueError,'Unexpected RSS'):
+            list(iter_rss_response(io.BytesIO(b'<error>unavailable</error>')))
+        with self.assertRaisesRegex(ValueError,'complete feed not retrieved'):
+            list(iter_rss_response(io.BytesIO(b'<rss>'+b' '*100+b'</rss>'),limit=50))

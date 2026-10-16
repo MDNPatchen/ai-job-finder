@@ -65,6 +65,7 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
                              else 'Manager' if leadership_tier(job.get('title'))==1
                              else 'Supervisor / specialist'),
             'employer': job.get('company') or '',
+            'saved_employer_evidence':job.get('employer_evidence_summary') or {},
             'employer_identity_kind': job.get('employer_identity_kind') or
                                       'Company named by source; identity not independently verified',
             'work_arrangement_conflict': job.get('workplace_conflict') or '',
@@ -162,6 +163,10 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
             'Career level (title-based)': item['career_level'],
             'Employer': item['employer'],
             'Employer identification': item['employer_identity_kind'],
+            'Employer check date (UTC)':item['saved_employer_evidence'].get('checked_at',''),
+            'Employer check freshness':item['saved_employer_evidence'].get('freshness','Not checked'),
+            'Saved legal identity check':item['saved_employer_evidence'].get('identity_status','Not checked'),
+            'Saved posting availability check':item['saved_employer_evidence'].get('vacancy_status','Open status not established'),
             'Work arrangement evidence': item['work_arrangement_source'],
             'Workplace labeling conflict': item['work_arrangement_conflict'],
             'Posting explicitly restricts to internal applicants': (
