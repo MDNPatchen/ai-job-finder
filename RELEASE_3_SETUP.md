@@ -1,5 +1,40 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.2 — actual minimum qualifications (October 15, 2026)
+
+The 3.1.1 ranked export still put water-system operators, EHS specialists,
+product designers and an internal-only applicant ahead of clearly transferable
+business-management roles. The v3.1.2 search adds a separate evidence-based
+check of *actual requirements written in the employer posting*:
+
+- **Application eligibility**: explicit internal-applicant-only conditions in
+  the title or job text receive a large ranking caution, never an ungrounded
+  assertion that the user is ineligible.
+- **Mandatory field-specific experience**: job-specific wording about water
+  utilities, industrial safety, product/UX design, building engineering,
+  emergency management, technical accounting and instructional credentials
+  counts when phrased as a minimum qualification. Generic management terms
+  are not evidence of specialized qualifications.
+- **Credentials and portfolios**: context such as water-operator certification,
+  professional engineering credentials, OSHA requirements and design
+  portfolios is flagged. "Preferred" is not treated as required; the option
+  to obtain a credential after hiring is treated differently from requiring
+  one at application time. Résumé mentions do not prove a license is current.
+- **Residency**: an explicit local residency rule lowers priority and is
+  shown for individual verification, without assuming where the user lives.
+- **Conflicting workplace descriptions**: explicit *full* in-person attendance
+  in the posting overrides an ATS hybrid/remote label for the job display,
+  and the disagreement is highlighted. Clearly hybrid schedules with
+  occasional office days are preserved.
+
+Every detected condition has supporting employer-posting text and can be
+reviewed in the job card and ranked CSV/JSON exports. The résumé provides
+only limited evidence; nothing here establishes hiring eligibility or
+guarantees that a vacancy is open. **All jobs remain browseable** unless
+removed by existing filters. Version 3.1.2 invalidates the old 3.1.1
+search session and produces export filenames containing **_v312_**.
+
+
 ## Version 3.1.1 — career suitability guardrails (October 15, 2026)
 
 The 3.1.0 job export surfaced unrelated specialist and early-career openings
