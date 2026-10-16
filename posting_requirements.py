@@ -11,6 +11,7 @@ from html import unescape
 INTERNAL_ONLY = re.compile(
     r'\b(?:in[- ]house only|internal (?:applicants|candidates|employees) only|'
     r'only (?:current|existing|internal) (?:employees|staff|applicants|candidates)|'
+    r'internal\s+(?:[a-z0-9&/-]{2,12}\s+){1,2}(?:applicants?|candidates?|employees?|staff)\s+only|'
     r'(?:open|available) (?:only|exclusively) to (?:current|existing|internal) '
     r'(?:employees|staff|applicants|candidates)|'
     r'current employees? (?:only|may apply)|'
@@ -123,6 +124,19 @@ FIELDS = (
      r'software implementation projects?|systems integrations?|'
      r'enterprise IT (?:infrastructure|projects?)|'
      r'information technology projects?|technical project management)\b',23),
+    ('Dedicated social media campaign leadership',
+     r'\b(?:social media|social-media|paid social|social campaigns?|'
+     r'social content strategy|social platform growth)\b',
+     r'\b(?:social media (?:strategy|management|campaigns?|marketing|'
+     r'content (?:strategy|production))|paid social (?:advertising|campaigns?)|'
+     r'social platform (?:growth|management))\b',20),
+    ('Music licensing / copyright clearances',
+     r'\b(?:music rights?|music licensing|music clearances?|'
+     r'music copyright|synchronization licens(?:es?|ing)|sync licensing|'
+     r'music publishing rights)\b',
+     r'\b(?:music rights? administration|music licensing|music clearances?|'
+     r'music copyright administration|synchronization licens(?:es?|ing)|'
+     r'sync licensing|music publishing rights)\b',24),
     ('Advanced marketing science / statistical modeling',
      r'\b(?:marketing science|marketing mix model(?:ing|ling)|'
      r'econometric modeling|statistical programming|'
@@ -253,6 +267,19 @@ _EMPLOYER_OFFER = re.compile(
     r'(?:health(?:care)?\s+plans?|paid\s+time\s+off|'
     r'fertility\s+benefits|retirement\s+benefits|'
     r'401\s*\(?k\)?|wellness\s+benefits))\b',re.I)
+# Grant eligibility is employee compensation, NOT equity-plan administration.
+# A sentence can be appended to a "What You'll Need" section without a
+# dedicated Benefits heading. Distinguish receiving grants from administering
+# the grants for the company's employees.
+_EQUITY_GRANT_OFFER = re.compile(
+    r'\b(?:this\s+(?:role|position|job)|you|the\s+(?:successful\s+)?'
+    r'(?:candidate|employee)|our\s+employees)\b'
+    r'.{0,85}\b(?:eligible\s+for|receive|receives?|be\s+awarded)\b'
+    r'.{0,85}\b(?:equity|stock|shares?|grants?)\b|'
+    r'\b(?:eligible\s+for|receive)\s+(?:refresh\s+)?'
+    r'(?:equity|stock)\s+grants?\b',re.I)
+
+
 _REWARD_ADMINISTRATIVE = re.compile(
     r'\b(?:administ(?:er|ration|ering)|manag(?:e|ing|ement)|'
     r'develop(?:ed|ing)?|design(?:ing)?|oversee|led|leading|'
@@ -267,6 +294,10 @@ def _employer_offer_text(section, clause, area):
     if area != 'Compensation and equity administration':
         return False
     line=str(clause or '').strip().lstrip('-• ')
+    # Example: "Additionally, this role will be eligible for refresh equity
+    # grants as part of our ongoing compensation program."
+    if _EQUITY_GRANT_OFFER.search(line):
+        return True
     if not _EMPLOYER_OFFER.search(line):
         return False
     # Real requirements generally say "manage compensation programs" or
