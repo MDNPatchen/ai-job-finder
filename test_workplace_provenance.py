@@ -9,6 +9,7 @@ import unittest
 
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
+    strict_onsite_requirement,
     employer_identity_kind, reconcile_workplace_record,
     NO_WORKPLACE_EVIDENCE, WORKPLACE_SOURCE_UNVERIFIED
 )
@@ -27,6 +28,7 @@ def extract_current_functions():
         'declared_arrangement':declared_arrangement,
         'affirmative':affirmative,
         'from_explicit_description':from_explicit_description,
+        'strict_onsite_requirement':strict_onsite_requirement,
         'html_to_text':lambda raw:re.sub(r'<[^>]+>',' ',str(raw or '')),
         'employer_identity_kind':employer_identity_kind,
         'parse_posted_date':lambda value:None
