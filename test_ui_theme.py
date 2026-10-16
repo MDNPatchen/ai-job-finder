@@ -34,11 +34,11 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn("background:var(--paper)",APP_CSS)
 
     def test_roomier_modules_have_balanced_side_margins(self):
-        self.assertIn("max-width:1390px",APP_CSS)
-        self.assertIn("width:calc(100% - 6.5rem)",APP_CSS)
+        self.assertIn("max-width:1370px",APP_CSS)
+        self.assertIn("width:calc(100% - 8rem)",APP_CSS)
         self.assertIn("margin-left:auto!important",APP_CSS)
         self.assertIn("margin-right:auto!important",APP_CSS)
-        self.assertIn("padding:1.65rem 2.55rem 3.5rem",APP_CSS)
+        self.assertIn("padding:2rem 3rem 4rem",APP_CSS)
         self.assertIn("width:100%!important;max-width:100%!important",APP_CSS)
         self.assertIn("min-height:105px",APP_CSS)
         self.assertIn("min-height:40px",APP_CSS)
