@@ -19,7 +19,7 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn("@media(max-width:900px)",APP_CSS)
 
     def test_compact_modules_have_smaller_interiors_without_green_borders(self):
-        self.assertIn("Single source of truth for the compact slate-and-forest theme",
+        self.assertIn("Compact independent modules:",
                       APP_CSS)
         self.assertIn("padding:.87rem 1.05rem",APP_CSS)
         self.assertIn("padding:.85rem 1rem",APP_CSS)
