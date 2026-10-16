@@ -161,7 +161,10 @@ def enrich_priority_government_jobs(original_jobs, ranked_results,
     if picks:
         with ThreadPoolExecutor(max_workers=4) as pool:
             for job,desc in zip(picks,pool.map(fetch,picks)):
-                if desc and len(desc)>len(str(job.get("description") or ""))+150:
+                # A real qualification section is more valuable than a
+                # longer promotional RSS excerpt; do not require a length
+                # increase when the validated official bulletin is substantive.
+                if desc and len(desc)>=800 and _QUALIFICATIONS.search(desc):
                     results[job["url"]]=desc
     output=[]
     for item in original_jobs:
