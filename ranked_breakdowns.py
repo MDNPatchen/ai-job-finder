@@ -66,6 +66,7 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'posted_date': job.get('date') or '',
             'job_url': job.get('url') or '',
             'source': job.get('source') or '',
+            'job_description_source': job.get('description_source') or 'Source detail depth unknown',
             'evidence_match_index': evidence_index(q),  # legacy JSON key
             'comparative_fit_index': evidence_index(q),
             'role_alignment_index': q.get('role_alignment_index'),
@@ -156,6 +157,7 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
             'Date posted': item['posted_date'],
             'Job URL': item['job_url'],
             'Source': item['source'],
+            'Job description completeness source': item['job_description_source'],
             'Documented match count': len(item['documented_resume_matches']),
             'Total relevant areas in posting': item['total_relevant_areas_detected'],
             'Resume-supported qualifications': areas(item['documented_resume_matches']),
