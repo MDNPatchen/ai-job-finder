@@ -153,6 +153,16 @@ def _construction_work_priority(clause, initial_priority):
     required=list(_CONSTRUCTION_REQUIREMENT_WORD.finditer(clause))
     preferred=list(PREFERRED.finditer(clause))
     if not preferred:
+        # Employer qualification bullets often consist solely of
+        # "10+ years in preconstruction" without the word "required".
+        # A leading numerical tenure is a substantive minimum, unlike a
+        # passing description of a team's years of service.
+        if (initial_priority=='Field expertise mentioned — verify' and
+                re.match(r'^\s*(?:\d+|five|seven|eight|ten|fifteen|twenty)'
+                         r'(?:\s*(?:-|–|to)\s*\d+)?\+?\s+years?\b',
+                         clause,re.I) and
+                _CONSTRUCTION_FIELD.search(clause)):
+            return 'Required / minimum — construction work tenure stated'
         return initial_priority
     # Only override a generic 'preferred' result when the employer's
     # required condition is explicitly tied to construction work years
