@@ -1522,6 +1522,20 @@ if page == 'Dashboard':
         a.metric('Tracked Jobs', len(jobs))
         b.metric('Applied', sum(j['Status'] == 'Applied' for j in jobs))
         c.metric('Interviewing', sum(j['Status'] == 'Interviewing' for j in jobs))
+        recent_search=st.session_state.get('search_results')
+        if recent_search is not None:
+            st.markdown('<div class="job-module-heading">Latest search</div>',
+                        unsafe_allow_html=True)
+            confirmed=sum((j.get('work_style') in ('On-site','Hybrid','Remote'))
+                          for j in recent_search)
+            detailed=sum('RSS summary' not in str(j.get('description_source') or '')
+                         and 'RSS text' not in str(j.get('description_source') or '')
+                         for j in recent_search)
+            sm1,sm2,sm3=st.columns(3)
+            sm1.metric('Ranked openings',len(recent_search))
+            sm2.metric('Workplace identified',confirmed)
+            sm3.metric('More complete descriptions',detailed)
+
         a, b, c = st.columns(3, gap='large')
         a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
         b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
@@ -1894,6 +1908,9 @@ elif page == 'Find Jobs':
                     'All career levels','Director / executive / publisher',
                     'Management roles','Other roles'
                 ],key='career_review_filter')
+            description_view=st.checkbox('Hide summary-only postings',
+                value=False,key='full_description_filter',
+                help='Removes listings where the available description is only an RSS summary; these may lack important qualifications.')
             tracked_ids={posting_id({'company':item['Company'],'title':item['Job Title'],
                        'url':item['Job URL'],'location':item['Location']})
                          for item in st.session_state.jobs}
@@ -1912,6 +1929,10 @@ elif page == 'Find Jobs':
                 if career_view=='Management roles' and tier!=1:
                     return False
                 if career_view=='Other roles' and tier>0:
+                    return False
+                source_text=str(job.get('description_source') or '').lower()
+                if description_view and ('rss summary' in source_text or
+                                         'rss text' in source_text):
                     return False
                 return True
             display_results=[job for job in all_results
