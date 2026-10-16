@@ -314,7 +314,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
     width:100%!important;max-width:100%!important;
     padding:1rem 1.2rem 3rem!important;
   }
-  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],\n  [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],\n  section.main .block-container > [data-testid="stVerticalBlock"]{\n    padding-inline:1rem!important;\n  }\n  .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
+  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
+  [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],
+  section.main .block-container > [data-testid="stVerticalBlock"]{
+    padding-inline:1rem!important;
+  }
+  .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
   .st-key-dashboard_content > div[data-testid="stVerticalBlock"]{
     padding:.2rem .15rem .7rem!important;
   }
