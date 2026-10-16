@@ -25,6 +25,7 @@ from posting_metadata import (
 )
 from employer_ui import render_employer_checker
 from employer_postings import posting_quality
+from official_bulletins import enrich_priority_government_jobs
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
@@ -1587,6 +1588,16 @@ elif page == 'Find Jobs':
                 'include_unlisted_salary':include_unknown_pay,
                 'verified_workplace_only':verified_work,
             }
+            # The first pass identifies high-ranked, summary-only official
+            # government postings. Fetch their FULL public bulletins (bounded)
+            # before the final qualification assessment and ordering.
+            bulletin_stats={'attempted':0,'full_bulletins':0,'summary_only':0}
+            if st.session_state.resume_text.strip():
+                preview,_=filter_and_rank_jobs(raw,code,chosen_work,
+                    search_text,st.session_state.resume_text,None,preferences,
+                    chosen_listing_scope)
+                raw,bulletin_stats=enrich_priority_government_jobs(
+                    raw,preview,limit=28)
             matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
                 search_text,st.session_state.resume_text,employer_cap,preferences,
                 chosen_listing_scope)
@@ -1601,6 +1612,7 @@ elif page == 'Find Jobs':
         st.session_state.search_stats={
             'fetched':len(raw),'sources':source_counts,'errors':errors,
             'board_health':board_health,'preferences':preferences,
+            'bulletin_diagnostics':bulletin_stats,
             'new_count':sum(bool(x['new_since_last_search']) for x in matches),
             'had_baseline':had_baseline,
             'excluded':excluded,'searched':datetime.now().strftime('%b %d, %Y %I:%M %p'),
@@ -1642,6 +1654,9 @@ elif page == 'Find Jobs':
                     f"and {screened.get('foreign_location',0)} explicitly non-U.S. locations. "
                     'Change Listing sources and search again to see a broader selection.')
         st.caption('Employer-named career boards and vacancy-specific URLs do not guarantee a job is still open. Verify the original employer or government posting before applying.')
+        bulletin=stats.get('bulletin_diagnostics') or {}
+        if bulletin.get('attempted'):
+            st.caption(f"Official government bulletin lookup: {bulletin.get('full_bulletins',0)} full descriptions retrieved from {bulletin['attempted']} attempts. {bulletin.get('summary_only',0)} government listings still have summary-only job text and conservative confidence caps.")
         if stats['excluded'].get('employer_limit',0):
             st.info(f"{stats['excluded']['employer_limit']} additional qualifying postings were hidden by the optional employer limit. To see them, select All matching jobs and search again.")
         if not st.session_state.resume_text.strip():
@@ -1651,7 +1666,7 @@ elif page == 'Find Jobs':
         else:
             if st.session_state.resume_text.strip():
                 st.write('**Sorted by transferable strengths supported by your résumé: highest to lowest.**')
-                st.caption('Transferable-strength fit compares résumé evidence to actual duties, then checks employer-stated minimum qualifications, internal-only restrictions, residency rules and specialized credentials. Explicit requirements lower ranking when not documented; preferred experience is not treated as mandatory. Work-arrangement conflicts are shown. The index is NOT eligibility verification or a hiring probability.')
+                st.caption('Transferable-strength fit compares résumé evidence to actual duties, then checks employer-stated minimum qualifications, internal-only restrictions, residency rules and specialized credentials. High-ranking short government RSS summaries are supplemented with complete official bulletins where accessible; remaining summary-only results are capped to avoid false 96/96 scores. Preferred experience is not mandatory. The index is NOT eligibility verification or a hiring probability.')
                 run_id = stats.get('run_id','')
                 all_breakdowns = breakdowns_json(
                     all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
@@ -1731,6 +1746,8 @@ elif page == 'Find Jobs':
                             job.get('work_style') or 'Not specified',
                             job['date']]))
                         st.caption('Government' if job['government'] else job['source'])
+                        if job.get('description_source'):
+                            st.caption('Job text: '+job['description_source'])
                         if job.get('workplace_conflict'):
                             st.warning('Work arrangement conflict: '+job['workplace_conflict'])
                         quality=posting_quality(job)

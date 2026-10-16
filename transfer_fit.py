@@ -105,9 +105,17 @@ def transfer_fit(qualification, job, title_alignment, specialty_penalty=0,
     if (description_matches >= 3 and specialty_penalty == 0 and
             credential_penalty == 0):
         raw += 9
-    # Very sparse postings cannot substantiate a near-perfect match.
-    if len(re.sub(r'\s+', ' ', str(job.get('description') or '')).strip()) < 250:
-        raw = min(raw, 74)
+    # A short government RSS summary often omits ALL formal qualifications.
+    # Avoid an unsupported 96/96 when the full official bulletin was not
+    # retrievable. This is a confidence cap, not a job exclusion.
+    desc_len=len(re.sub(r'\s+', ' ', str(job.get('description') or '')).strip())
+    source=str(job.get('description_source') or '')
+    if desc_len<250:
+        raw=min(raw,74)
+    elif source.startswith('RSS summary only'):
+        raw=min(raw,82)
+    elif source.startswith('Provider RSS text'):
+        raw=min(raw,88)
     return {
         'index': max(0, min(96, raw)),
         'duty_coverage': coverage,

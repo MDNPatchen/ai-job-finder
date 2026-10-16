@@ -7,6 +7,7 @@ on:
       - "transfer_fit.py"
       - "career_fit_guardrails.py"
       - "posting_requirements.py"
+      - "official_bulletins.py"
       - "qualification_matcher.py"
       - "qualification_v2.py"
       - "job_workflow.py"
