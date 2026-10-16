@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "test_v3110_sector_lever.py"
       - "government_feed_identity.py"
       - "test_government_source_integrity_v319.py"
       - "ui_theme.py"
