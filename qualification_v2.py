@@ -10,6 +10,7 @@ from transfer_fit import transfer_fit
 from career_fit_guardrails import evaluate_career_fit
 from posting_requirements import extract_posting_requirements
 from formal_qualification_guardrails import extract_formal_minimums
+from specialist_caution_calibration import calibrate_cautions
 
 _NUMBER = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
@@ -221,47 +222,49 @@ def recalibrate_match(job, qualification, resume_text=''):
     for item in specialties:
         if item['needs_verification']:
             cautions.append(item.get('priority','Verify experience')+': '+item['area'])
-    # Requirements stated in the listing carry more weight than generic
-    # title overlap. Keep it a soft ranking caution, not an exclusion.
-    specialty_penalty=min(38,sum(s['ranking_caution'] for s in specialties))
-    # Avoid a penalty when a credential is merely listed as preferred.
+    # Formal employer requirements are independent of title-level or
+    # generalized specialist-domain evidence. Count overlapping experience
+    # ONLY once, while preserving degree/license and application cautions.
     restrictions=[r for r in qualification.get('screeners',[])
                   if r['type'] in ('License / certification','Civil-service eligibility')
                   and r['resume_status'].startswith(('Not verified','Permanent')) and
                   r['priority']!='Preferred / mentioned']
-    credential_penalty=min(20,sum(int(r.get('verification_penalty') or 0) for r in restrictions))
+    credential_penalty=min(20,sum(int(r.get('verification_penalty') or 0)
+                                  for r in restrictions))
     for item in restrictions:
         cautions.append(item['type']+' to verify: '+item['listing_excerpt'][:145])
-    transfer=transfer_fit(qualification, job, alignment,
-                          specialty_penalty, credential_penalty)
+
     career_fit=evaluate_career_fit(job,resume_text)
-    for note in career_fit['cautions']:
-        cautions.append('Career fit to review: '+note['area']+
-                        ' — '+note['reason'])
     posting_requirements=extract_posting_requirements(job,resume_text)
     formal_requirements=extract_formal_minimums(job,resume_text)
     review_checks=posting_requirements['checks']+formal_requirements['checks']
-    combined_requirement_penalty=min(65,
-        posting_requirements['ranking_caution']+formal_requirements['ranking_caution'])
-    for check in review_checks:
+    overlap=calibrate_cautions(specialties,career_fit['cautions'],review_checks)
+    transfer=transfer_fit(
+        qualification,job,alignment,overlap['domain_penalty'],
+        credential_penalty,specialist_gap=overlap['specialist_gap'])
+
+    for note in overlap['career_cautions']:
+        cautions.append('Career fit to review: '+note['area']+
+                        ' — '+note['reason'])
+    for check in overlap['posting_checks']:
         if check['ranking_caution'] or check['type'] in ('Application eligibility','Residency / location'):
             cautions.append(check['type']+' to verify: '+check['area']+
                             ' — '+check['listing_excerpt'][:135])
-    # Avoid stacking unlimited penalties for overlapping descriptions. The
-    # app keeps specialized experience, career-stage and explicit posting
-    # requirements separately for transparent applicant review.
-    adjusted=max(0,transfer['index']-career_fit['penalty']-
-                 combined_requirement_penalty)
-    # A 90+ match should not be awarded while a stated, mandatory degree
-    # or professional license has not been corroborated by the résumé.
+
+    adjusted=max(0,transfer['index']-overlap['career_penalty']-
+                 overlap['posting_penalty'])
+    # Preserve the mandatory qualification caution and the original 90+
+    # cap when a required degree or professional license lacks documentation.
     if formal_requirements['unverified_mandatory']:
         adjusted=min(adjusted,89)
     return {'index':adjusted,'role_alignment':alignment,
-            'cautions':cautions,'specialties':specialties,
-            'career_fit_cautions':career_fit['cautions'],
-            'career_fit_penalty':career_fit['penalty'],
-            'posting_requirement_checks':review_checks,
-            'posting_requirement_penalty':combined_requirement_penalty,
+            'cautions':cautions,'specialties':overlap['specialties'],
+            'career_fit_cautions':overlap['career_cautions'],
+            'career_fit_penalty':overlap['career_penalty'],
+            'posting_requirement_checks':overlap['posting_checks'],
+            'posting_requirement_penalty':overlap['posting_penalty'],
+            'ranking_overlap_relief':overlap['overlap_relief'],
+            'ranking_overlap_note':overlap['adjustment_note'],
             'application_restricted':posting_requirements['application_restricted'],
             'transferable_strengths':transfer['transferable_strengths'],
             'duty_coverage':transfer['duty_coverage'],
