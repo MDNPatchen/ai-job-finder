@@ -147,11 +147,56 @@ def _degree_resume_evidence(resume, level, required_line):
     return True,'Degree level is mentioned; confirm employer discipline requirements.'
 
 
+
+_ALTERNATIVE_DEGREE_CONNECTOR=re.compile(
+    r'\b(?:or|alternatively|either)\s*[,;:]?\s*(?:an?\s+)?$',re.I)
+
+
+def _reconcile_degree_pathways(desc, degree_hits):
+    """Count one required education pathway, not every offered alternative."""
+    group=[]
+    groups=[]
+    for hit in sorted(degree_hits,key=lambda x:x[0]):
+        if group:
+            prior=group[-1]
+            between=desc[prior[1]:hit[0]]
+            linked=(prior[2]!=hit[2] and len(between)<=950
+                    and _ALTERNATIVE_DEGREE_CONNECTOR.search(between[-130:])
+                    and prior[3]['priority'].startswith('Required')
+                    and hit[3]['priority'].startswith('Required'))
+            if not linked:
+                if len(group)>1:
+                    groups.append(group)
+                group=[]
+        group.append(hit)
+    if len(group)>1:
+        groups.append(group)
+
+    for group in groups:
+        penalties=[int(item['ranking_caution']) for *_,item in group]
+        cheapest=min(penalties)
+        winner=penalties.index(cheapest) if cheapest>0 else -1
+        paths=' / '.join(level.capitalize()+"'s" for _,_,level,_ in group)
+        for ix,(_,_,level,item) in enumerate(group):
+            original=item['ranking_caution']
+            if ix!=winner:
+                item['ranking_caution']=0
+                if original:
+                    item['covered_by_alternative_degree_pathway']=True
+            item['alternative_degree_pathways']=paths
+            item['priority']+=' — alternative degree route (not cumulative)'
+            item['resume_status']+=(
+                ' These are alternate degree routes, not cumulative education '
+                'requirements; verify the experience minimum for each route.'
+            )
+
+
 def extract_formal_minimums(job, resume=''):
     desc=_clean(job.get('description'))
     resume=_clean(resume)
     out=[]
     seen=set()
+    degree_hits=[]
     for level,pattern,base_penalty in _LEVELS:
         for match in list(pattern.finditer(desc))[:12]:
             # Skip mismatched fragments, references in unrelated narrative,
@@ -202,7 +247,10 @@ def extract_formal_minimums(job, resume=''):
                 'resume_status':status,
                 'ranking_caution':score
             })
+            degree_hits.append((match.start(),match.end(),level,out[-1]))
             break
+
+    _reconcile_degree_pathways(desc,degree_hits)
 
     # Require explicit licensure, not simply a "registered professionals" duty.
     for match in list(_LICENSE.finditer(desc))[:12]:

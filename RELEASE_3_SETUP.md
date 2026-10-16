@@ -1,5 +1,41 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.12 — professional experience vs. degree routes
+
+The v3.1.11 ranked export identified construction degree paragraphs
+being scored as independent professional construction experience,
+and alternate Bachelor's/Associate's qualification routes being
+penalized cumulatively.
+
+- A construction work-experience deduction now requires actual
+  qualification text about professional experience or work history.
+  A bachelor's degree *in construction management* is education,
+  not evidence of a required number of years in construction.
+  A degree *or equivalent experience* remains an educational
+  alternative, not a second experience minimum.
+- Bona fide separately stated construction years and skills stay
+  reviewable and penalized as appropriate, as does a required
+  engineering/construction degree when evidence is absent.
+- Bachelor's and Associate's minimum degree paths explicitly
+  connected by an employer's "Or," wording are grouped. The
+  applicant only needs one permitted route; the matching index
+  applies the least severe route penalty once rather than summing
+  both. Both original requirements and any pathway-specific years
+  still appear in the evidence export and require verification.
+- Preferred Master's qualifications and genuinely cumulative
+  degrees/licenses do **not** silently become alternatives.
+- Synthetic regressions based on Broward County Capital Program
+  Administrator, Dexterra Facility Project Manager, LV Petroleum
+  Construction Project Manager and Mayo Project Manager II–Facilities
+  protect these distinctions without inventing résumé credentials.
+- Only scoring, versioned exports and requirement descriptions change.
+  The approved minimalist charcoal/emerald UI and search sources
+  remain untouched. Matching version 3.1.12 / export _v3112_.
+
+The score is for comparative career research, not hiring eligibility.
+Missing résumé wording does not prove a user lacks a qualification.
+
+
 ## Version 3.1.11 — count overlapping specialist experience only once
 
 The October 16 v3.1.10 export showed industry-specialist positions at
