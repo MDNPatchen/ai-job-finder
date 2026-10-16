@@ -2079,8 +2079,10 @@ elif page == 'Job Tracker':
                 unsafe_allow_html=True)
     pc1,pc2,pc3=st.columns(3)
     pc1.metric('Active openings',len(active_rows))
-    pc2.metric('Applications sent',sum(v for k,v in status_counts.items()
-                if 'appl' in k.lower()))
+    pc2.metric('Applications sent / progressing',sum(
+        v for k,v in status_counts.items()
+        if any(term in k.lower() for term in
+               ('appl','interview','offer','screen','follow-up'))))
     pc3.metric('Interview stage',sum(v for k,v in status_counts.items()
                 if 'interview' in k.lower()))
 
