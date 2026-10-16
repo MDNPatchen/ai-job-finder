@@ -11,6 +11,7 @@ from html import unescape
 INTERNAL_ONLY = re.compile(
     r'\b(?:in[- ]house only|internal (?:applicants|candidates|employees) only|'
     r'only (?:current|existing|internal) (?:employees|staff|applicants|candidates)|'
+    r'internal\s+(?:[a-z0-9&/-]{2,12}\s+){1,2}(?:applicants?|candidates?|employees?|staff)\s+only|'
     r'(?:open|available) (?:only|exclusively) to (?:current|existing|internal) '
     r'(?:employees|staff|applicants|candidates)|'
     r'current employees? (?:only|may apply)|'
@@ -123,6 +124,19 @@ FIELDS = (
      r'software implementation projects?|systems integrations?|'
      r'enterprise IT (?:infrastructure|projects?)|'
      r'information technology projects?|technical project management)\b',23),
+    ('Dedicated social media campaign leadership',
+     r'\b(?:social media|social-media|paid social|social campaigns?|'
+     r'social content strategy|social platform growth)\b',
+     r'\b(?:social media (?:strategy|management|campaigns?|marketing|'
+     r'content (?:strategy|production))|paid social (?:advertising|campaigns?)|'
+     r'social platform (?:growth|management))\b',20),
+    ('Music licensing / copyright clearances',
+     r'\b(?:music rights?|music licensing|music clearances?|'
+     r'music copyright|synchronization licens(?:es?|ing)|sync licensing|'
+     r'music publishing rights)\b',
+     r'\b(?:music rights? administration|music licensing|music clearances?|'
+     r'music copyright administration|synchronization licens(?:es?|ing)|'
+     r'sync licensing|music publishing rights)\b',24),
     ('Advanced marketing science / statistical modeling',
      r'\b(?:marketing science|marketing mix model(?:ing|ling)|'
      r'econometric modeling|statistical programming|'
@@ -253,6 +267,16 @@ _EMPLOYER_OFFER = re.compile(
     r'(?:health(?:care)?\s+plans?|paid\s+time\s+off|'
     r'fertility\s+benefits|retirement\s+benefits|'
     r'401\s*\(?k\)?|wellness\s+benefits))\b',re.I)
+# Receiving a grant as employee compensation is not managing an equity plan.
+_EQUITY_GRANT_OFFER = re.compile(
+    r'\b(?:this\s+(?:role|position|job)|you|the\s+(?:successful\s+)?'
+    r'(?:candidate|employee)|our\s+employees)\b'
+    r'.{0,85}\b(?:eligible\s+for|receive|receives?|be\s+awarded)\b'
+    r'.{0,85}\b(?:equity|stock|shares?|grants?)\b|'
+    r'\b(?:eligible\s+for|receive)\s+(?:refresh\s+)?'
+    r'(?:equity|stock)\s+grants?\b',re.I)
+
+
 _REWARD_ADMINISTRATIVE = re.compile(
     r'\b(?:administ(?:er|ration|ering)|manag(?:e|ing|ement)|'
     r'develop(?:ed|ing)?|design(?:ing)?|oversee|led|leading|'
@@ -267,6 +291,8 @@ def _employer_offer_text(section, clause, area):
     if area != 'Compensation and equity administration':
         return False
     line=str(clause or '').strip().lstrip('-• ')
+    if _EQUITY_GRANT_OFFER.search(line):
+        return True
     if not _EMPLOYER_OFFER.search(line):
         return False
     # Real requirements generally say "manage compensation programs" or
@@ -318,11 +344,20 @@ def extract_posting_requirements(job, resume=''):
 
     # A title that explicitly states "IN-HOUSE ONLY" is sufficient;
     # descriptions may independently contain a restriction.
-    for scope in (title,desc):
+    for field_name,scope in (('title',title),('description',desc)):
         match=(INTERNAL_ONLY.search(scope) or
-               (TRANSFER_ONLY_TITLE.search(scope) if scope==title else
+               (TRANSFER_ONLY_TITLE.search(scope) if field_name=='title' else
                 TRANSFER_ONLY_APPLICATION.search(scope)))
-        if match and not INTERNAL_NEGATION.search(_context(scope,match,100)):
+        if not match:
+            continue
+        # Supporting internal applicants as a job duty does not restrict
+        # the pool of people who may apply to this position.
+        before=scope[max(0,match.start()-50):match.start()]
+        if (field_name=='description' and
+                re.search(r'\b(?:work with|coordinate with|assist|support|'
+                          r'serve|help)\s*$',before,re.I)):
+            continue
+        if not INTERNAL_NEGATION.search(_context(scope,match,100)):
             add('Internal applicants only','Application eligibility',
                 'Explicit restriction — verify eligibility',
                 _context(scope,match,85),50,

@@ -1,5 +1,43 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.6 — targeted equity-grants and specialist-career corrections
+
+Version 3.1.5 correctly removed many compensation false positives but its
+October 15 ranked export still penalized **four CLEAR customer-success and
+product-management jobs** for a sentence promising future **refresh equity
+grants**. These grants are part of employee compensation, not experience
+administering equity plans. The app now separates receiving grants from
+managing equity-compensation programs and preserves the genuine specialist
+requirements of a compensation manager.
+
+Additional fixes:
+
+- **Hennepin County** posting titles such as
+  *Classification Analyst (Internal HC applicants only)* are now flagged as
+  restricted applications, without assuming the applicant is ineligible.
+- **Senior social-media management** and **music rights/clearances** now
+  receive specialist experience cautions if the résumé lacks those
+  field-specific competencies. The job-description parser separately flags
+  mandatory social-media campaigns and music-licensing background when
+  present in employer applicant qualifications.
+- **Event marketing** gets a modest title-grounded experience caution only
+  if not substantiated; community and general marketing leadership are
+  otherwise transferable.
+- **Logistics coordinators** and **administrative specialists** receive
+  a career-level review caution where the résumé demonstrates sustained
+  senior management; not when the applicant is early-career. Manager/director
+  level procurement, logistics, operations and partnerships remain included.
+- Regression tests cover all four CLEAR grant cases, abbreviated
+  internal-only agency eligibility, field-specific experience, and protection
+  for legitimate transferable opportunities.
+
+All roles remain visible unless excluded by the existing user-requested
+location, work arrangement, age, employer and eligibility filters. Rankings
+are comparative research aids, not probabilities of hiring or a decision
+that a person cannot qualify. Version 3.1.6 resets previous ranking sessions
+and produces **_v316_** CSV and JSON filenames.
+
+
 ## Version 3.1.5 — employer benefits vs applicant minimums (October 15, 2026)
 
 The 3.1.4 ranked job export revealed a false positive: CLEAR and Imprint
