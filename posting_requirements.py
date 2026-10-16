@@ -211,7 +211,7 @@ _HEADINGS = re.compile(
     r"what\s+(?:you[’']ll|we)\s+(?:need|bring|look\s+for|expect)"
     r"(?:\s+(?:from\s+you|to\s+the\s+team))?|"
     r"what\s+you[’']re\s+great\s+at|"
-    r"what\s+you\s+(?:bring|need)\s+to\s+(?:the\s+)?(?:table|team|role)|"
+    r"what\s+you\s+(?:need|bring)(?:\s+to\s+(?:the\s+)?(?:table|team|role))?|"
     r"who\s+you\s+are|"
     r"(?:nice\s+to\s+have|preferred\s+(?:experience|skills)|"
     r"desired\s+(?:experience|skills)|bonus\s+points)|"
