@@ -128,7 +128,9 @@ class SpecialistAndCareerLevelTests(unittest.TestCase):
         self.assertTrue(any(x["area"]=="Music licensing / copyright clearances"
                             and x["ranking_caution"]>0
                             for x in q["posting_requirement_checks"]))
-        self.assertGreater(q["career_fit_penalty"],0)
+        self.assertTrue(any(x["ranking_caution"]>0
+                            for x in q["career_fit_cautions"]))
+        self.assertGreater(q["ranking_overlap_relief"],0)
 
     def test_duties_mention_does_not_invent_music_license_requirements(self):
         text=(
