@@ -1822,9 +1822,7 @@ elif page == 'Find Jobs':
         }
 
     if 'search_results' not in st.session_state:
-        st.info('Search for leadership, management and public-sector openings across the United States. Leave the keyword blank to use your career profile.')
-        if not st.session_state.resume_text.strip():
-            st.caption('Upload a resume under My Resume for detailed job-by-job qualification evidence.')
+        st.caption('Search to find current openings. Leave the keyword blank for career matches.')
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
@@ -2038,13 +2036,9 @@ elif page == 'Find Jobs':
                     for err in stats['errors']:
                         st.caption('• ' + err)
             st.caption('USAJOBS can also be included automatically if your account already has its free API credentials in Streamlit Secrets. Paid Adzuna and OpenAI APIs are not used. Indeed and LinkedIn do not provide unrestricted public job-search feeds for this app.')
-    st.caption('Job Tracker backups include application history and seen-job IDs. '
-               'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
     st.markdown(hero('Job Tracker'),unsafe_allow_html=True)
-    st.caption('Track applications, interviews, offers, skipped openings and notes. '
-               'A JSON backup also includes your previously seen vacancy history.')
 
     if tracker_cloud_enabled():
         if st.session_state.tracker_unlocked:
