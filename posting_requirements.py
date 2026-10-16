@@ -349,11 +349,103 @@ def extract_posting_requirements(job, resume=''):
 
     # A title that explicitly states "IN-HOUSE ONLY" is sufficient;
     # descriptions may independently contain a restriction.
-    for scope in (title,desc):
+    for field_name,scope in (('title',title),('description',desc)):
         match=(INTERNAL_ONLY.search(scope) or
-               (TRANSFER_ONLY_TITLE.search(scope) if scope==title else
+               (TRANSFER_ONLY_TITLE.search(scope) if field_name=='title' else
                 TRANSFER_ONLY_APPLICATION.search(scope)))
-        if match and not INTERNAL_NEGATION.search(_context(scope,match,100)):
+        if not match:
+            continue
+        # A job may require supporting existing internal applicants as a
+        # duty; that is not a restriction on who can apply for this vacancy.
+        before=scope[max(0,match.start()-50):match.start()]
+        if (field_name=='description' and
+                re.search(r'\b(?:work with|coordinate with|assist|support|'
+                          r'serve|help)\s*
+                'Explicit restriction — verify eligibility',
+                _context(scope,match,85),50,
+                'Current employment with this organization not verified; check before applying.')
+            break
+    for match in list(RESIDENCY.finditer(desc))[:1]:
+        clause=_clause(desc,match)
+        if re.search(r'\b(?:waived|not required|no residency requirement)\b',
+                     clause,re.I):
+            continue
+        add('Employer residency condition','Residency / location',
+            'Required / minimum — verify exact wording',clause,13,
+            'Residence or willingness and ability to relocate is not established by the résumé.')
+
+    for area,pattern,evidence,penalty in FIELDS:
+        # The first mention is often a responsibility. Prefer the strongest
+        # *applicant qualification* later in the advertisement. An early
+        # "deliver EHS training" must not mask "five years of EHS experience".
+        candidates=[]
+        for match in list(re.finditer(pattern,desc,re.I))[:35]:
+            clause=_clause(desc,match)
+            local=re.search(pattern,clause,re.I)
+            if local is None:
+                continue
+            section=_qualification_scope(desc,match.start())
+            if _employer_offer_text(section,clause,area):
+                continue
+            priority=_priority(clause,local,section)
+            if (priority=='Field expertise mentioned — verify'
+                    and not FIELD_QUALIFIER.search(clause)):
+                continue
+            weight=(2 if priority.startswith('Required') else
+                    1 if priority=='Field expertise mentioned — verify' else 0)
+            # Within equivalent priority prefer a clause explicitly stating
+            # years or specialized experience to make the explanation useful.
+            weight2=bool(re.search(
+                r'\b(?:\d+\+?\s*years?|experience|expertise|portfolio|'
+                r'certification|proficiency)\b',clause,re.I))
+            candidates.append((weight,int(weight2),match.start(),priority,clause))
+        if not candidates:
+            continue
+        _,_,_,priority,clause=max(candidates,key=lambda x:(x[0],x[1],-x[2]))
+        has_evidence=bool(re.search(evidence,resume,re.I))
+        score=penalty if priority.startswith('Required') and not has_evidence else 0
+        add(area,'Field-specific experience',priority,clause,score,
+            'Related specialist field is mentioned in résumé; duties and duration still need verification.'
+            if has_evidence else
+            'No matching field-specific résumé evidence found; verify before applying.')
+
+    for area,pattern,evidence,penalty in CREDENTIALS:
+        candidates=[]
+        for match in list(re.finditer(pattern,desc,re.I))[:25]:
+            clause=_clause(desc,match)
+            local=re.search(pattern,clause,re.I)
+            if not local:
+                continue
+            section=_qualification_scope(desc,match.start())
+            if _employer_offer_text(section,clause,area):
+                continue
+            priority=_priority(clause,local,section)
+            if OPPORTUNITY_TO_OBTAIN.search(clause):
+                priority='May be obtained later — verify deadline'
+            weight=(3 if priority.startswith('Required') else
+                    2 if priority.startswith('May be obtained later') else
+                    1 if priority=='Field expertise mentioned — verify' else 0)
+            candidates.append((weight,-match.start(),priority,clause))
+        if not candidates:
+            continue
+        _,_,priority,clause=max(candidates,key=lambda x:(x[0],x[1]))
+        score=(penalty if priority.startswith('Required') else
+               min(6,penalty) if priority.startswith('May be obtained later') else 0)
+        resume_has=bool(re.search(evidence,resume,re.I))
+        if resume_has:
+            score=0
+        add(area,'License / portfolio',priority,clause,score,
+            'Related credential mentioned in résumé; verify validity and level.'
+            if resume_has else
+            'Required credential/portfolio not established by the résumé; verify the exact condition.')
+
+    penalty=min(65,sum(x['ranking_caution'] for x in checks))
+    restricted=any(x['area']=='Internal applicants only' for x in checks)
+    return {'checks':checks,'ranking_caution':penalty,
+            'application_restricted':restricted}
+,before,re.I)):
+            continue
+        if not INTERNAL_NEGATION.search(_context(scope,match,100)):
             add('Internal applicants only','Application eligibility',
                 'Explicit restriction — verify eligibility',
                 _context(scope,match,85),50,
