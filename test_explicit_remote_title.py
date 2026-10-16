@@ -2,7 +2,7 @@
 import ast
 import unittest
 from pathlib import Path
-from job_workflow import explicitly_remote_title
+from job_workflow import explicitly_remote_title, permitted_remote_source
 
 class EmployerRemoteTitleTests(unittest.TestCase):
     def test_explicit_title_remote_markers(self):
@@ -31,7 +31,7 @@ class EmployerRemoteTitleTests(unittest.TestCase):
         self.assertIn('explicitly_remote_title(title)',importer)
         self.assertIn("explicitly_remote_title(job.get('title'))",filterer)
         self.assertIn("arrangement = 'Remote'",filterer)
-        self.assertIn("'Mayo Clinic'",filterer)
+        self.assertIn("permitted_remote_source(job)",filterer)
 
 if __name__=="__main__":
     unittest.main()
