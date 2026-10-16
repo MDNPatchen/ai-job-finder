@@ -11,7 +11,7 @@ from job_workflow import canonical_job_url
 
 _VACANCY_PATH = re.compile(
     r"^/careers/([A-Za-z0-9_-]+)/jobs/(?:newprint/)?([0-9]{5,12})"
-    r"(?:-[^/?#]*)?/?$", re.I)
+    r"(?:-[^/?#]*)?(?:/[^?#]*)?/?$", re.I)
 _HOST_FOR_SOURCE = {
     "NEOGOV": "governmentjobs.com",
     "NEOED Schooljobs": "schooljobs.com",
