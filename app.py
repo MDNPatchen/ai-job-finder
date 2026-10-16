@@ -1439,7 +1439,7 @@ def save_result_to_tracker(job):
         'Company':job['company'],'Job Title':job['title'],
         'Location':job['location'],'Job URL':job['url'],
         'Salary':job['salary'],'Status':'Saved','Date Recorded':str(date.today()),
-        'Interview Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
+        'Interview Date':'','Follow-up Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
     persist_tracker_if_unlocked()
     return True
 def job_competency_hits(job, resume):
@@ -1526,6 +1526,24 @@ if page == 'Dashboard':
         a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
         b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
         c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
+        today=date.today()
+        followups=[]
+        for item in jobs:
+            due=item.get('Follow-up Date','')
+            if item.get('Status') in ('Rejected','Skipped','Withdrawn') or not due:
+                continue
+            try:
+                when=date.fromisoformat(due)
+            except ValueError:
+                continue
+            if when <= today + timedelta(days=7):
+                followups.append((when,item))
+        followups.sort(key=lambda item:item[0])
+        if followups:
+            st.markdown('<div class="job-module-heading">Upcoming follow-ups</div>',unsafe_allow_html=True)
+            for when,item in followups[:8]:
+                label='Overdue' if when<today else 'Today' if when==today else when.strftime('%b %d')
+                st.write(f"**{label}** · {item['Company']} — {item['Job Title']}")
         if jobs:
             st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
         else:
@@ -2148,6 +2166,7 @@ elif page == 'Job Tracker':
             status=st.selectbox('Status',STATUSES)
             recorded=st.date_input('Date Recorded',value=date.today())
             interview=st.date_input('Interview Date (optional)',value=None)
+            follow_up=st.date_input('Follow-up Date (optional)',value=None)
             notes=st.text_area('Notes / Next Steps')
             if st.form_submit_button('Save Job'):
                 if company.strip() and title.strip():
@@ -2157,6 +2176,7 @@ elif page == 'Job Tracker':
                              'Salary':salary.strip(),'Status':status,
                              'Date Recorded':str(recorded),
                              'Interview Date':str(interview) if interview else '',
+                             'Follow-up Date':str(follow_up) if follow_up else '',
                              'Notes':notes.strip()}
                         from tracker_store import normalize_tracker_row
                         row=normalize_tracker_row(row)
@@ -2188,9 +2208,16 @@ elif page == 'Job Tracker':
         job=jobs[idx]
         new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']))
         new_notes=st.text_area('Update notes',value=job['Notes'],key=f'notes_{idx}')
+        prior_follow=job.get('Follow-up Date','')
+        try:
+            follow_value=date.fromisoformat(prior_follow) if prior_follow else None
+        except ValueError:
+            follow_value=None
+        new_follow=st.date_input('Next follow-up',value=follow_value,key=f'follow_{idx}')
         if st.button('Save Changes'):
             jobs[idx]['Status']=new_status
             jobs[idx]['Notes']=new_notes.strip()[:3000]
+            jobs[idx]['Follow-up Date']=str(new_follow) if new_follow else ''
             persist_tracker_if_unlocked()
             st.success('Changes saved'+(' to cloud.' if st.session_state.tracker_unlocked
                                          and not st.session_state.get('tracker_storage_error')
