@@ -1,5 +1,36 @@
 # AI Job Finder 3.0 — full workflow release
 
+## October 16 interface refresh — top navigation and working exports
+
+This is a presentation and download-only update. The matching engine,
+posting qualification checks, search sources, verified publisher experience,
+Mayo-only remote exception, 45-day cutoff and ranked v3113 exports stay
+unchanged. No fabricated job data or decorative AI imagery was introduced.
+
+- Replaced the heavy charcoal background with a comfortable light,
+  warm-neutral layout: clean white panels, forest green accents, ample
+  text padding, readable form labels, stronger control contrast and
+  responsive page gutters.
+- Replaced the collapsible left sidebar with a horizontal navigation
+  strip at the top: Dashboard, Find Jobs, Job Tracker, My Resume,
+  Career Analysis, Career Matches.
+- Every completed search now displays native CSV/JSON download buttons,
+  regardless of whether the user uploaded a resume. Without a resume
+  the file contains jobs and links; detailed qualifications require a CV.
+- Wrapped download buttons in Streamlit 1.41-compatible fragment
+  functions. Downloads should not trigger a full script rerun that
+  could alter the selected tab or search pagination.
+- Data remains in original CSV/JSON/TXT format. CSV uses UTF-8 with
+  BOM for spreadsheet interoperability. Tracker backup JSON/CSV,
+  Career Matches CSV and approved resume wording share this behavior.
+- Smoke checks exercise all top navigation tabs and a populated
+  no-resume search where export buttons must be visible. Unit tests
+  verify CSV/JSON data and source preservation.
+
+UI updates do not change comparative fit calculations, so the matching
+engine version stays 3.1.13.
+
+
 ## Version 3.1.13 — explicit construction work minimums and required degrees
 
 The v3.1.12 export revealed four precision regressions:
