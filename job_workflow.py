@@ -73,6 +73,19 @@ def annotate_new_results(jobs, previously_seen, has_baseline):
     return result, sorted(seen | {x['posting_id'] for x in result})
 
 
+
+# A provider may omit work arrangement even while the title explicitly
+# says "(Remote)". Respect the user's Mayo-only remote exception.
+_EXPLICITLY_REMOTE_TITLE=re.compile(
+    r'\(\s*remote\s*\)|\[\s*remote\s*\]|'
+    r'\b(?:fully[- ]remote|remote[- ]only|100%\s*remote)\b',re.I)
+
+
+def explicitly_remote_title(title):
+    """True only for explicit remote-only title markers, not vague words."""
+    return bool(_EXPLICITLY_REMOTE_TITLE.search(str(title or '')))
+
+
 def salary_lower_bound(raw):
     """Return only an explicitly annual USD lower bound, never infer hourly."""
     value=str(raw or '').strip()
