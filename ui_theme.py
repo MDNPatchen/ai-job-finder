@@ -325,6 +325,59 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
   }
   h1{font-size:1.48rem!important;}
 }
+
+/* v3.1.23: one predictable layout grid for all six pages.
+   Exclude nested metric and column wrappers from card-width rules. */
+[data-testid="stMainBlockContainer"],.block-container,
+[data-testid="stMain"] .block-container{
+  width:min(100% - 64px, 1320px)!important;
+  max-width:1320px!important;
+  padding:24px 32px 48px!important;
+  margin-inline:auto!important;
+  box-sizing:border-box!important;
+}
+[data-testid="stMainBlockContainer"]:has(.st-key-dashboard_content),
+.block-container:has(.st-key-dashboard_content){
+  width:min(100% - 64px, 1320px)!important;
+  padding:24px 32px 48px!important;
+}
+[data-testid="stForm"]{
+  width:100%!important;margin:0!important;
+  box-sizing:border-box!important;padding:24px 28px!important;
+  border-radius:6px!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:not(.st-key-dashboard_content){
+  width:100%!important;margin-left:0!important;margin-right:0!important;
+  box-sizing:border-box!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:not(.st-key-dashboard_content) > div[data-testid="stVerticalBlock"]{
+  padding:20px 24px!important;
+}
+.job-hero,.job-module-heading,.job-module-caption,.job-topbar,
+.st-key-top_navigation{
+  margin-left:0!important;margin-right:0!important;
+}
+[data-testid="stAlert"]{
+  box-sizing:border-box!important;
+  margin:8px 0!important;border-radius:5px!important;
+}
+[data-testid="stAlert"] > div{
+  padding:12px 16px!important;
+}
+[data-testid="stFileUploader"]{
+  margin:6px 0 12px!important;
+}
+@media(max-width:900px){
+ [data-testid="stMainBlockContainer"],.block-container,
+ [data-testid="stMain"] .block-container,
+ [data-testid="stMainBlockContainer"]:has(.st-key-dashboard_content){
+   width:100%!important;
+   padding:18px 16px 36px!important;
+ }
+ [data-testid="stForm"]{padding:16px!important;}
+ [data-testid="stVerticalBlockBorderWrapper"]:not(.st-key-dashboard_content) > div[data-testid="stVerticalBlock"]{padding:16px!important;}
+}
+
 </style>
 """
 
