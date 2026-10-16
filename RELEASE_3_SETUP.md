@@ -1,5 +1,38 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Modular layout and explicit remote-title repair (matching 3.1.14)
+
+The October 16 ranked v3.1.13 CSV from a real download was parsed:
+431 unique vacancy records, 38 fields, 431 nonblank application links,
+with no duplicate URLs. Construction qualification handling showed the
+intended Red Bull, ARCO/Murray, S&B USA and Broward improvements.
+However its top-ranked non-Mayo vacancy said "(Remote)" in its title
+while the provider's work arrangement metadata said "Not specified".
+
+- Repair fully-remote text explicitly present in a vacancy title, even
+  if provider work style is absent, so non-Mayo remote-only positions
+  cannot bypass the existing preference filter. Mayo Clinic remains
+  the sole allowed fully remote source. Ambiguous words like Remote
+  Sensing are NOT treated as remote-only work arrangements.
+- Replace the round-corner, continuous-card look with deliberately
+  separated rectangular modules, white surfaces, slightly stronger
+  section rules, generous interior padding and square metadata tags.
+  Break Find Jobs into Search filters, Search overview, export files and
+  Job listings, with consistent spacing.
+- Top navigation no longer sits in one large rounded capsule. Each
+  section has its own simple rectangular tab; the active forest-green
+  tab has white text.
+- Enforce true white foreground on all dark-green primary, download
+  and navigation control descendants, including Streamlit paragraph
+  elements which previously inherited dark text.
+- Preserve the working native download fragments and UTF-8 BOM CSV
+  format. The prior exported file contained all expected columns and
+  valid rows. A real browser download remains user-verifiable.
+- No new job providers, fake data or scoring penalties. The matching
+  version moves to 3.1.14 because title-based remote filtering has
+  changed, requiring a new nationwide search and versioned export.
+
+
 ## October 16 interface refresh — top navigation and working exports
 
 This is a presentation and download-only update. The matching engine,
