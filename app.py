@@ -26,6 +26,7 @@ from posting_metadata import (
 from employer_ui import render_employer_checker
 from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
+from government_feed_identity import belongs_to_configured_agency, dedupe_vacancy_urls
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
@@ -494,11 +495,18 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
         for item in items[:350]:
             def field(key):
                 return (item.findtext(key) or '').strip()
-            job = standard_job(field('title'), employer, field('link'),
+            link=field('link')
+            # The actual vacancy URL, not the source feed label, establishes
+            # which agency is hiring. A query for Boston can return Boise.
+            if not belongs_to_configured_agency(link,token,'NEOGOV'):
+                continue
+            job = standard_job(field('title'), employer, link,
                 f'{employer}, {state}', field('description'), 'NEOGOV',
                 posted=field('pubDate') or field('date'), gov=True)
-            if job: jobs.append(job)
-        return jobs, len(items)
+            if job:
+                job['government_agency_slug']=token
+                jobs.append(job)
+        return jobs, len(jobs)
     jobs, failures, counts = [], [], {}
     with ThreadPoolExecutor(max_workers=12) as pool:
         tasks = {pool.submit(one_agency, a): a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter}
@@ -887,10 +895,15 @@ def load_schooljobs_feeds(state_filter=None, catalog_version=None):
         jobs=[]
         for entry in root.findall('.//item')[:250]:
             f=lambda name:(entry.findtext(name) or '').strip()
-            job=standard_job(f('title'),employer,f('link'),
+            link=f('link')
+            if not belongs_to_configured_agency(link,token,'NEOED Schooljobs'):
+                continue
+            job=standard_job(f('title'),employer,link,
                 employer+', '+state,f('description'),'NEOED Schooljobs',
                 posted=f('pubDate') or f('date'),gov=True)
-            if job:jobs.append(job)
+            if job:
+                job['government_agency_slug']=token
+                jobs.append(job)
         return jobs
     return retrieve_boards(tuple(a for a in SCHOOLJOBS_AGENCIES if state_filter is None or a[2] == state_filter),fetch)
 
@@ -1139,10 +1152,21 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
               'location':0,'employer_limit':0,'preferences':0,
               'recruiter':0,'directory_link':0,'indirect_source':0,
               'foreign_location':0}
-    for cached_job in jobs:
+    for cached_job in dedupe_vacancy_urls(jobs):
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
         job=reconcile_workplace_record(cached_job)
+        # Revalidate already-cached government records as well; imported
+        # data from earlier releases may have incorrect agency labels.
+        if job.get('source') in ('NEOGOV','NEOED Schooljobs'):
+            catalog=(GOVERNMENT_AGENCIES if job['source']=='NEOGOV'
+                     else SCHOOLJOBS_AGENCIES)
+            if not any(job.get('company')==name and
+                       belongs_to_configured_agency(
+                           job.get('url'),slug,job.get('source'))
+                       for slug,name,_state in catalog):
+                excluded['eligibility']+=1
+                continue
         if not job.get('date'):
             excluded['undated']+=1
             continue
