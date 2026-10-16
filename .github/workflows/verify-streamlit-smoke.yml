@@ -19,6 +19,7 @@ on:
       - "posting_requirements.py"
       - "formal_qualification_guardrails.py"
       - "official_bulletins.py"
+      - "test_v3116_public_bulletins_and_workplace.py"
       - "qualification_matcher.py"
       - "qualification_v2.py"
       - "job_workflow.py"
