@@ -7,17 +7,20 @@ from ui_theme import APP_CSS, brand, hero, listing_head
 
 
 class MinimalUIThemeTests(unittest.TestCase):
-    def test_theme_is_dark_charcoal_and_accessible(self):
-        self.assertIn("#0B1114",APP_CSS)
-        self.assertIn("#70DDC3",APP_CSS)
-        self.assertIn("border-radius",APP_CSS)
-        self.assertIn("@media(max-width:850px)",APP_CSS)
+    def test_theme_is_light_legible_and_padded(self):
+        self.assertIn("#F5F7F5",APP_CSS)
+        self.assertIn("#146B54",APP_CSS)
+        self.assertIn('background:var(--paper)',APP_CSS)
+        self.assertIn('padding:1.5rem 1.65rem',APP_CSS)
+        self.assertIn('.st-key-top_navigation',APP_CSS)
+        self.assertIn("@media(max-width:900px)",APP_CSS)
 
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
         self.assertNotIn("briefcase",APP_CSS.casefold()+brand().casefold())
         self.assertNotIn("svg",APP_CSS.casefold()+brand().casefold())
         self.assertIn("AI Job Finder",brand())
+        self.assertIn("Version 3.1.13",brand("3.1.13"))
 
     def test_listing_uses_data_not_mock_values(self):
         listing=listing_head("Partnership Director","Future Publishing",

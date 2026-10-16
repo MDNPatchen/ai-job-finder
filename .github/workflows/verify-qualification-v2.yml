@@ -15,6 +15,7 @@ on:
       - "posting_requirements.py"
       - "ui_theme.py"
       - "test_ui_theme.py"
+      - "test_top_navigation_downloads.py"
       - "test_v318_export_audit.py"
       - "formal_qualification_guardrails.py"
       - "government_feed_identity.py"
@@ -56,4 +57,4 @@ jobs:
       - name: Compile updated modules
         run: python -m py_compile specialist_caution_calibration.py government_feed_identity.py app.py ui_theme.py official_bulletins.py posting_requirements.py formal_qualification_guardrails.py career_fit_guardrails.py transfer_fit.py qualification_v2.py qualification_domains.py posting_metadata.py employer_ui.py qualification_matcher.py ranked_breakdowns.py mayo_source.py
       - name: Qualification and export unit tests
-        run: python -m unittest -v test_v3113_construction_minima test_v3112_education_pathways test_v3111_overlap_calibration test_v3110_sector_lever test_government_source_integrity_v319 test_ui_theme test_v318_export_audit test_formal_qualification_v317 test_equity_internal_specialties_v316 test_employer_offers_and_stage test_private_employer_minimums test_official_bulletins test_posting_requirements test_career_fit_guardrails test_transfer_fit test_qualification_v2 test_qualification_matcher test_ranked_breakdowns test_nyc_qualification_data test_mayo_source test_audit_fixes test_workplace_provenance test_build_version test_source_catalog_expansion
+        run: python -m unittest -v test_top_navigation_downloads test_v3113_construction_minima test_v3112_education_pathways test_v3111_overlap_calibration test_v3110_sector_lever test_government_source_integrity_v319 test_ui_theme test_v318_export_audit test_formal_qualification_v317 test_equity_internal_specialties_v316 test_employer_offers_and_stage test_private_employer_minimums test_official_bulletins test_posting_requirements test_career_fit_guardrails test_transfer_fit test_qualification_v2 test_qualification_matcher test_ranked_breakdowns test_nyc_qualification_data test_mayo_source test_audit_fixes test_workplace_provenance test_build_version test_source_catalog_expansion

@@ -46,9 +46,35 @@ jobs:
           from streamlit.testing.v1 import AppTest
           app=AppTest.from_file("app.py").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          app.sidebar.radio[0].set_value("Find Jobs").run(timeout=60)
+          assert not app.sidebar.radio, "Sidebar navigation must be removed"
+          nav=app.radio(key="top_navigation")
+          nav.set_value("Find Jobs").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          app.sidebar.radio[0].set_value("Job Tracker").run(timeout=60)
+          # Regression: exports must render on a populated search when
+          # no resume is uploaded (the previous design hid both buttons).
+          app.session_state["search_results"]=[{
+              "title":"Regional Operations Director",
+              "company":"Example employer","government":False,
+              "location":"Minot, ND","url":"https://example.org/job/123",
+              "date":"2026-10-15","source":"Direct employer","work_style":"On-site",
+              "description":"Lead teams, budgets and multi-site operations."
+          }]
+          app.session_state["search_stats"]={
+              "run_id":"20261016T174400Z","matching_version":"3.1.13",
+              "searched":"2026-10-16","excluded":{"old":0,"undated":0,"location":0},"sources":{},
+              "errors":[],"fetched":1,"preferences":{}
+          }
+          app.run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          print("Streamlit 3.0.1 Dashboard / Find Jobs / Job Tracker smoke passed")
+          assert any("Download search results" in x.value
+                     for x in app.markdown), "Ranked exports missing without resume"
+          app.radio(key="top_navigation").set_value("Job Tracker").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          app.radio(key="top_navigation").set_value("My Resume").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          app.radio(key="top_navigation").set_value("Career Analysis").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          app.radio(key="top_navigation").set_value("Career Matches").run(timeout=60)
+          assert not app.exception, [e.message for e in app.exception]
+          print("Top navigation and no-resume ranked downloads smoke passed")
           PY

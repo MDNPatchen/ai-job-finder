@@ -41,7 +41,7 @@ from tracker_store import (
     authenticate
 )
 
-st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='expanded')
+st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='collapsed')
 st.markdown(APP_CSS, unsafe_allow_html=True)
 
 SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
@@ -80,6 +80,52 @@ if needs_search_refresh(st.session_state.get('matching_engine_version')):
     st.session_state.pop('search_page', None)
     st.session_state.matching_engine_version = MATCHING_ENGINE_VERSION
     st.session_state.matching_engine_reset = had_previous_results
+
+
+
+# Streamlit 1.41's download buttons rerun the app by default. A fragment
+# prevents that rerun, keeping results, page number and active top tab in place.
+# Render the same real, native download button on every export page.
+@st.fragment
+def download_file_widget(label,data,filename,mime,key):
+    if isinstance(data,str):
+        data=data.encode('utf-8-sig' if mime=='text/csv' else 'utf-8')
+    st.download_button(
+        label=label,data=data,file_name=filename,mime=mime,
+        key=key,use_container_width=True
+    )
+
+
+@st.fragment
+def ranked_exports(all_results,run_id):
+    """Always allow an export after a completed search, with or without a CV.
+
+    File downloads are isolated from app reruns and preserve real job URLs
+    and whatever qualification evidence is available for that search.
+    """
+    all_breakdowns=breakdowns_json(
+        all_results,matching_version=MATCHING_ENGINE_VERSION,
+        search_run_id=run_id)
+    flat_breakdowns=breakdowns_csv_rows(
+        all_results,matching_version=MATCHING_ENGINE_VERSION,
+        search_run_id=run_id)
+    csv_data=pd.DataFrame(flat_breakdowns).to_csv(index=False).encode('utf-8-sig')
+    json_data=json.dumps(
+        all_breakdowns,indent=2,ensure_ascii=False).encode('utf-8')
+    with st.container(border=True):
+        st.markdown('**Download search results**')
+        csv_col,json_col=st.columns(2,gap='medium')
+        with csv_col:
+            st.download_button(
+                'Download CSV',data=csv_data,
+                file_name=export_filename('ranked',run_id,'csv'),
+                mime='text/csv',key='ranked_export_csv',use_container_width=True)
+        with json_col:
+            st.download_button(
+                'Download JSON',data=json_data,
+                file_name=export_filename('detailed',run_id,'json'),
+                mime='application/json',key='ranked_export_json',
+                use_container_width=True)
 
 
 def extract_resume_text(file):
@@ -1424,9 +1470,14 @@ def unlock_tracker_workspace(password):
     return True
 
 
-st.sidebar.markdown(brand(),unsafe_allow_html=True)
-page = st.sidebar.radio('Navigation', ['Dashboard','My Resume','Career Analysis','Career Matches','Find Jobs','Job Tracker'])
-st.sidebar.caption('Matching v' + MATCHING_ENGINE_VERSION)
+# The former sidebar is intentionally retired. Horizontal native controls
+# keep every section accessible even when the browser window is narrow.
+st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
+page = st.radio(
+    'Navigation',
+    ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
+    horizontal=True,label_visibility='collapsed',key='top_navigation'
+)
 
 if page == 'Dashboard':
     st.markdown(hero('Dashboard','Your applications at a glance'),unsafe_allow_html=True)
@@ -1576,7 +1627,9 @@ elif page == 'Career Analysis':
             approved = list(dict.fromkeys(verified_drafts + approved))
             st.session_state.approved_suggestions = approved
             if approved:
-                st.download_button('Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
+                download_file_widget('Download approved wording','\n\n'.join(approved),
+                                     'approved_resume_suggestions.txt','text/plain',
+                                     'approved_resume_wording')
             st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
 
 elif page == 'Career Matches':
@@ -1618,14 +1671,15 @@ elif page == 'Career Matches':
                         st.write('All mapped areas had phrase matches; verify that the duties were actually performed.')
                     st.write('**Resume tailoring idea:**', r['focus'])
                     st.caption('Only add achievements, responsibilities and numbers you can substantiate. Use Career Analysis to edit and approve suggested wording.')
-            st.download_button('Export Career Matches CSV',
+            download_file_widget(
+                'Download career matches CSV',
                 pd.DataFrame([{'Career':r['title'], 'Industry':r['industry'],
                     'Documented overlap (%)':r['score'],
                     'Matched areas':'; '.join(r['matched']),
                     'User-confirmed areas':'; '.join(r['verified']),
                     'Areas to verify':'; '.join(r['unconfirmed']),
                     'Resume focus':r['focus']} for r in visible]).to_csv(index=False),
-                'career_matches.csv', 'text/csv')
+                'career_matches.csv','text/csv','career_matches_export')
 
 elif page == 'Find Jobs':
     st.markdown(hero('Find Jobs','Nationwide · On-site & hybrid · 45 days'),unsafe_allow_html=True)
@@ -1766,26 +1820,9 @@ elif page == 'Find Jobs':
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
-            if st.session_state.resume_text.strip():
-                st.markdown('**Best match**')
-                run_id = stats.get('run_id','')
-                all_breakdowns = breakdowns_json(
-                    all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
-                flat_breakdowns = breakdowns_csv_rows(
-                    all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
-                export_csv = pd.DataFrame(flat_breakdowns).to_csv(index=False)
-                export_json = json.dumps(all_breakdowns, indent=2, ensure_ascii=False)
-                export_left, export_right = st.columns(2)
-                with export_left:
-                    st.download_button(
-                        'Export CSV', export_csv,
-                        export_filename('ranked',run_id,'csv'), 'text/csv',
-                        use_container_width=True)
-                with export_right:
-                    st.download_button(
-                        'Export JSON', export_json,
-                        export_filename('detailed',run_id,'json'), 'application/json',
-                        use_container_width=True)
+            # Export controls are no longer hidden behind résumé upload.
+            # The fragment keeps data stable when the user clicks Download.
+            ranked_exports(all_results,stats.get('run_id',''))
 
             new_only=st.checkbox('Show only new positions since the previous search',
                                  value=False,key='new_jobs_only')
@@ -1998,16 +2035,17 @@ elif page == 'Job Tracker':
     st.subheader('Backup and restore')
     backup_left,backup_right=st.columns(2)
     with backup_left:
-        st.download_button(
-            'Export backup JSON',
+        download_file_widget(
+            'Download tracker backup JSON',
             export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
                                   st.session_state.search_baseline),
-            'job_tracker_full_backup.json','application/json',use_container_width=True)
+            'job_tracker_full_backup.json','application/json',
+            'tracker_full_backup')
     with backup_right:
-        st.download_button(
-            'Export applications CSV',
-            export_tracker_csv(st.session_state.jobs),'job_tracker.csv',
-            'text/csv',use_container_width=True)
+        download_file_widget(
+            'Download applications CSV',
+            export_tracker_csv(st.session_state.jobs),
+            'job_tracker.csv','text/csv','tracker_applications_csv')
     with st.expander('Restore applications and job history'):
         uploaded_backup=st.file_uploader('Choose prior Job Tracker CSV or full JSON backup',
                                          type=['csv','json'],key='tracker_restore_file')
