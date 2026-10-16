@@ -1455,6 +1455,10 @@ if page == 'Dashboard':
         a.metric('Tracked Jobs', len(jobs))
         b.metric('Applied', sum(j['Status'] == 'Applied' for j in jobs))
         c.metric('Interviewing', sum(j['Status'] == 'Interviewing' for j in jobs))
+        a, b, c = st.columns(3, gap='large')
+        a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
+        b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
+        c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
         recent_search=st.session_state.get('search_results')
         if recent_search is not None:
             st.markdown('<div class="job-module-heading">Latest search</div>',
@@ -1462,15 +1466,11 @@ if page == 'Dashboard':
             confirmed=sum((j.get('work_style') in ('On-site','Hybrid','Remote'))
                           for j in recent_search)
             detailed=sum(has_detailed_description(j) for j in recent_search)
-            sm1,sm2,sm3=st.columns(3)
+            sm1,sm2,sm3=st.columns(3, gap='large')
             sm1.metric('Ranked openings',len(recent_search))
             sm2.metric('Workplace identified',confirmed)
             sm3.metric('More complete descriptions',detailed)
 
-        a, b, c = st.columns(3, gap='large')
-        a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
-        b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
-        c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
         today=date.today()
         followups=upcoming_followups(jobs,today)
         if followups:

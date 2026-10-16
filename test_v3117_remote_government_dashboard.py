@@ -97,7 +97,7 @@ class DashboardInsetTests(unittest.TestCase):
     def test_native_dashboard_container_used(self):
         src=Path(__file__).with_name('app.py').read_text()
         self.assertIn("st.container(border=False, key='dashboard_content')",src)
-        self.assertEqual(src.count("st.columns(3, gap='large')"),2)
+        self.assertEqual(src.count("st.columns(3, gap='large')"),3)
 
     def test_actual_streamlit_rail_selector_has_symmetric_inset(self):
         self.assertIn('[data-testid="stMainBlockContainer"]',APP_CSS)
