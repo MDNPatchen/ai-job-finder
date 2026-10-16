@@ -17,6 +17,7 @@ from docx import Document
 import pandas as pd
 from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_filename
+from career_priority import career_sort_key
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
     strict_onsite_requirement,
@@ -1397,7 +1398,7 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
     # overlap takes priority over titles, provider familiarity and posting date.
     # Without a resume, preserve the existing title/relevance ranking.
     if resume.strip():
-        sorted_jobs=sorted(unique.values(),key=evidence_sort_key)
+        sorted_jobs=sorted(unique.values(),key=lambda job: career_sort_key(job,evidence_sort_key))
     else:
         sorted_jobs=sorted(unique.values(),key=lambda j:(
             -j['rank'],-int(j['date'].replace('-','')),j['title'].lower()))
@@ -2069,6 +2070,19 @@ elif page == 'Job Tracker':
     if st.session_state.get('tracker_storage_error'):
         st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
                  '). Export a JSON backup now; the latest changes are in this session.')
+
+    # Keep application follow-ups visible without navigating away from the tracker.
+    active_rows=[j for j in st.session_state.jobs if j.get('Status') not in
+                 ('Skipped','Rejected','Withdrawn','Offer declined')]
+    status_counts=Counter(str(j.get('Status') or 'Not started') for j in active_rows)
+    st.markdown('<div class="job-module-heading">Application pipeline</div>',
+                unsafe_allow_html=True)
+    pc1,pc2,pc3=st.columns(3)
+    pc1.metric('Active openings',len(active_rows))
+    pc2.metric('Applications sent',sum(v for k,v in status_counts.items()
+                if 'appl' in k.lower()))
+    pc3.metric('Interview stage',sum(v for k,v in status_counts.items()
+                if 'interview' in k.lower()))
 
     st.markdown('<div class="job-module-heading">Tracker backup and restore</div>',unsafe_allow_html=True)
     backup_left,backup_right=st.columns(2)
