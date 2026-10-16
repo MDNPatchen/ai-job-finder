@@ -24,11 +24,13 @@ _LEVELS=(
 )
 _TECHNICAL_FIELD=re.compile(
     r"\b(?:architecture|architectural|engineering|construction engineering|"
+    r"construction management|construction science|preconstruction|"
     r"nursing|medicine|clinical science|laboratory science|"
     r"licensed clinical|social work|pharmacy)\b",re.I)
 _BUSINESS_FIELD=re.compile(
-    r"\b(?:business|administration|management|operations|"
-    r"finance|accounting|marketing|public administration|health administration)\b",re.I)
+    r"\b(?:business(?: administration| management)?|"
+    r"operations management|health(?:care| care) administration|"
+    r"public administration|finance|accounting|marketing)\b",re.I)
 _QUAL_CONTEXT=re.compile(
     r"\b(?:qualifications?|minimums?|requirements?|required|must|"
     r"education|experience|degree|credential|licen[sc]e|registration)\b",re.I)
@@ -95,39 +97,54 @@ def _degree_status(line, degree_match, section):
 
 
 def _degree_resume_evidence(resume, level, required_line):
+    """Verify the exact eligible discipline, not generic 'management'.
+
+    Construction Management is a professional field, not equivalent to
+    Business Management merely because both include the word management.
+    Accept an explicit Business/Operations degree only if the employer
+    actually names it as an alternative discipline.
+    """
     idx=next((i for i,(name,_,_) in enumerate(_LEVELS) if name==level),99)
     level_found=any(i<=idx and bool(pattern.search(resume))
                     for i,(_,pattern,_) in enumerate(_LEVELS))
     if not level_found:
         return False,'Required degree level not established by résumé; independently verify.'
-    if _TECHNICAL_FIELD.search(required_line) and not (
-            _BUSINESS_FIELD.search(required_line) and
-            re.search(r'\b(?:or|and/or)\b',required_line,re.I) and
-            re.search(r'(?:bachelor|master|doctor|degree).{0,95}'
-                      r'(?:business|administration|management|finance|'
-                      r'accounting|marketing)',resume,re.I)):
-        # Technical education must be apparent in a declared degree
-        # context, not just generic engineering oversight in work history.
-        relevant=bool(re.search(
-            r"(?:bachelor|master|doctor|degree).{0,100}"
-            r"(?:architecture|architectural|engineering|nursing|medicine|"
-            r"pharmacy|clinical science|laboratory science)|"
-            r"(?:architecture|architectural|engineering|nursing|medicine|"
-            r"pharmacy|clinical science|laboratory science).{0,75}"
-            r"(?:degree|bachelor|master|doctor)",resume,re.I))
-        if not relevant:
-            return False,'Degree level mentioned, but required technical field not established by résumé.'
-    elif _BUSINESS_FIELD.search(required_line):
-        # A business/management degree can often span administration and
-        # related fields, but an unrelated bachelor's should not suffice.
-        if not re.search(r"(?:degree|bachelor|master).{0,95}"
-                         r"(?:business|administration|management|finance|"
-                         r"accounting|marketing)|"
-                         r"(?:business|administration|management|finance|"
-                         r"accounting|marketing).{0,80}(?:degree|bachelor|master)",
-                         resume,re.I):
-            return False,'Degree level mentioned, but stated business/administrative field needs verification.'
-    return True,'Related degree level and field mentioned; verify award and equivalency.'
+
+    business_evidence=bool(re.search(
+        r'(?:bachelor|master|doctor|degree).{0,100}'
+        r'(?:business|public administration|health(?:care| care) administration|'
+        r'operations management|finance|accounting|marketing)|'
+        r'(?:business|public administration|health(?:care| care) administration|'
+        r'operations management|finance|accounting|marketing).{0,85}'
+        r'(?:degree|bachelor|master|doctor)',resume,re.I))
+    business_offered=bool(_BUSINESS_FIELD.search(required_line))
+    # A degree in construction management never matches a business degree;
+    # generic "management" and "related field" are insufficient alternatives.
+    if business_offered and business_evidence:
+        return True,'Employer explicitly names a related business discipline; verify degree level and acceptance.'
+
+    if _TECHNICAL_FIELD.search(required_line):
+        technical_evidence=bool(re.search(
+            r'(?:bachelor|master|doctor|degree).{0,110}'
+            r'(?:architecture|architectural|engineering|construction management|'
+            r'construction science|nursing|medicine|pharmacy|clinical science|'
+            r'laboratory science)|'
+            r'(?:architecture|architectural|engineering|construction management|'
+            r'construction science|nursing|medicine|pharmacy|clinical science|'
+            r'laboratory science).{0,90}(?:degree|bachelor|master|doctor)',
+            resume,re.I))
+        if not technical_evidence:
+            return False,('Required construction, engineering or other technical '
+                          'degree discipline is not documented; general business '
+                          'management does not establish equivalence.')
+        return True,'Relevant technical degree appears in résumé; verify award and approved discipline.'
+
+    if business_offered:
+        if not business_evidence:
+            return False,'Degree level mentioned, but stated business/administrative discipline needs verification.'
+        return True,'Related business degree is mentioned; verify award and discipline.'
+
+    return True,'Degree level is mentioned; confirm employer discipline requirements.'
 
 
 def extract_formal_minimums(job, resume=''):
