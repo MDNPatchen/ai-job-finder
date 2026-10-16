@@ -131,6 +131,21 @@ def reconcile_workplace_record(job):
     if not style:
         style='Remote' if affirmative(out.get('remote')) else 'Not specified'
     original_source=str(out.get('arrangement_source') or '').strip()
+    if strict_onsite_requirement(out.get('description')):
+        if style not in ('On-site','Not specified'):
+            out['workplace_conflict']=(
+                'ATS/provider reported '+style+
+                '; employer description explicitly requires in-person work.')
+            out['work_style']='On-site'
+            out['remote']=False
+            out['arrangement_source']=(
+                'Explicit job-description on-site requirement conflicts with provider label')
+            return out
+        if style=='Not specified':
+            out['work_style']='On-site'
+            out['remote']=False
+            out['arrangement_source']='Explicit in-person requirement in job description'
+            return out
 
     if style=='Not specified':
         source=NO_WORKPLACE_EVIDENCE
