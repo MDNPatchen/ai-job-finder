@@ -22,6 +22,26 @@ def declared_arrangement(value):
     return ''
 
 
+def strict_onsite_requirement(description):
+    """Full-time in-person requirement, not a hybrid office-day schedule."""
+    text=re.sub(r'\s+',' ',str(description or ''))[:12500]
+    if re.search(r'\bhybrid\s+(?:role|work|schedule|arrangement|model)\b',text,re.I):
+        return False
+    terms=(
+        r'\b(?:this\s+)?(?:position|job|role)\s+(?:is\s+)?'
+        r'(?:required|expected)\s+to\s+(?:work|report|be)\s+'
+        r'(?:on[- ]site|onsite|in[- ]person|in\s+(?:the|our)\s+office)\b',
+        r'\b(?:must|required to)\s+(?:work|report|be)\s+'
+        r'(?:on[- ]site|onsite|in[- ]person|in\s+(?:the|our)\s+office)\b',
+        r'\b(?:on[- ]site|in[- ]person)\s+(?:attendance|work)\s+'
+        r'(?:is\s+)?(?:mandatory|required)\b',
+        r'\b(?:fully|100%|entirely)\s+(?:on[- ]site|onsite|in[- ]person)\b',
+        r'\b(?:five|5)\s+days?\s+(?:a|per)\s+week\s+'
+        r'(?:on[- ]site|onsite|in[- ]person|in\s+(?:the|our)\s+office)\b',
+    )
+    return any(re.search(term,text,re.I) for term in terms)
+
+
 def from_explicit_description(description):
     """Conservative job-specific arrangement text, not every occurrence of 'office'."""
     text=re.sub(r'\s+',' ',str(description or ''))[:12500]
