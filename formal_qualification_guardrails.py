@@ -284,6 +284,7 @@ def _reconcile_degree_pathways(desc, degree_hits):
                 if raw:
                     item['covered_by_alternative_degree_pathway']=True
             item['alternative_degree_pathways']=paths
+            item['priority']+=' — alternative degree route (not cumulative)'
             item['resume_status']+=(
                 ' These are alternate degree routes, not cumulative education '
                 'requirements; verify the experience minimum for each route.'
