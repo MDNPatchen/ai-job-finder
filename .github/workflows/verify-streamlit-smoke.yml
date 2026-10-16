@@ -10,6 +10,8 @@ on:
       - "test_v3110_sector_lever.py"
       - "government_feed_identity.py"
       - "ui_theme.py"
+      - "mayo_source.py"
+      - "test_v3115_mayo_procurement.py"
       - ".streamlit/config.toml"
       - "test_ui_theme.py"
       - "transfer_fit.py"
