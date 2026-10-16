@@ -20,6 +20,7 @@ on:
       - "qualification_matcher.py"
       - "qualification_v2.py"
       - "job_workflow.py"
+      - "test_explicit_remote_title.py"
       - "employer_postings.py"
       - "posting_metadata.py"
       - "tracker_store.py"
