@@ -14,7 +14,7 @@ import re
 
 _ALLOWED={"www.governmentjobs.com","www.schooljobs.com"}
 _OFFICIAL_URL=re.compile(r"^/careers/([A-Za-z0-9_-]+)/jobs/(?:newprint/)?(\d{5,11})(?:[-/].*)?$",re.I)
-_BLOCK={"script","style","svg","noscript","form","nav","footer","header"}
+_BLOCK={"script","style","svg","noscript","form","nav","footer"}
 _HEADINGS=re.compile(
     r"(?im)^\s*(?:position description|job responsibilities|duties and responsibilities|"
     r"(?:minimum|required|desired|preferred)?\s*qualifications|"
