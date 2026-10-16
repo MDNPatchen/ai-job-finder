@@ -1883,12 +1883,41 @@ elif page == 'Find Jobs':
                                  value=False,key='new_jobs_only')
             hide_tracked=st.checkbox('Hide positions already in my Job Tracker',
                                      value=False,key='hide_tracked_jobs')
+            view_a,view_b=st.columns(2)
+            with view_a:
+                workplace_view=st.selectbox('Workplace evidence',[
+                    'All arrangements','Verified on-site or hybrid',
+                    'Government or Mayo remote allowed','Needs workplace confirmation'
+                ],key='workplace_review_filter')
+            with view_b:
+                career_view=st.selectbox('Career level',[
+                    'All career levels','Director / executive / publisher',
+                    'Management roles','Other roles'
+                ],key='career_review_filter')
             tracked_ids={posting_id({'company':item['Company'],'title':item['Job Title'],
                        'url':item['Job URL'],'location':item['Location']})
                          for item in st.session_state.jobs}
+            from career_priority import leadership_tier
+            def review_visible(job):
+                style=job.get('work_style') or 'Not specified'
+                if workplace_view=='Verified on-site or hybrid' and style not in ('On-site','Hybrid'):
+                    return False
+                if workplace_view=='Government or Mayo remote allowed' and style!='Remote':
+                    return False
+                if workplace_view=='Needs workplace confirmation' and style!='Not specified':
+                    return False
+                tier=leadership_tier(job.get('title'))
+                if career_view=='Director / executive / publisher' and tier<3:
+                    return False
+                if career_view=='Management roles' and tier!=1:
+                    return False
+                if career_view=='Other roles' and tier>0:
+                    return False
+                return True
             display_results=[job for job in all_results
                  if (not new_only or job.get('new_since_last_search'))
-                 and (not hide_tracked or posting_id(job) not in tracked_ids)]
+                 and (not hide_tracked or posting_id(job) not in tracked_ids)
+                 and review_visible(job)]
             PAGE_SIZE=12
             page_no=st.session_state.get('search_page',0)
             page_total=max(1,(len(display_results)+PAGE_SIZE-1)//PAGE_SIZE)
