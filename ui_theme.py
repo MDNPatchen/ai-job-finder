@@ -173,6 +173,18 @@ hr{border-color:var(--divider)!important;margin:1rem 0!important;}
 [data-testid="stForm"]{
   padding:1.45rem 1.65rem!important;
 }
+/* Inset panels inside the outer page gutter, not flush with its edge. */
+[data-testid="stForm"],
+[data-testid="stVerticalBlockBorderWrapper"]:not(.st-key-dashboard_content){
+  box-sizing:border-box!important;
+  width:calc(100% - 32px)!important;
+  margin-left:16px!important;margin-right:16px!important;
+}
+[data-testid="stForm"]{padding:1.3rem 1.5rem!important;}
+.job-hero,.job-module-heading,.job-module-caption,.job-topbar,
+.st-key-top_navigation{margin-left:16px!important;margin-right:16px!important;}
+.st-key-dashboard_content .job-hero,
+.st-key-dashboard_content .job-module-heading{margin-left:0!important;margin-right:0!important;}
 [data-testid="stVerticalBlockBorderWrapper"]{
   margin-bottom:14px!important;
 }
