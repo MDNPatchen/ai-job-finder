@@ -102,9 +102,9 @@ class DashboardInsetTests(unittest.TestCase):
     def test_actual_streamlit_rail_selector_has_symmetric_inset(self):
         self.assertIn('[data-testid="stMainBlockContainer"]',APP_CSS)
         self.assertIn('.block-container',APP_CSS)
-        self.assertIn('width:calc(100% - 8rem)',APP_CSS)
-        self.assertIn('padding:2rem 3rem 4rem',APP_CSS)
-        self.assertIn('margin-left:auto!important;margin-right:auto!important',APP_CSS)
+        self.assertIn('width:calc(100% - 6rem)',APP_CSS)
+        self.assertIn('padding:1.8rem clamp(24px,3vw,48px) 3.5rem',APP_CSS)
+        self.assertIn('margin-inline:auto!important',APP_CSS)
         self.assertIn('.st-key-dashboard_content',APP_CSS)
         self.assertIn('padding:1rem 1.55rem 1.8rem',APP_CSS)
         self.assertIn('column-gap:1.35rem!important',APP_CSS)

@@ -4,6 +4,7 @@ import copy
 from collections import Counter
 from pathlib import Path
 import unittest
+from career_priority import career_sort_key
 
 from ranked_breakdowns import (
     evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
@@ -50,7 +51,7 @@ def extracted_filter():
     target.decorator_list=[]
     module=ast.fix_missing_locations(ast.Module(body=[target],type_ignores=[]))
     namespace={
-        "Counter":Counter,
+        "Counter":Counter, "career_sort_key":career_sort_key,
         "compile_resume_profile":lambda resume,areas: {"resume_present":bool(resume)},
         "verified_competencies":lambda:set(),
         "is_recent_posting":lambda j:True,

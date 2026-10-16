@@ -4,6 +4,7 @@ import copy
 from collections import Counter
 from pathlib import Path
 import unittest
+from career_priority import career_sort_key
 
 
 APP_PATH = Path(__file__).with_name("app.py")
@@ -30,13 +31,10 @@ def job(title, source, arrangement, location="Rochester, MN"):
 
 
 def filter_jobs(data, state=None, mode="On-site + Hybrid"):
-    function = isolated_function("filter_and_rank_jobs", {
-        "Counter": Counter,
-        "is_recent_posting": lambda j: True,
-        "states_in_location": lambda loc: ["AZ"] if loc.endswith(", AZ") else ["MN"],
-        "normalized_key": lambda j: (j["title"], j["company"]),
-        "score_job": lambda j, resume, query: {**j, "rank": 10},
-    })
+    from test_ranked_breakdowns import extracted_filter
+    function = extracted_filter()
+    function.__globals__['states_in_location'] = lambda loc: ['AZ'] if loc.endswith(', AZ') else ['MN']
+    function.__globals__['score_job'] = lambda j, resume, query, profile: {**j, 'rank':10}
     return function(data, state, mode, "", "")[0]
 
 
@@ -68,7 +66,7 @@ class MayoRemoteOnlyTests(unittest.TestCase):
 
     def test_mayo_may_show_more_than_three_roles(self):
         jobs = [job(f"Mayo director {i}", "Mayo Clinic", "Remote") for i in range(12)]
-        self.assertEqual(len(filter_jobs(jobs)), 10)
+        self.assertEqual(len(filter_jobs(jobs)), 12)
 
     def test_source_must_match_not_just_employer_name(self):
         duplicate = job("Director of operations", "Greenhouse", "Remote")

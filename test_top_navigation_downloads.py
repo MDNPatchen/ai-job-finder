@@ -90,7 +90,7 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         self.assertIn("#34443D",APP_CSS)
         self.assertIn("padding:1.18rem 1.38rem",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
-        self.assertIn("Compact Slate",brand(MATCHING_ENGINE_VERSION))
+        self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertNotIn("<img",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("example",listing_head("example","Employer","US",
                                               "On-site",False))

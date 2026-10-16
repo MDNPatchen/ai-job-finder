@@ -14,7 +14,7 @@ ROW={
     'Company':'Example Media','Job Title':'Director of Operations',
     'Location':'Fargo, ND','Job URL':'https://jobs.example.com/123',
     'Salary':'$125,000 Annually','Status':'Applied',
-    'Date Recorded':'2026-10-15','Interview Date':'','Notes':'Follow-up next week',
+    'Date Recorded':'2026-10-15','Interview Date':'','Follow-up Date':'','Notes':'Follow-up next week',
 }
 
 

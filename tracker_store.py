@@ -152,3 +152,24 @@ def save_remote_workspace(database_url,workspace_id,jobs,seen,has_baseline):
                 'VALUES (%s,%s::jsonb) ON CONFLICT (workspace_id) DO UPDATE '
                 'SET payload=EXCLUDED.payload,updated_at=CURRENT_TIMESTAMP',
                 (workspace_id,json.dumps(payload)))
+
+
+def upcoming_followups(jobs, today, days=7):
+    """Return active due actions, retaining row indices for duplicate titles."""
+    from datetime import date, timedelta
+    actions = []
+    for index, job in enumerate(jobs):
+        if job.get('Status') not in ('Saved', 'Applied', 'Interviewing', 'Offer'):
+            continue
+        try:
+            due = date.fromisoformat(job.get('Follow-up Date') or '')
+        except (ValueError, TypeError):
+            continue
+        if due <= today + timedelta(days=days):
+            actions.append((due, index, job))
+    return sorted(actions, key=lambda action: (action[0], action[1]))
+
+
+def complete_followup(jobs, index):
+    """Clear a completed reminder without changing application status or notes."""
+    jobs[index]['Follow-up Date'] = ''

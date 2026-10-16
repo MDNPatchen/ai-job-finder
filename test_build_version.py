@@ -17,7 +17,7 @@ class ExportVersionTests(unittest.TestCase):
     def test_search_run_downloads_have_distinct_names(self):
         csv=export_filename("ranked","20261015T213500Z","csv")
         json_name=export_filename("detailed","20261015T213500Z","json")
-        self.assertIn("_v3117_",csv)
+        self.assertIn("_v"+MATCHING_ENGINE_VERSION.replace(".","")+"_",csv)
         self.assertIn("20261015T213500Z",csv)
         self.assertNotEqual(csv,json_name)
         self.assertNotEqual(csv,export_filename("ranked","20261015T213600Z","csv"))

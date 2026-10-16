@@ -34,11 +34,11 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn("background:var(--paper)",APP_CSS)
 
     def test_roomier_modules_have_balanced_side_margins(self):
-        self.assertIn("max-width:1370px",APP_CSS)
-        self.assertIn("width:calc(100% - 8rem)",APP_CSS)
-        self.assertIn("margin-left:auto!important",APP_CSS)
-        self.assertIn("margin-right:auto!important",APP_CSS)
-        self.assertIn("padding:2rem 3rem 4rem",APP_CSS)
+        self.assertIn("max-width:1440px",APP_CSS)
+        self.assertIn("width:calc(100% - 6rem)",APP_CSS)
+        self.assertIn("margin-inline:auto!important",APP_CSS)
+        self.assertIn("margin-inline:auto!important",APP_CSS)
+        self.assertIn("padding:1.8rem clamp(24px,3vw,48px) 3.5rem",APP_CSS)
         self.assertIn("width:100%!important;max-width:100%!important",APP_CSS)
         self.assertIn("min-height:105px",APP_CSS)
         self.assertIn("min-height:40px",APP_CSS)
@@ -57,7 +57,7 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn('backgroundColor = "#27342F"',theme)
         self.assertIn('secondaryBackgroundColor = "#34443D"',theme)
         self.assertIn('textColor = "#F1F6F2"',theme)
-        self.assertIn("Compact Slate",brand("3.1.15"))
+        self.assertIn("AI Job Finder",brand("3.1.15"))
         self.assertEqual(PALETTE["background"],"#27342F")
         self.assertEqual(PALETTE["panel"],"#34443D")
         def luminance(hex_color):

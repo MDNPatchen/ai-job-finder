@@ -37,3 +37,21 @@ def career_sort_key(job, evidence_key):
     except (ValueError,TypeError):
         fit=0
     return (-fit, -leadership_priority(job), evidence_key(job))
+
+
+def career_review_category(title):
+    """Partition every title into exactly one review category."""
+    tier = leadership_tier(title)
+    if tier >= 3:
+        return 'Director / executive / publisher'
+    if tier in (1, 2):
+        return 'Management / related roles'
+    return 'Other roles'
+
+
+def has_detailed_description(job):
+    """Only known detailed provenance counts; absence is not evidence."""
+    return job.get('description_source') in (
+        'Employer posting details as supplied by provider',
+        'Official full public job bulletin',
+    )

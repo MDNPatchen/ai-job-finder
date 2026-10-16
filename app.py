@@ -17,7 +17,7 @@ from docx import Document
 import pandas as pd
 from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_filename
-from career_priority import career_sort_key
+from career_priority import career_sort_key, career_review_category, has_detailed_description
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
     strict_onsite_requirement,
@@ -58,7 +58,7 @@ from tracker_store import (
     COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
     import_tracker_csv, export_tracker_csv, import_workspace_json,
     export_workspace_json, load_remote_workspace, save_remote_workspace,
-    authenticate
+    authenticate, upcoming_followups, complete_followup
 )
 
 st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='collapsed')
@@ -1528,9 +1528,7 @@ if page == 'Dashboard':
                         unsafe_allow_html=True)
             confirmed=sum((j.get('work_style') in ('On-site','Hybrid','Remote'))
                           for j in recent_search)
-            detailed=sum('RSS summary' not in str(j.get('description_source') or '')
-                         and 'RSS text' not in str(j.get('description_source') or '')
-                         for j in recent_search)
+            detailed=sum(has_detailed_description(j) for j in recent_search)
             sm1,sm2,sm3=st.columns(3)
             sm1.metric('Ranked openings',len(recent_search))
             sm2.metric('Workplace identified',confirmed)
@@ -1541,23 +1539,17 @@ if page == 'Dashboard':
         b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
         c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
         today=date.today()
-        followups=[]
-        for item in jobs:
-            due=item.get('Follow-up Date','')
-            if item.get('Status') in ('Rejected','Skipped','Withdrawn') or not due:
-                continue
-            try:
-                when=date.fromisoformat(due)
-            except ValueError:
-                continue
-            if when <= today + timedelta(days=7):
-                followups.append((when,item))
-        followups.sort(key=lambda item:item[0])
+        followups=upcoming_followups(jobs,today)
         if followups:
             st.markdown('<div class="job-module-heading">Upcoming follow-ups</div>',unsafe_allow_html=True)
-            for when,item in followups[:8]:
+            st.caption(f'{len(followups)} follow-ups due within seven days, including overdue actions.')
+            for when,index,item in followups[:8]:
                 label='Overdue' if when<today else 'Today' if when==today else when.strftime('%b %d')
                 st.write(f"**{label}** · {item['Company']} — {item['Job Title']}")
+                if st.button('Mark follow-up complete',key=f'complete_followup_{index}'):
+                    complete_followup(jobs,index)
+                    persist_tracker_if_unlocked()
+                    st.rerun()
         if jobs:
             st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
         else:
@@ -1906,15 +1898,14 @@ elif page == 'Find Jobs':
             with view_b:
                 career_view=st.selectbox('Career level',[
                     'All career levels','Director / executive / publisher',
-                    'Management roles','Other roles'
+                    'Management / related roles','Other roles'
                 ],key='career_review_filter')
-            description_view=st.checkbox('Hide summary-only postings',
+            description_view=st.checkbox('Show detailed descriptions only',
                 value=False,key='full_description_filter',
-                help='Removes listings where the available description is only an RSS summary; these may lack important qualifications.')
+                help='Shows provider posting details and official full bulletins. Excludes summaries, unverified RSS text and unknown provenance.')
             tracked_ids={posting_id({'company':item['Company'],'title':item['Job Title'],
                        'url':item['Job URL'],'location':item['Location']})
                          for item in st.session_state.jobs}
-            from career_priority import leadership_tier
             def review_visible(job):
                 style=job.get('work_style') or 'Not specified'
                 if workplace_view=='Verified on-site or hybrid' and style not in ('On-site','Hybrid'):
@@ -1923,16 +1914,9 @@ elif page == 'Find Jobs':
                     return False
                 if workplace_view=='Needs workplace confirmation' and style!='Not specified':
                     return False
-                tier=leadership_tier(job.get('title'))
-                if career_view=='Director / executive / publisher' and tier<3:
+                if career_view!='All career levels' and career_review_category(job.get('title'))!=career_view:
                     return False
-                if career_view=='Management roles' and tier!=1:
-                    return False
-                if career_view=='Other roles' and tier>0:
-                    return False
-                source_text=str(job.get('description_source') or '').lower()
-                if description_view and ('rss summary' in source_text or
-                                         'rss text' in source_text):
+                if description_view and not has_detailed_description(job):
                     return False
                 return True
             display_results=[job for job in all_results
@@ -2256,7 +2240,7 @@ elif page == 'Job Tracker':
         idx=st.selectbox('Update a job',range(len(jobs)),
                          format_func=lambda i:f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
         job=jobs[idx]
-        new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']))
+        new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']),key=f'status_{idx}')
         new_notes=st.text_area('Update notes',value=job['Notes'],key=f'notes_{idx}')
         prior_follow=job.get('Follow-up Date','')
         try:
