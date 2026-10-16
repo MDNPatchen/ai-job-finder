@@ -215,6 +215,11 @@ _HEADINGS = re.compile(
     r"who\s+you\s+are|"
     r"(?:nice\s+to\s+have|preferred\s+(?:experience|skills)|"
     r"desired\s+(?:experience|skills)|bonus\s+points)|"
+    r"(?:our\s+)?(?:benefits|perks|total\s+rewards|"
+    r"compensation\s*(?:&|and)\s*benefits|"
+    r"employee\s+benefits|rewards\s*(?:&|and)\s*benefits|"
+    r"what\s+we\s+offer|what\s+you[’']ll\s+get|"
+    r"why\s+(?:work\s+(?:with|at)\s+us|join\s+us))|"
     r"(?:job\s+)?responsibilities|position\s+description|"
     r"duties\s+and\s+responsibilities|additional\s+information|"
     r"what\s+you[’']ll\s+do|about\s+the\s+(?:role|job))\s*:?\s*$")
@@ -227,6 +232,46 @@ def _qualification_scope(text, position):
             break
         current=match.group(1).strip().casefold()
     return current
+
+
+# Employer-provided rewards are not competencies the applicant needs.
+# This is deliberately narrower than merely finding "salary" or "equity":
+# legitimate Compensation/Total Rewards jobs can require those specialties.
+_BENEFIT_SECTION = re.compile(
+    r'^(?:our\s+)?(?:benefits|perks|total rewards|'
+    r'compensation\s*(?:&|and)\s*benefits|employee benefits|'
+    r'rewards\s*(?:&|and)\s*benefits|what we offer|'
+    r"what you[’']ll get|why (?:work (?:with|at) us|join us))$",re.I)
+_EMPLOYER_OFFER = re.compile(
+    r'\b(?:we\s+(?:offer|provide|are offering)|'
+    r"you[’']ll\s+(?:receive|enjoy|get|have access to)|"
+    r'our\s+(?:benefits|perks|total\s+rewards|'
+    r'compensation\s+package|employee\s+benefits)|'
+    r'(?:competitive|generous|comprehensive)\s+'
+    r'(?:compensation|salary|equity|benefits|total rewards)|'
+    r'(?:compensation|equity|total rewards)\s+packages?|'
+    r'(?:health(?:care)?\s+plans?|paid\s+time\s+off|'
+    r'fertility\s+benefits|retirement\s+benefits|'
+    r'401\s*\(?k\)?|wellness\s+benefits))\b',re.I)
+_REWARD_ADMINISTRATIVE = re.compile(
+    r'\b(?:administ(?:er|ration|ering)|manag(?:e|ing|ement)|'
+    r'develop(?:ed|ing)?|design(?:ing)?|oversee|led|leading|'
+    r'benchmark(?:ing)?|analys(?:e|is|is)|strateg(?:y|ies)|'
+    r'implement(?:ation|ing)?|experience\s+(?:with|in|of))\b',re.I)
+
+
+def _employer_offer_text(section, clause, area):
+    """Skip rewards offered to employees, never applicants' required skills."""
+    if _BENEFIT_SECTION.fullmatch(str(section or '').strip()):
+        return True
+    if area != 'Compensation and equity administration':
+        return False
+    line=str(clause or '').strip().lstrip('-• ')
+    if not _EMPLOYER_OFFER.search(line):
+        return False
+    # Real requirements generally say "manage compensation programs" or
+    # "X years of experience in equity administration"; don't skip those.
+    return not bool(_REWARD_ADMINISTRATIVE.search(line))
 
 
 def _priority(clause, term, section=''):
@@ -303,6 +348,8 @@ def extract_posting_requirements(job, resume=''):
             if local is None:
                 continue
             section=_qualification_scope(desc,match.start())
+            if _employer_offer_text(section,clause,area):
+                continue
             priority=_priority(clause,local,section)
             if (priority=='Field expertise mentioned — verify'
                     and not FIELD_QUALIFIER.search(clause)):
@@ -332,7 +379,10 @@ def extract_posting_requirements(job, resume=''):
             local=re.search(pattern,clause,re.I)
             if not local:
                 continue
-            priority=_priority(clause,local,_qualification_scope(desc,match.start()))
+            section=_qualification_scope(desc,match.start())
+            if _employer_offer_text(section,clause,area):
+                continue
+            priority=_priority(clause,local,section)
             if OPPORTUNITY_TO_OBTAIN.search(clause):
                 priority='May be obtained later — verify deadline'
             weight=(3 if priority.startswith('Required') else
