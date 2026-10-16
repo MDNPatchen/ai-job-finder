@@ -103,29 +103,47 @@ def parse_bulletin_html(html,title):
     return text if _QUALIFICATIONS.search(text) and len(text)>800 else ""
 
 
-def fetch_official_bulletin(job, timeout=7, opener=urlopen):
+def fetch_official_bulletin(job, timeout=5, opener=urlopen):
+    """Try the provider's printable bulletin, then its own job-detail page.
+
+    Both links use the *same existing official vacancy ID and agency slug*.
+    A redirect to a different vacancy or outside the provider is rejected.
+    Never use guessed links, search results, or paid feeds.
+    """
     url=official_bulletin_url(job.get("url"))
     if not url:
         return ""
-    request=Request(url,headers={
-        "User-Agent":"Mozilla/5.0 (compatible; FreeCareerResearch/3.1)",
-        "Accept":"text/html,application/xhtml+xml"})
-    try:
-        with opener(request,timeout=timeout) as resp:
-            # Don't trust automatic redirects to other domains.
-            dest=urlsplit(resp.geturl())
-            if dest.scheme!="https" or dest.hostname not in _ALLOWED:
-                return ""
-            mime=(resp.headers.get("Content-Type") or "").casefold()
-            if mime and "html" not in mime:
-                return ""
-            payload=resp.read(1_500_001)
-    except (OSError,ValueError,TimeoutError,TypeError):
+    parts=urlsplit(url)
+    match=_OFFICIAL_URL.fullmatch(parts.path)
+    if not match:
         return ""
-    if len(payload)>1_500_000:
-        return ""
-    return parse_bulletin_html(payload.decode("utf-8",errors="replace"),
-                               job.get("title"))
+    original=(parts.hostname,match[1].lower(),match[2])
+    detail="https://"+parts.hostname+"/careers/"+match[1]+"/jobs/"+match[2]
+    for link in (url,detail):
+        request=Request(link,headers={
+            "User-Agent":"Mozilla/5.0 (compatible; FreeCareerResearch/3.1)",
+            "Accept":"text/html,application/xhtml+xml"})
+        try:
+            with opener(request,timeout=timeout) as resp:
+                dest=urlsplit(resp.geturl())
+                target=_OFFICIAL_URL.fullmatch(dest.path.rstrip("/"))
+                if (dest.scheme!="https" or dest.hostname!=original[0]
+                        or not target or target[1].lower()!=original[1]
+                        or target[2]!=original[2]):
+                    continue
+                mime=(resp.headers.get("Content-Type") or "").casefold()
+                if mime and "html" not in mime:
+                    continue
+                payload=resp.read(1_500_001)
+        except (OSError,ValueError,TimeoutError,TypeError):
+            continue
+        if len(payload)>1_500_000:
+            continue
+        parsed=parse_bulletin_html(
+            payload.decode("utf-8",errors="replace"),job.get("title"))
+        if parsed:
+            return parsed
+    return ""
 
 
 def short_or_partial(job):
@@ -138,7 +156,7 @@ def short_or_partial(job):
 
 
 def enrich_priority_government_jobs(original_jobs, ranked_results,
-                                   limit=28, fetch=fetch_official_bulletin):
+                                   limit=40, fetch=fetch_official_bulletin):
     """Return a NEW list plus diagnostics; no mutation of cached feed records.
 
     Attempt only the highest-ranked short government postings with authentic
@@ -159,7 +177,7 @@ def enrich_priority_government_jobs(original_jobs, ranked_results,
             seen.add(url)
     results={}
     if picks:
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=6) as pool:
             for job,desc in zip(picks,pool.map(fetch,picks)):
                 # A real qualification section is more valuable than a
                 # longer promotional RSS excerpt; do not require a length
