@@ -24,6 +24,20 @@ SPECIALIZED_TITLE_FIELDS = (
      r"\b(?:information technology|IT operations|IT management|"
      r"software development|software engineering|cybersecurity|"
      r"systems administration|enterprise applications)\b", 24),
+    ("Dedicated corporate finance / investment analysis",
+     r"\b(?:corporate finance|financial planning\s*(?:and|&)\s*analysis|"
+     r"FP&A|investment banking|treasury analytics?)\b",
+     r"\b(?:corporate finance|financial modeling|"
+     r"financial planning\s*(?:and|&)\s*analysis|"
+     r"FP&A|investment banking|investment analysis|"
+     r"treasury operations|treasury analytics?)\b",22),
+    ("Construction project / preconstruction leadership",
+     r"\b(?:preconstruction|construction project manager|"
+     r"capital project manager|construction operations director|"
+     r"construction estimating manager)\b",
+     r"\b(?:preconstruction|construction management|"
+     r"construction project management|construction estimating|"
+     r"commercial construction|capital construction projects?)\b",24),
     ("Specialist accounting / capital markets",
      r"\b(?:accountant|accounting manager|controller|treasury manager|"
      r"capital markets|financial analyst|FP&A|tax manager|auditor|"
