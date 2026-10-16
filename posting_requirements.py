@@ -168,10 +168,14 @@ def _priority(clause, term, section=''):
         return 'Preferred / mentioned'
     tail=clause[max(0,term.end()-3):term.end()+95]
     lead=clause[max(0,term.start()-100):term.start()]
-    if PREFERRED.search(tail) or re.search(
-        r'\b(?:preferred|desirable|nice to have)\b',lead[-45:],re.I):
+    # Only read preference language within the same qualification clause,
+    # not from the next heading in a full bulletin.
+    nearby_line=clause[max(0,term.start()-80):term.end()+95].split('\n',1)[0]
+    if (PREFERRED.search(nearby_line) or
+            re.search(r'\b(?:preferred|desirable|nice to have)\b',
+                      lead.rsplit('\n',1)[-1][-45:],re.I)):
         return 'Preferred / mentioned'
-    if REQUIRED.search(lead) or REQUIRED.search(tail):
+    if REQUIRED.search(lead) or REQUIRED.search(tail.split('\n',1)[0]):
         return 'Required / minimum — verify exact wording'
     if (section in ('qualifications','qualification',
                     'minimum qualifications','minimum qualification',
