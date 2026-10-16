@@ -3,8 +3,14 @@ import unittest
 from career_priority import leadership_tier, career_sort_key
 
 class CareerPriorityTests(unittest.TestCase):
-    def test_executive_beats_supervisor_with_near_equal_fit(self):
+    def test_exact_fit_score_has_priority(self):
         executive={'title':'Chief Operating Officer','qualification_match':{'fit_index':88}}
+        supervisor={'title':'Workplace Experience Supervisor','qualification_match':{'fit_index':89}}
+        key=lambda job:(-job['qualification_match']['fit_index'],)
+        self.assertLess(career_sort_key(supervisor,key),career_sort_key(executive,key))
+
+    def test_leadership_breaks_equal_scores(self):
+        executive={'title':'Chief Operating Officer','qualification_match':{'fit_index':89}}
         supervisor={'title':'Workplace Experience Supervisor','qualification_match':{'fit_index':89}}
         key=lambda job:(-job['qualification_match']['fit_index'],)
         self.assertLess(career_sort_key(executive,key),career_sort_key(supervisor,key))
