@@ -18,38 +18,11 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn(".st-key-top_navigation",APP_CSS)
         self.assertIn("@media(max-width:900px)",APP_CSS)
 
-    def test_compact_modules_have_smaller_interiors_without_green_borders(self):
-        self.assertIn("Compact independent modules:",
-                      APP_CSS)
-        self.assertIn("padding:1.18rem 1.38rem",APP_CSS)
-        self.assertIn("padding:1.12rem 1.32rem",APP_CSS)
-        self.assertIn("padding:1.45rem 1.65rem",APP_CSS)
-        self.assertIn("min-height:105px",APP_CSS)
-        self.assertIn("min-height:40px",APP_CSS)
-        self.assertIn("font-size:1.10rem",APP_CSS)
-        self.assertIn("font-size:.71rem",APP_CSS)
-        self.assertIn("border:0!important",APP_CSS)
-        self.assertNotIn("border-left:4px",APP_CSS)
-        self.assertNotIn("border-top:3px",APP_CSS)
-        self.assertIn("background:var(--paper)",APP_CSS)
-
-    def test_roomier_modules_have_balanced_side_margins(self):
-        self.assertIn("max-width:1440px",APP_CSS)
-        self.assertIn("width:calc(100% - 6rem)",APP_CSS)
-        self.assertIn("margin-inline:auto!important",APP_CSS)
-        self.assertIn("margin-inline:auto!important",APP_CSS)
-        self.assertIn("padding:1.8rem clamp(24px,3vw,48px) 3.5rem",APP_CSS)
-        self.assertIn("width:100%!important;max-width:100%!important",APP_CSS)
-        self.assertIn("min-height:105px",APP_CSS)
-        self.assertIn("min-height:40px",APP_CSS)
-        self.assertNotIn("border-left:4px",APP_CSS)
-
-    def test_green_filled_controls_keep_white_text(self):
-        self.assertIn("label:has(input:checked) *",APP_CSS)
-        self.assertIn('[data-testid="stDownloadButton"] button *',APP_CSS)
-        self.assertIn("color:#FFFFFF!important",APP_CSS)
-        self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
-        self.assertIn("background:var(--forest)!important",APP_CSS)
+    def test_shell_does_not_style_structural_wrappers_as_cards(self):
+        self.assertNotIn('[data-testid="stVerticalBlockBorderWrapper"]', APP_CSS)
+        self.assertIn('max-width:1280px', APP_CSS)
+        self.assertIn('margin-inline:auto', APP_CSS)
+        self.assertIn('button:focus-visible', APP_CSS)
 
     def test_dark_streamlit_theme_and_readable_contrast(self):
         theme=Path(__file__).with_name(".streamlit").joinpath("config.toml").read_text()

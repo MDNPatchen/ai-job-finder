@@ -49,7 +49,7 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         end=source.index("new_only=st.checkbox(",begin)
         section=source[begin:end]
         self.assertIn("ranked_exports(all_results",section)
-        self.assertNotIn("if st.session_state.resume_text.strip():",section)
+        self.assertIn("\n            ranked_exports(all_results",section)
         self.assertIn("Download search results",source)
 
     def test_csv_and_json_have_working_files_without_resume(self):
@@ -88,7 +88,7 @@ class NavigationAndDownloadsTests(unittest.TestCase):
     def test_compact_slate_appearance_preserves_native_downloads(self):
         self.assertIn("#27342F",APP_CSS)
         self.assertIn("#34443D",APP_CSS)
-        self.assertIn("padding:1.18rem 1.38rem",APP_CSS)
+        self.assertIn("min-height:44px",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertNotIn("<img",brand(MATCHING_ENGINE_VERSION))

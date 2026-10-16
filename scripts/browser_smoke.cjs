@@ -8,7 +8,7 @@ const fs=require('node:fs');
   const output=process.env.ARTIFACT_DIR||'artifacts';
   fs.mkdirSync(output,{recursive:true});
   const url=process.env.APP_URL||'http://127.0.0.1:8501';
-  const version=process.env.EXPECTED_VERSION||'3.2.0';
+  const version=process.env.EXPECTED_VERSION||'3.2.1';
   await page.goto(url);
   let surface;
   const deadline=Date.now()+60000;
@@ -19,7 +19,7 @@ const fs=require('node:fs');
     if(!surface) await page.waitForTimeout(500);
   }
   assert.ok(surface,'Expected deployed version '+version+' in app or embedded frame');
-  for(const size of [{width:1440,height:1000},{width:390,height:844}]){
+  for(const size of [360,390,768,1024,1440,1920].map(width=>({width,height:1000}))){
     await page.setViewportSize(size);
     for(const name of ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches']){
       await surface.getByRole('radio',{name,exact:true}).locator('xpath=ancestor::label').click();
@@ -33,6 +33,30 @@ const fs=require('node:fs');
         return {left:rect.left,right:innerWidth-rect.right,width:document.documentElement.scrollWidth,
           viewport:innerWidth,color:getComputedStyle(document.querySelector('[data-testid="stAppViewContainer"]')).backgroundColor};
       });
+      if(process.env.POPULATED==='1' && name==='Find Jobs'){
+        await surface.locator('.job-role').first().waitFor({timeout:15000});
+        assert.equal(await surface.locator('.job-role').count(),3,'populated results must be exercised');
+        assert.ok((await surface.locator('.job-role').first().innerText()).includes('Director'),'leadership first');
+        assert.ok(await surface.getByText(/Fit is provisional/).count(),'summary uncertainty visible');
+        if([390,1440].includes(size.width)){
+          await surface.locator('.job-role').first().scrollIntoViewIfNeeded();
+          await page.screenshot({path:output+'/Results-'+size.width+'.png',fullPage:true});
+        }
+      }
+      const content=await surface.evaluate(()=>{
+        const selectors='.job-topbar,.job-hero,[data-testid="stForm"],[data-testid="stAlert"],[data-testid="stMetric"],[class*="st-key-job_card_"]';
+        return [...document.querySelectorAll(selectors)].filter(e=>e.getBoundingClientRect().width>0).map(e=>{
+          const r=e.getBoundingClientRect();return {left:r.left,right:innerWidth-r.right,name:e.className};
+        });
+      });
+      const minimum=size.width<=520?19:size.width<=900?27:47;
+      for(const rect of content){
+        assert.ok(rect.left>=minimum && rect.right>=minimum,name+' content gutters: '+JSON.stringify(rect));
+      }
+      await surface.evaluate(()=>document.querySelector('[data-testid="stMain"]').scrollTo(0,0));
+      const brand=await surface.locator('.job-topbar').boundingBox();
+      assert.ok(brand.y>=60,name+' branding must clear platform header');
+      if([390,1440].includes(size.width)) await page.screenshot({path:output+'/'+name.replaceAll(' ','-')+'-'+size.width+'.png',fullPage:true});
       assert.equal(layout.color,'rgb(39, 52, 47)',name+' forest green background');
       assert.ok(Math.abs(layout.left-layout.right)<22,name+' symmetric outer margins');
       assert.ok(layout.width<=layout.viewport+2,name+' horizontal overflow');
@@ -44,5 +68,5 @@ const fs=require('node:fs');
     await page.screenshot({path:output+'/dashboard-'+size.width+'.png',fullPage:true});
   }
   await browser.close();
-  console.log('PASS six pages, desktop/mobile, forest-green background, symmetric margins, no horizontal overflow');
+  console.log('PASS six pages at six widths; actual content gutters, visible branding, forest-green background, no horizontal overflow');
 })().catch(error=>{console.error(error);process.exit(1)});

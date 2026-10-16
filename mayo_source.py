@@ -225,5 +225,5 @@ def fetch_mayo_jobs(fetcher=read_html, max_details=MAX_DETAILS):
                          (errors[0] if errors else "no usable detail records"))
     return SourceRecords(jobs,{'search_pages':successful,'failed_details':len(errors),
         'details_attempted':len(chosen),'candidates':len(candidates),
-        'truncated':True,'partial_error':'; '.join(search_failures),
+        'truncated':len(candidates)>len(chosen),'bounded_coverage':True,'partial_error':'; '.join(search_failures),
         'coverage_note':'Bounded keyword search pages; not a complete employer inventory'})

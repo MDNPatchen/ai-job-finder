@@ -54,6 +54,7 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
         q = job.get('qualification_match') or {}
         out.append({
             'rank': place,
+            'review_order':job.get('review_order') or 'Highest fit index',
             'matching_engine_version': matching_version or 'not recorded',
             'search_run_id': search_run_id or 'not recorded',
             'job_title': job.get('title') or '',
@@ -129,6 +130,7 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
                 for x in value)
         rows.append({
             'Rank': item['rank'],
+            'Review order':item['review_order'],
             'Matching engine version': item['matching_engine_version'],
             'Search run ID (UTC)': item['search_run_id'],
             'Comparative fit index (0-96; not hiring probability)': item['comparative_fit_index'],

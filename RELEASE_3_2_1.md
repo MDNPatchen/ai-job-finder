@@ -1,0 +1,11 @@
+# v3.2.1 — consistent layout and trustworthy search review
+
+The previous layout layered multiple width and inset overrides and styled structural Streamlit wrappers as cards. The replacement uses one centered 1280 px page shell: 48 px inner gutters on desktop, 28 px on tablets, 20 px on phones. Branding clears the platform header. Native navigation, typography, panels, forms and job cards share a single forest-green design system.
+
+Mayo keyword coverage no longer reports an unconditional retrieval cap. A cap is recorded only when discovered candidates exceed attempted details. The interface separately names unavailable sources, request/detail failures, actual caps and keyword scope. Caps alone no longer populate request-error logs. Search coverage can be downloaded as JSON with run ID and source diagnostics.
+
+With a resume, the default review order is Leadership priorities. It adjusts review priority for title scope (executive/director 0; related roles 8; manager 12; supervisor/specialist 18) and incomplete descriptions (15). These adjustments change order only, not the comparative fit score, and never remove jobs. Highest fit index remains available. CSV/JSON exports preserve the selected order and label it. Every result displays description quality, with a provisional-fit explanation for incomplete text. These are transparent review heuristics, not measured hiring probabilities.
+
+Regression coverage includes source-failure versus scope classification, actual Mayo cap behavior, ranking without score inflation or dropped records, CSV order metadata, and a populated Streamlit search workflow. Browser checks now inspect actual content gutters and visible branding at 360, 390, 768, 1024, 1440 and 1920 px, not just symmetry of the outer shell. CI runs both empty-session and synthetic populated-result browser fixtures. Existing database save/recovery protections remain under regression tests.
+
+The release does not claim all source inventories are exhaustive, perform employer identity checks automatically, or turn unspecified work arrangements into confirmed facts. Production database recovery drills and human-reviewed matching evaluation remain outstanding operational work.

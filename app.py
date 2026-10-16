@@ -20,7 +20,9 @@ from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_fil
 from evidence_context import affirmative_match
 import tracker_sync
 from copy import deepcopy
-from career_priority import career_sort_key, career_review_category, has_detailed_description
+from career_priority import career_sort_key, career_review_category, has_detailed_description, order_for_review
+from coverage_health import coverage_messages
+from description_quality import assess_description
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
     strict_onsite_requirement,
@@ -908,7 +910,7 @@ def retrieve_boards(boards, worker, max_workers=8):
                 records=future.result()
                 diagnostics=getattr(records,'diagnostics',{})
                 jobs.extend(records)
-                if diagnostics.get('failed_details') or diagnostics.get('truncated') or diagnostics.get('partial_error'):
+                if diagnostics.get('failed_details') or diagnostics.get('partial_error'):
                     failures.append(f"{info[1]}: partial results; {diagnostics}")
                 health.append({'board':info[1], 'feed_id':info[0],
                                'status':('Partial' if diagnostics.get('failed_details') or diagnostics.get('truncated') or diagnostics.get('partial_error') else 'Active' if records else 'Empty'),
@@ -1177,7 +1179,8 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                         counts[label]=len(result)
                         diag=getattr(result,'diagnostics',{})
                         partial=bool(diag.get('failed_details') or diag.get('truncated') or diag.get('partial_error'))
-                        if partial: errors.append(label+': partial results; '+str(diag))
+                        if diag.get('failed_details') or diag.get('partial_error'):
+                            errors.append(label+': partial results; '+str(diag))
                         health.append({'provider':label,'board':label,
                                        'status':'Partial' if partial else 'Active' if result else 'Empty',
                                        'records':len(result),**diag})
@@ -1780,9 +1783,10 @@ elif page == 'Find Jobs':
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
-        partial_count=sum(r.get('status') in ('Partial','Failed') or r.get('truncated',False) for r in stats.get('board_health',[]))
-        if partial_count or stats.get('errors'):
-            st.warning('Search coverage is incomplete. Some sources failed or reached a retrieval limit. See source coverage below.')
+        for severity,message in coverage_messages(stats.get('board_health',[])):
+            getattr(st,severity)(message)
+        if stats.get('errors') and not stats.get('board_health'):
+            st.warning('Source errors were recorded. See source coverage for details.')
         st.caption('Results are a snapshot. Provider JSON may be cached for up to 15 minutes; confirm availability on the original posting.')
         # Use the same deduplicated, filtered jobs for all three metrics.
         government_total=sum(1 for job in all_results if job['government'])
@@ -1814,6 +1818,13 @@ elif page == 'Find Jobs':
         if not all_results:
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
+            if st.session_state.resume_text.strip():
+                review_order=st.selectbox('Review order',
+                    ['Leadership priorities','Highest fit index'],key='review_order')
+                all_results=order_for_review(all_results,review_order)
+                st.caption('Leadership priorities balances fit with director/executive scope and description quality. '
+                    'Management and specialist roles receive a review-order adjustment; incomplete descriptions receive a 15-point adjustment. '
+                    'Displayed fit scores are unchanged. Choose Highest fit index for strict score order.')
             # Export controls are no longer hidden behind résumé upload.
             # The fragment keeps data stable when the user clicks Download.
             ranked_exports(all_results,stats.get('run_id',''))
@@ -1868,7 +1879,7 @@ elif page == 'Find Jobs':
                 st.caption(f'{len(display_results)} results · {page_no*PAGE_SIZE+1}–{min((page_no+1)*PAGE_SIZE,len(display_results))}')
             for n,job in enumerate(display_results[page_no*PAGE_SIZE:(page_no+1)*PAGE_SIZE],
                                     start=page_no*PAGE_SIZE):
-                with st.container(border=True):
+                with st.container(border=False,key='job_card_'+str(n)):
                     left,right=st.columns([5,1.7],vertical_alignment='top')
                     with left:
                         q=job.get('qualification_match') or {}
@@ -1890,6 +1901,10 @@ elif page == 'Find Jobs':
                             degree=check_degree,relocation=relocation,
                             direct=bool(quality['direct_source'] and quality['individual_url'])
                         ),unsafe_allow_html=True)
+                        description_review=assess_description(job)
+                        st.caption('**Posting evidence:** '+description_review['label'])
+                        if not description_review['detailed']:
+                            st.caption('Fit is provisional: missing posting text can hide requirements. Read the original before applying.')
                         if job.get('salary'):
                             st.caption(job['salary'])
                         if job.get('workplace_conflict'):
@@ -1972,6 +1987,11 @@ elif page == 'Find Jobs':
                     st.session_state.search_page=page_no+1
                     st.rerun()
         with st.expander('Source coverage and diagnostics'):
+            download_file_widget('Download source coverage report',
+                json.dumps({'version':MATCHING_ENGINE_VERSION,'search_run_id':stats.get('run_id'),
+                            'sources':stats.get('board_health',[]),'errors':stats.get('errors',[])},
+                           ensure_ascii=False,default=str,indent=2).encode('utf-8'),
+                'source_coverage_'+stats.get('run_id','unknown')+'.json','application/json','source_coverage_report')
             configured_states = sorted({a[2] for a in GOVERNMENT_AGENCIES} | {a[2] for a in SCHOOLJOBS_AGENCIES})
             returned_states = sorted({code for job in all_results if job['government'] for code in states_in_location(job.get('location', ''))})
             st.caption(f'{len(GOVERNMENT_AGENCIES)} government agency feeds and {len(SCHOOLJOBS_AGENCIES)} education feeds are configured in job_sources.json, plus private employer boards and NYC Open Data. These cover {len(configured_states)} states by employer location (not guaranteed live jobs).')

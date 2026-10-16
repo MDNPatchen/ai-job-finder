@@ -28,8 +28,8 @@ def leadership_priority(job):
 def career_sort_key(job, evidence_key):
     """Fit evidence remains first; title tier resolves nearby fit differences.
 
-    Bucket fit scores in 5-point bands, preventing a marginal vocabulary
-    difference from placing a supervisor above a comparable executive role.
+    Strict fit order is retained for compatibility; leadership review is an
+    explicit separate order with transparent adjustments.
     """
     fit=job.get('qualification_match',{}).get('fit_index',0)
     try:
@@ -53,3 +53,25 @@ def has_detailed_description(job):
     """Require usable duties as well as known provenance."""
     from description_quality import assess_description
     return assess_description(job)['detailed']
+
+
+def leadership_review_priority(job):
+    """Explicit review order, separate from the unchanged comparative fit score."""
+    from description_quality import assess_description
+    q=job.get('qualification_match') or {}
+    fit=float(q.get('fit_index') or 0)
+    tier=leadership_tier(job.get('title'))
+    role_caution={4:0,3:0,2:8,1:12,0:18}[tier]
+    quality=assess_description(job)
+    evidence_caution=0 if quality['detailed'] else 15
+    return round(fit-role_caution-evidence_caution,2)
+
+
+def order_for_review(jobs, mode):
+    """Do not mutate cached results; downloads and cards use this same order."""
+    from ranked_breakdowns import evidence_sort_key
+    copied=[dict(job,review_order=mode) for job in jobs]
+    if mode=='Leadership priorities':
+        return sorted(copied,key=lambda j:(-leadership_review_priority(j),
+                      -leadership_tier(j.get('title')),evidence_sort_key(j)))
+    return sorted(copied,key=evidence_sort_key)
