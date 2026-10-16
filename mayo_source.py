@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
-from urllib.parse import urlencode, urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit, unquote
 from urllib.request import Request, urlopen
 
 ORIGIN = "https://jobs.mayoclinic.org"
@@ -87,7 +87,47 @@ def read_html(url, timeout=8):
         return response.read(2_500_000)
 
 
-def parse_detail(payload, url):
+def _title_from_job_url(url):
+    """Derive the published job role from Mayo's own job-specific URL slug.
+
+    The site's general-purpose marketing heading is sometimes 'Breakthrough'
+    rather than a vacancy title. Never use a marketing slogan as a role.
+    """
+    path=urlsplit(url).path
+    if not JOB_PATH.fullmatch(path):
+        return ''
+    slug=unquote(path.strip('/').split('/')[2])
+    parts=[p for p in re.split(r'[-_]+',slug) if p]
+    acronyms={'it','hr','rn','lpn','np','rn','mcl','rpa','ai','ehr','emr','cfo','cio'}
+    return ' '.join(part.upper() if part.casefold() in acronyms
+                    else part.capitalize() for part in parts)
+
+
+def _job_title(page, url, search_title=''):
+    """Prefer a real matching role heading; fall back to official URL slug."""
+    canonical=_title_from_job_url(url)
+    canonical_tokens=set(re.findall(r'[a-z0-9]+',canonical.casefold()))
+    def valid(candidate):
+        if not candidate or len(candidate)>120 or not ROLE.search(candidate):
+            return False
+        tokens=set(re.findall(r'[a-z0-9]+',candidate.casefold()))
+        # Prevent advertising headings and unrelated recommended jobs
+        # from becoming the role of this particular posting.
+        return (not canonical_tokens or
+                len(canonical_tokens & tokens)>=max(1,min(2,len(canonical_tokens))))
+    for heading in page.titles:
+        if valid(heading):
+            return heading.strip()
+    if valid(search_title):
+        # Search-anchor text may contain a city or schedule after the role.
+        # The URL slug remains the clean authoritative fallback.
+        normalized=' '.join(search_title.split())
+        if len(normalized)<=75:
+            return normalized
+    return canonical
+
+
+def parse_detail(payload, url, search_title=''):
     page = parse_page(payload)
     body = " ".join(page.words)
     # Stop before sidebar recommendations: those can contain nursing/RN
@@ -95,7 +135,7 @@ def parse_detail(payload, url):
     body = re.split(r"\b(?:Jobs for you|Similar Jobs|Recently Viewed Jobs|"
                     r"Insights from previous hires|Top Matches for You)\b",
                     body, maxsplit=1, flags=re.I)[0]
-    title = next(iter(page.titles), "").strip()
+    title = _job_title(page,url,search_title)
     date = re.search(
         r"(?:Date posted|Posting Date)\s*[:\-]?\s*(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})",
         body, re.I)
@@ -165,11 +205,12 @@ def fetch_mayo_jobs(fetcher=read_html, max_details=MAX_DETAILS):
     chosen = sorted(candidates.items(), key=relevance)[:min(max_details, MAX_DETAILS)]
     jobs, errors = [], []
     with ThreadPoolExecutor(max_workers=5) as pool:
-        pending = {pool.submit(fetcher, link): link for link, _ in chosen}
+        pending = {pool.submit(fetcher, link): (link, search_title)
+                   for link, search_title in chosen}
         for future in as_completed(pending):
-            link = pending[future]
+            link, search_title = pending[future]
             try:
-                parsed = parse_detail(future.result(), link)
+                parsed = parse_detail(future.result(), link, search_title)
                 if parsed:
                     jobs.append(parsed)
             except Exception as exc:
