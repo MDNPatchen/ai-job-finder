@@ -15,6 +15,20 @@ class MinimalUIThemeTests(unittest.TestCase):
         self.assertIn('.st-key-top_navigation',APP_CSS)
         self.assertIn("@media(max-width:900px)",APP_CSS)
 
+    def test_modular_geometry_and_white_text_on_dark_green(self):
+        # Override block intentionally comes after old soft-panel rules.
+        self.assertIn("October 16 modular pass",APP_CSS)
+        self.assertIn("border-radius:4px!important",APP_CSS)
+        self.assertIn("border-radius:3px!important",APP_CSS)
+        self.assertIn("border-radius:2px!important",APP_CSS)
+        self.assertIn("padding:1.95rem 2.1rem",APP_CSS)
+        self.assertIn("job-module-heading",APP_CSS)
+        self.assertIn("label:has(input:checked) *",APP_CSS)
+        self.assertIn('[data-testid="stDownloadButton"] button *',APP_CSS)
+        self.assertIn("color:#FFFFFF!important",APP_CSS)
+        self.assertIn("-webkit-text-fill-color:#FFFFFF!important",APP_CSS)
+        self.assertIn("background:var(--forest)!important",APP_CSS)
+
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
         self.assertNotIn("briefcase",APP_CSS.casefold()+brand().casefold())

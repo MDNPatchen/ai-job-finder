@@ -32,7 +32,7 @@ from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
-    preferences_allow
+    preferences_allow, explicitly_remote_title
 )
 from tracker_store import (
     COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
@@ -113,7 +113,8 @@ def ranked_exports(all_results,run_id):
     json_data=json.dumps(
         all_breakdowns,indent=2,ensure_ascii=False).encode('utf-8')
     with st.container(border=True):
-        st.markdown('**Download search results**')
+        st.markdown('### Download search results')
+        st.caption(f'{len(all_results):,} vacancies · CSV for spreadsheets or JSON for detailed records')
         csv_col,json_col=st.columns(2,gap='medium')
         with csv_col:
             st.download_button(
@@ -451,6 +452,8 @@ def standard_job(title, company, url, location, description, source,
     if not title or not company or not isinstance(url, str) or not url.startswith('https://'):
         return None
     arrangement = classify_work_arrangement(location, description, remote, declared_style)
+    if explicitly_remote_title(title):
+        arrangement='Remote'
     explicit_style = declared_arrangement(declared_style)
     workplace_conflict = ''
     if (strict_onsite_requirement(html_to_text(description))
@@ -462,6 +465,8 @@ def standard_job(title, company, url, location, description, source,
         if workplace_conflict else
         'No explicit workplace label in public posting'
         if arrangement == 'Not specified' else
+        'Vacancy title explicitly states remote-only work'
+        if explicitly_remote_title(title) else
         'Employer ATS workplace label' if explicit_style else
         'Provider remote flag' if affirmative(remote) else
         'Posting location or description text')
@@ -1318,6 +1323,13 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         # Unspecified arrangements remain labeled for verification.
         arrangement=job.get('work_style') or (
             'Remote' if job.get('remote') else 'Not specified')
+        # Cached provider records also need title-based remote screening;
+        # a vacancy named "(Remote)" isn't work-style unspecified.
+        if explicitly_remote_title(job.get('title')):
+            arrangement='Remote'
+            job['work_style']='Remote'
+            job['remote']=True
+            job['arrangement_source']='Vacancy title explicitly states remote-only work'
         mayo_remote=(arrangement == 'Remote' and job.get('source') == 'Mayo Clinic')
         if arrangement == 'Remote' and not mayo_remote:
             excluded['location']+=1
@@ -1687,6 +1699,7 @@ elif page == 'Find Jobs':
         st.caption('Search again for updated rankings.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
+    st.markdown('<div class="job-module-heading">01 / Search filters</div>',unsafe_allow_html=True)
     with st.form('clean_search'):
         search_text = st.text_input('Search',placeholder='Job title, keyword or agency',
             help='Leave blank for transferable career matches.')
@@ -1795,6 +1808,7 @@ elif page == 'Find Jobs':
         government_total=sum(1 for job in all_results if job['government'])
         private_total=len(all_results)-government_total
         new_count=sum(x.get('new_since_last_search',False) for x in all_results)
+        st.markdown('<div class="job-module-heading">02 / Search overview</div>',unsafe_allow_html=True)
         m1,m2,m3,m4=st.columns(4)
         m1.metric('Total jobs',len(all_results))
         m2.metric('Government',government_total)
@@ -1824,6 +1838,7 @@ elif page == 'Find Jobs':
             # The fragment keeps data stable when the user clicks Download.
             ranked_exports(all_results,stats.get('run_id',''))
 
+            st.markdown('<div class="job-module-heading">03 / Job listings</div>',unsafe_allow_html=True)
             new_only=st.checkbox('Show only new positions since the previous search',
                                  value=False,key='new_jobs_only')
             hide_tracked=st.checkbox('Hide positions already in my Job Tracker',
@@ -2032,7 +2047,7 @@ elif page == 'Job Tracker':
         st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
                  '). Export a JSON backup now; the latest changes are in this session.')
 
-    st.subheader('Backup and restore')
+    st.markdown('<div class="job-module-heading">Tracker backup and restore</div>',unsafe_allow_html=True)
     backup_left,backup_right=st.columns(2)
     with backup_left:
         download_file_widget(
