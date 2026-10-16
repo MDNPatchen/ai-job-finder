@@ -22,6 +22,7 @@ on:
       - "qualification_v2.py"
       - "qualification_matcher.py"
       - "job_workflow.py"
+      - "test_explicit_remote_title.py"
       - "employer_postings.py"
       - "posting_metadata.py"
       - "test_employer_postings.py"
