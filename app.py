@@ -1327,6 +1327,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         # a vacancy named "(Remote)" isn't work-style unspecified.
         if explicitly_remote_title(job.get('title')):
             arrangement='Remote'
+            job['work_style']='Remote'
+            job['remote']=True
+            job['arrangement_source']='Vacancy title explicitly states remote-only work'
         mayo_remote=(arrangement == 'Remote' and job.get('source') == 'Mayo Clinic')
         if arrangement == 'Remote' and not mayo_remote:
             excluded['location']+=1
