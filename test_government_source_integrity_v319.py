@@ -84,7 +84,7 @@ class GovernmentAgencyAttributionTests(unittest.TestCase):
         app=ast.parse(Path(__file__).with_name("app.py").read_text())
         functions={x.name:x for x in app.body if isinstance(x,ast.FunctionDef)}
         gov=ast.unparse(functions["load_neogov_feeds"])
-        school=ast.unparse(functions["load_neoed_feeds"]) if "load_neoed_feeds" in functions else ""
+        school=ast.unparse(functions["load_schooljobs_feeds"]) if "load_schooljobs_feeds" in functions else ""
         ranking=ast.unparse(functions["filter_and_rank_jobs"])
         self.assertIn("belongs_to_configured_agency",gov)
         self.assertIn("belongs_to_configured_agency",school)
