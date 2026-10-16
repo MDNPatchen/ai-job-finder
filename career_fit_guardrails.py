@@ -123,6 +123,19 @@ def _career_stage_caution(title, resume):
         return ("Career-stage mismatch to review",
                 "The posting appears to have a narrower individual-contributor "
                 "or first-line scope than the résumé's senior-management history.", 20)
+    if re.search(r"\b(?:assistant store manager|store assistant manager)\b",t,re.I):
+        return ("Store assistant-management level to review",
+                "A store-level assistant management role may have less scope than "
+                "the résumé's multi-location department leadership experience.", 17)
+    if re.search(r"\b(?:sourcing specialist|procurement specialist|"
+                 r"purchasing specialist|talent acquisition coordinator|"
+                 r"recruiting coordinator|recruitment coordinator|"
+                 r"marketing coordinator|sales coordinator|"
+                 r"purchasing coordinator)\b",t,re.I):
+        return ("Specialist or coordinator career level to review",
+                "The title suggests an individual-contributor or coordination "
+                "position rather than broad department or multi-site leadership. "
+                "Verify the actual scope before prioritizing it.", 18)
     if re.search(r"\b(?:assistant manager|assistant general manager)\b",t,re.I):
         return ("Assistant-level scope to review",
                 "This could be a valid industry transition, but its stated scope "
