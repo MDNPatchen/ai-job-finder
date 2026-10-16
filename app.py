@@ -642,28 +642,117 @@ def load_himalayas(query_terms):
 
 @st.cache_data(ttl=7200, show_spinner=False)
 def load_lever_employers(catalog_version=None):
-    def fetch(board):
-        token, employer=board
-        data=fetch_json('https://api.lever.co/v0/postings/' +
-                        quote(token) + '?mode=json&limit=100')
-        jobs=[]
-        for x in data if isinstance(data,list) else []:
-            cats=x.get('categories') or {}
-            loc=cats.get('location') or ''
-            style=str(x.get('workplaceType') or '')
-            remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
-            eligible=bool(states_in_location(loc) or re.search(r'\b(United States|USA|US)\b',loc,re.I))
-            if remote and not eligible:
-                eligible=us_remote_eligible(loc)
-            job=standard_job(x.get('text'),employer,x.get('hostedUrl') or x.get('applyUrl'),
-                loc or 'Location not specified',
-                (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
-                'Lever employer',remote,'',x.get('createdAt'),eligible,
-                declared_style=style)
-            if job:jobs.append(job)
-        return jobs
-    return retrieve_boards(LEVER_BOARDS,fetch, max_workers=4)
+    """Bounded Lever pagination, with transparent per-board source health.
 
+    A 200 HTTP response with old/non-US jobs is different from a failed API
+    call. Partial pages are kept when a later page fails. The public Lever
+    Postings API supports mode=json, skip and limit, but no global job search.
+    """
+    def fetch(board):
+        token,employer=board
+        jobs=[]
+        seen_urls=set()
+        counters={'provider_records':0,'us_records':0,'dated_us':0,
+                  'recent_us':0,'non_remote_recent_us':0,'pages':0}
+        issue=''
+        capped=False
+        for offset in (0,100,200):  # maximum 300 source items per employer
+            try:
+                data=fetch_json('https://api.lever.co/v0/postings/' +
+                    quote(token) + '?mode=json&limit=100&skip='+str(offset),
+                    timeout=11)
+                if not isinstance(data,list):
+                    raise ValueError('Unexpected Lever JSON: expected list')
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,
+                    KeyError,OSError) as exc:
+                if offset==0:
+                    raise
+                issue=type(exc).__name__ + (
+                    ' HTTP '+str(exc.code) if isinstance(exc,HTTPError) else '')
+                break
+            counters['pages']+=1
+            counters['provider_records']+=len(data)
+            new_unique=0
+            for x in data:
+                if not isinstance(x,dict):
+                    continue
+                cats=x.get('categories') or {}
+                loc=cats.get('location') or ''
+                style=str(x.get('workplaceType') or '')
+                remote=bool(re.search(r'\bremote\b',loc,re.I)) and not declared_arrangement(style)
+                eligible=bool(states_in_location(loc) or
+                              re.search(r'\b(United States|USA|US)\b',loc,re.I))
+                if remote and not eligible:
+                    eligible=us_remote_eligible(loc)
+                url=x.get('hostedUrl') or x.get('applyUrl')
+                if url and url in seen_urls:
+                    continue
+                if url:
+                    seen_urls.add(url)
+                new_unique+=1
+                if eligible:
+                    counters['us_records']+=1
+                job=standard_job(x.get('text'),employer,url,
+                    loc or 'Location not specified',
+                    (x.get('descriptionPlain') or '')+' '+str(x.get('additionalPlain') or ''),
+                    'Lever employer',remote,'',x.get('createdAt'),eligible,
+                    declared_style=style)
+                if job:
+                    if eligible and job.get('date'):
+                        counters['dated_us']+=1
+                    if eligible and is_recent_posting(job):
+                        counters['recent_us']+=1
+                        if job.get('work_style')!='Remote' and not job.get('remote'):
+                            counters['non_remote_recent_us']+=1
+                    jobs.append(job)
+            if not data or len(data)<100:
+                break
+            if new_unique==0:
+                issue='Provider repeated a full page'
+                break
+            if offset==200:
+                capped=True
+        return jobs,{**counters,'partial_issue':issue,'truncated':capped}
+
+    jobs,failures,health=[],[],[]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures={pool.submit(fetch,board):board for board in LEVER_BOARDS}
+        for future in as_completed(futures):
+            token,employer=futures[future]
+            try:
+                records,diag=future.result()
+                jobs.extend(records)
+                issue=diag['partial_issue']
+                status=('Partial' if issue else
+                        'Active' if diag['provider_records'] else 'Empty')
+                # A provider responding with 0 valid job URLs can have
+                # postings; expose this rather than mislabeling "No jobs".
+                note=('No published postings' if not diag['provider_records']
+                      else 'None with US location' if not diag['us_records']
+                      else 'No recent US postings' if not diag['recent_us']
+                      else 'Recent US vacancies available')
+                if issue:
+                    failures.append(employer+': partial Lever feed ('+issue+')')
+                health.append({'board':employer,'feed_id':token,
+                    'status':status,'records':len(records),
+                    'provider_records':diag['provider_records'],
+                    'us_records':diag['us_records'],
+                    'recent_us':diag['recent_us'],
+                    'non_remote_recent_us':diag['non_remote_recent_us'],
+                    'pages':diag['pages'],'truncated':diag['truncated'],
+                    'note':note,'error':issue})
+            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,
+                    KeyError,OSError) as exc:
+                error=type(exc).__name__+(
+                    ' HTTP '+str(exc.code) if isinstance(exc,HTTPError) else '')
+                failures.append(employer+': '+error)
+                health.append({'board':employer,'feed_id':token,
+                    'status':'Failed','records':0,'provider_records':None,
+                    'us_records':None,'recent_us':None,
+                    'non_remote_recent_us':None,'pages':0,
+                    'truncated':False,'note':'Provider unavailable',
+                    'error':error})
+    return jobs,failures,sorted(health,key=lambda h:h['board'].casefold())
 
 
 # Public job-board URLs identified on employer-hosted posting pages.
@@ -1838,10 +1927,23 @@ elif page == 'Find Jobs':
                          f'{empty} responded with zero qualifying feed records · '
                          f'{failed} were unavailable')
                 filter_health=st.selectbox('Board status',[
-                    'All boards','Active','Empty','Failed'],key='board_health_filter')
+                    'All boards','Active','Empty','Partial','Failed'],key='board_health_filter')
                 shown=[r for r in board_rows if filter_health=='All boards'
                        or r['status']==filter_health]
                 st.dataframe(pd.DataFrame(shown),hide_index=True,use_container_width=True)
+                lever_rows=[x for x in board_rows
+                            if x.get('provider')=='Lever employer boards']
+                if lever_rows:
+                    st.markdown('**Lever source audit**')
+                    columns=('board','status','provider_records','us_records',
+                             'recent_us','non_remote_recent_us',
+                             'records','pages','truncated','note','error')
+                    st.dataframe(pd.DataFrame([
+                        {key:rec.get(key) for key in columns} for rec in lever_rows
+                    ]),hide_index=True,use_container_width=True)
+                    st.caption('Provider records are published vacancies, '
+                               'US and recent counts reflect source filtering; '
+                               'final job matches also depend on role and résumé filters.')
                 st.caption('Active means the provider returned candidate records, not that an '
                            'eligible role survived the 45-day, location and resume filters. '
                            'Empty means no candidate records survived provider parsing; it '
