@@ -21,6 +21,7 @@ on:
       - "official_bulletins.py"
       - "test_v3116_public_bulletins_and_workplace.py"
       - "test_v3117_remote_government_dashboard.py"
+      - "test_v3117_streamlit_import_recovery.py"
       - "qualification_matcher.py"
       - "qualification_v2.py"
       - "job_workflow.py"
@@ -82,4 +83,20 @@ jobs:
           app.radio(key="top_navigation").set_value("Career Matches").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
           print("Top navigation and no-resume ranked downloads smoke passed")
+          PY
+      - name: Reproduce missing remote-policy export from cached helper module
+        run: |
+          python -m unittest -v test_v3117_streamlit_import_recovery
+          python - <<'PY'
+          from streamlit.testing.v1 import AppTest
+          import job_workflow
+          old=job_workflow.permitted_remote_source
+          del job_workflow.permitted_remote_source
+          try:
+              app=AppTest.from_file("app.py").run(timeout=60)
+              assert not app.exception, [e.message for e in app.exception]
+              assert app.radio(key="top_navigation"), "Startup recovered but page missing"
+              print("App starts when job_workflow lacks remote-policy helper")
+          finally:
+              job_workflow.permitted_remote_source=old
           PY
