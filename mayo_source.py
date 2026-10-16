@@ -6,7 +6,9 @@ Site layout changes or blocked requests are reported as provider errors.
 """
 import re
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+from source_http import ContextPool as ThreadPoolExecutor, open_response
+from source_result import SourceRecords
 from html.parser import HTMLParser
 from urllib.parse import urlencode, urljoin, urlsplit, unquote
 from urllib.request import Request, urlopen
@@ -81,7 +83,7 @@ def read_html(url, timeout=8):
     request = Request(url, headers={
         "User-Agent": "PersonalCareerResearch/1.0 (individual job search)",
         "Accept": "text/html,application/xhtml+xml"})
-    with urlopen(request, timeout=timeout) as response:
+    with open_response(request, timeout=timeout) as response:
         if "html" not in response.headers.get("Content-Type", "").lower():
             raise ValueError("Mayo returned non-HTML content")
         return response.read(2_500_000)
@@ -171,7 +173,7 @@ def parse_detail(payload, url, search_title=''):
     posted = (datetime.strptime(raw_date, "%m/%d/%Y").date().isoformat()
               if "/" in raw_date else raw_date)
     return {"title": title, "url": url, "location": location,
-            "date": posted, "description": body[:9000],
+            "date": posted, "description": body[:26000], "description_truncated":len(body)>26000,
             "salary": salary.group(1).strip() if salary else "",
             "work_style": style}
 
@@ -214,9 +216,14 @@ def fetch_mayo_jobs(fetcher=read_html, max_details=MAX_DETAILS):
                 parsed = parse_detail(future.result(), link, search_title)
                 if parsed:
                     jobs.append(parsed)
+                else:
+                    errors.append('Missing date, title or location')
             except Exception as exc:
                 errors.append(f"{type(exc).__name__}: {str(exc)[:70]}")
     if not jobs:
         raise ValueError("Mayo details were inaccessible or lacked dates/locations: " +
                          (errors[0] if errors else "no usable detail records"))
-    return jobs
+    return SourceRecords(jobs,{'search_pages':successful,'failed_details':len(errors),
+        'details_attempted':len(chosen),'candidates':len(candidates),
+        'truncated':True,'partial_error':'; '.join(search_failures),
+        'coverage_note':'Bounded keyword search pages; not a complete employer inventory'})

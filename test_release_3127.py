@@ -14,7 +14,7 @@ class ReleaseTests(unittest.TestCase):
         for source in [None,'','Provider RSS text — completeness not verified','RSS summary only — important requirements may be missing']:
             self.assertFalse(has_detailed_description({'description_source':source}))
         for source in ['Official full public job bulletin','Employer posting details as supplied by provider']:
-            self.assertTrue(has_detailed_description({'description_source':source}))
+            self.assertTrue(has_detailed_description({'description_source':source,'description':'Lead teams and manage budgets. '*20}))
 
     def test_due_window_and_closed_jobs(self):
         jobs=[{'Status':s,'Follow-up Date':d} for s,d in [

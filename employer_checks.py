@@ -49,7 +49,7 @@ def check_posting_link(url, fetch=None):
     p = urlparse(url)
     host = (p.hostname or '').lower()
     out = {'url':url, 'hostname':host or 'Unknown', 'status':'Not verified',
-           'detail':'', 'platform':'Posting URL supplied by source'}
+           'detail':'', 'vacancy_status':'Open status not established', 'platform':'Posting URL supplied by source'}
     if p.scheme != 'https' or host not in APPROVED_HOSTS:
         out['detail'] = 'This domain is not in the small approved automated-check list. Open the posting directly to verify the employer.'
         return out
@@ -66,13 +66,16 @@ def check_posting_link(url, fetch=None):
             with opener.open(req, timeout=7) as response:
                 code = response.getcode()
                 final_host = (urlparse(response.geturl()).hostname or '').lower()
-                response.read(256)
+                page=response.read(65536).decode('utf-8','replace')
+                if re.search(r'\b(?:this (?:job|position|vacancy) (?:is no longer available|has been filled|has closed)|job posting (?:has expired|is closed))\b',page,re.I):
+                    out['vacancy_status']='Posting explicitly says closed or unavailable'
         if code in (200,206) and final_host in APPROVED_HOSTS:
             out['status']='Page responds'
             out['detail']='The career URL responded. This does not confirm the role is open or independently authenticate the hiring employer.'
         else:
             out['detail']='No verifiable response from the approved career-site host.'
     except HTTPError as exc:
+        if exc.code in (404,410): out['vacancy_status']='Posting unavailable (HTTP '+str(exc.code)+')'
         out['detail']=('The posting returned HTTP 404/410; it may have been removed.'
                        if exc.code in (404,410) else f'The posting could not be checked (HTTP {exc.code}).')
     except (URLError, TimeoutError, ValueError, OSError) as exc:

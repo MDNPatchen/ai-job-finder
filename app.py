@@ -17,6 +17,9 @@ from docx import Document
 import pandas as pd
 from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_filename
+from evidence_context import affirmative_match
+import tracker_sync
+from copy import deepcopy
 from career_priority import career_sort_key, career_review_category, has_detailed_description
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
@@ -196,8 +199,9 @@ def analyze_locally(resume):
     for skill, phrases, transferable, role in COMPETENCIES:
         evidence = []
         for line in lines:
-            if any(re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', line, re.I) for term in phrases):
-                evidence.append(line[:350])
+            supported=affirmative_match([re.compile(r'(?<!\w)'+re.escape(term)+r'(?!\w)',re.I) for term in phrases],line)
+            if supported:
+                evidence.append(supported[0][:350])
             if len(evidence) == 2:
                 break
         if evidence:
@@ -288,7 +292,8 @@ SEARCH_TERMS = [
 # No OpenAI, Adzuna, scraping or paid API. Sources load in the background.
 # Source coverage is necessarily partial: NEOGOV has per-agency feeds, not
 # a public national jobs API. Failed feeds and undated vacancies are excluded.
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+from source_http import ContextPool as ThreadPoolExecutor, request_budget, open_response
 
 MAX_POSTING_AGE_DAYS = 45
 
@@ -398,12 +403,10 @@ SPECIALIST_EXCLUSIONS = re.compile(
     r'professor|principal software|head of product engineering)\b', re.I)
 
 
+@st.cache_data(ttl=900,show_spinner=False)
 def fetch_json(url, timeout=12):
-    request = Request(url, headers={
-        'User-Agent':'Mozilla/5.0 (compatible; PersonalCareerResearch/2.0)',
-        'Accept':'application/json'})
-    with urlopen(request, timeout=timeout) as response:
-        return json.load(response)
+    from source_http import fetch_json as request_json
+    return request_json(url,timeout)
 
 
 def parse_posted_date(value):
@@ -497,6 +500,8 @@ def standard_job(title, company, url, location, description, source,
         'workplace_conflict': workplace_conflict,
         'url': url, 'location': str(location or 'Location not specified'),
         'description': html_to_text(description)[:26000], 'source': source,
+        'description_truncated':len(html_to_text(description))>26000,
+        'description_source':'Employer posting details as supplied by provider' if source not in ('NEOGOV','NEOED Schooljobs') else 'Provider RSS text — completeness not verified',
         'remote': arrangement == 'Remote', 'work_style': arrangement,
         'salary': str(salary or ''),
         'date': posted_date.isoformat() if posted_date else '',
@@ -550,7 +555,6 @@ def parse_public_rss(payload):
     return root
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_neogov_feeds(state_filter=None, catalog_version=None):
     """Best-effort agency RSS. Career page URL ≠ guarantee of working RSS."""
     def one_agency(agency):
@@ -558,7 +562,7 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
         url = 'https://www.governmentjobs.com/SearchEngine/JobsFeed?' + urlencode({'agency': token})
         req = Request(url, headers={'User-Agent':'Mozilla/5.0 (personal job research)',
                                     'Accept':'application/rss+xml, application/xml, text/xml, */*'})
-        with urlopen(req, timeout=7) as response:
+        with open_response(req, timeout=7) as response:
             raw = response.read(3_000_000)
         root = parse_public_rss(raw)
         items = root.findall('.//item')
@@ -594,7 +598,6 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
     return jobs, failures, counts
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_nyc_jobs():
     """Official New York City current jobs data (public Socrata endpoint)."""
     # Server-side filtering keeps the dataset small; official post dates are used.
@@ -651,7 +654,6 @@ def load_nyc_jobs():
     return jobs
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_remotive():
     jobs=[]
     data=fetch_json('https://remotive.com/api/remote-jobs?limit=150')
@@ -665,7 +667,6 @@ def load_remotive():
     return jobs
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_jobicy():
     jobs=[]
     data=fetch_json('https://jobicy.com/api/v2/remote-jobs?count=200&geo=usa')
@@ -677,7 +678,6 @@ def load_jobicy():
     return jobs
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
 def load_himalayas(query_terms):
     # Search provider-side across several role families without excessive calls.
     # Himalayas refreshes its data daily; we cache these requests for 24 hours.
@@ -712,7 +712,6 @@ def load_himalayas(query_terms):
 # Public Lever ATS boards found from actual employer career pages; no API key.
 # We query only these verified employer IDs, not an imaginary cross-employer API.
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_lever_employers(catalog_version=None):
     """Bounded Lever pagination, with transparent per-board source health.
 
@@ -839,7 +838,6 @@ def load_lever_employers(catalog_version=None):
 # Curated for US non-remote leadership, publishing, distribution and management.
 
 
-@st.cache_data(ttl=14400, show_spinner=False)
 def load_workable_boards(catalog_version=None):
     """Official public Workable jobs endpoint; no key needed.
 
@@ -908,10 +906,13 @@ def retrieve_boards(boards, worker, max_workers=8):
             info=tasks[future]
             try:
                 records=future.result()
+                diagnostics=getattr(records,'diagnostics',{})
                 jobs.extend(records)
+                if diagnostics.get('failed_details') or diagnostics.get('truncated') or diagnostics.get('partial_error'):
+                    failures.append(f"{info[1]}: partial results; {diagnostics}")
                 health.append({'board':info[1], 'feed_id':info[0],
-                               'status':'Active' if records else 'Empty',
-                               'records':len(records)})
+                               'status':('Partial' if diagnostics.get('failed_details') or diagnostics.get('truncated') or diagnostics.get('partial_error') else 'Active' if records else 'Empty'),
+                               'records':len(records),**diagnostics})
             except (HTTPError,URLError,TimeoutError,ValueError,TypeError,
                     KeyError,OSError) as exc:
                 failures.append(f'{info[1]}: {type(exc).__name__}')
@@ -922,7 +923,6 @@ def retrieve_boards(boards, worker, max_workers=8):
 
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_greenhouse_boards(catalog_version=None):
     """Greenhouse documents first_published in its public job-board API.
     Never substitute updated_at: it is not the posting date.
@@ -948,7 +948,6 @@ def load_greenhouse_boards(catalog_version=None):
     return retrieve_boards(GREENHOUSE_BOARDS,fetch)
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_ashby_boards(catalog_version=None):
     """Public Ashby Posting API explicitly provides publishedAt and workplaceType."""
     def fetch(board):
@@ -983,67 +982,16 @@ def load_ashby_boards(catalog_version=None):
     return retrieve_boards(ASHBY_BOARDS,fetch)
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_smartrecruiters_boards(catalog_version=None):
-    """Public company postings; releasedDate is supplied by SmartRecruiters."""
+    """Paginated public postings with explicit partial-result diagnostics."""
+    from smartrecruiters_source import fetch_board
     def fetch(board):
-        token, employer, gov=board
-        data=fetch_json('https://api.smartrecruiters.com/v1/companies/'+quote(token)+
-                        '/postings?'+urlencode({'limit':100,'destination':'PUBLIC','country':'us'}),timeout=10)
-        jobs=[]
-        # List records do not contain the application URL or requirements.
-        # Obtain public details only for recent, relevant US roles.
-        candidates=[]
-        for x in (data.get('content') or []):
-            if not isinstance(x,dict) or not role_classification(x.get('name')):
-                continue
-            posted=parse_posted_date(x.get('releasedDate'))
-            if not posted or not date.today()-timedelta(days=MAX_POSTING_AGE_DAYS)<=posted<=date.today():
-                continue
-            place=x.get('location') or {}
-            if str(place.get('country') or '').lower() not in ('us','usa','united states','united states of america'):
-                continue
-            declared=declared_arrangement(x.get('locationType'))
-            if declared=='Remote' or (affirmative(place.get('remote')) and declared!='Hybrid'):
-                continue
-            candidates.append(x)
-        # Fetch detail pages with bounded concurrency. Larger employer boards
-        # may have many recent openings; sequential detail requests made
-        # nationwide searches unnecessarily slow. Keep results in feed order.
-        def read_detail(x):
-            place=x.get('location') or {}
-            parts=[place.get('city'),place.get('region'),'United States']
-            loc=', '.join(str(part) for part in parts if part)
-            employer_name=(x.get('company') or {}).get('name') or employer
-            id_=x.get('id')
-            if not id_:
-                return None
-            # Public detail provides a verifiable posting URL; never guess it.
-            try:
-                detail=fetch_json('https://api.smartrecruiters.com/v1/companies/'+
-                                  quote(token)+'/postings/'+quote(str(id_)),timeout=8)
-            except (HTTPError,URLError,TimeoutError,ValueError,TypeError,OSError):
-                return None
-            sections=((detail.get('jobAd') or {}).get('sections') or {})
-            description=' '.join(str((sections.get(key) or {}).get('text') or '')
-                   for key in ('jobDescription','qualifications','additionalInformation'))
-            url=detail.get('postingUrl') or detail.get('applyUrl')
-            style=declared_arrangement(
-                detail.get('locationType') or x.get('locationType'))
-            return standard_job(x.get('name'),employer_name,url,loc,description,
-                 'SmartRecruiters',False,
-                 posted=x.get('releasedDate'),gov=gov,
-                 declared_style=style)
-
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            for job in pool.map(read_detail,candidates[:30]):
-                if job:
-                    jobs.append(job)
-        return jobs
+        return fetch_board(board,fetch_json,standard_job,role_classification,
+                           parse_posted_date,MAX_POSTING_AGE_DAYS)
     return retrieve_boards(SMARTRECRUITERS_BOARDS,fetch)
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
+
 def load_schooljobs_feeds(state_filter=None, catalog_version=None):
     """NEOED schooljobs RSS, per official 2025 NEOGOV feed documentation."""
     def fetch(board):
@@ -1051,7 +999,7 @@ def load_schooljobs_feeds(state_filter=None, catalog_version=None):
         url='https://www.schooljobs.com/SearchEngine/JobsFeed?'+urlencode({'agency':token})
         req=Request(url,headers={'User-Agent':'Mozilla/5.0 (personal job research)',
                                  'Accept':'application/rss+xml, application/xml, text/xml, */*'})
-        with urlopen(req,timeout=9) as response:
+        with open_response(req,timeout=9) as response:
             root=parse_public_rss(response.read(3_000_000))
         jobs=[]
         for entry in root.findall('.//item')[:250]:
@@ -1070,7 +1018,6 @@ def load_schooljobs_feeds(state_filter=None, catalog_version=None):
     return retrieve_boards(tuple(a for a in SCHOOLJOBS_AGENCIES if state_filter is None or a[2] == state_filter),fetch)
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_remoteok():
     jobs=[]
     raw=fetch_json('https://remoteok.com/api')
@@ -1089,7 +1036,6 @@ def load_remoteok():
     return jobs
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_arbeitnow():
     jobs=[]
     for page in (1,2,3):
@@ -1112,12 +1058,15 @@ def load_arbeitnow():
 
 def _secret(name):
     try:
+        # Streamlit 1.41 otherwise renders missing optional secrets as page errors.
+        loader=getattr(type(st.secrets),'load_if_toml_exists',None)
+        if loader is not None and not loader(st.secrets):
+            return ''
         return str(st.secrets.get(name,'') or '').strip()
     except Exception:
         return ''
 
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_usajobs_if_authorized(key, email):
     # USAJOBS requires its own FREE authorization key: never try without one.
     if not key or not email:
@@ -1130,7 +1079,7 @@ def load_usajobs_if_authorized(key, email):
             {'Keyword':term,'ResultsPerPage':75})
         req=Request(url,headers={'Host':'data.usajobs.gov',
             'User-Agent':email,'Authorization-Key':key,'Accept':'application/json'})
-        with urlopen(req,timeout=12) as response:
+        with open_response(req,timeout=12) as response:
             payload=json.load(response)
         records=payload.get('SearchResult',{}).get('SearchResultItems',[])
         for item in records:
@@ -1150,7 +1099,6 @@ def load_usajobs_if_authorized(key, email):
 # Cache each upstream separately. When a feed times out, show it in diagnostics
 # but do not suppress jobs from functioning sources.
 
-@st.cache_data(ttl=7200, show_spinner=False)
 def load_mayo_clinic(catalog_version=None):
     """Public Mayo Clinic career pages, limited reads; preserve feed diagnostics."""
     if not MAYO_BOARDS:
@@ -1166,8 +1114,10 @@ def load_mayo_clinic(catalog_version=None):
             salary=listing.get('salary'), posted=listing.get('date'),
             declared_style=work_style, eligible=True)
         if job:
+            job['description_truncated']=bool(listing.get('description_truncated'))
             out.append(job)
-    return out
+    from source_result import SourceRecords
+    return SourceRecords(out,getattr(listings,'diagnostics',{}))
 
 
 def fetch_all_free_jobs(query_terms, state_filter=None):
@@ -1188,51 +1138,55 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
     if usa_key and usa_email:
         tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
     jobs, errors, counts, health=[],[],{},[]
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures={executor.submit(fn):label for label,fn in tasks.items()}
-        for future in as_completed(futures):
-            label=futures[future]
-            try:
-                result=future.result()
-                if label=='NEOGOV government':
-                    records,failures,agency_counts=result
-                    jobs.extend(records)
-                    counts[label]=len(records)
-                    counts['Government agency feeds in location']=sum(
-                        state_filter is None or a[2] == state_filter
-                        for a in GOVERNMENT_AGENCIES)
-                    counts['Government agencies with RSS items']=sum(
-                        n>0 for n in agency_counts.values())
-                    counts['Government feeds empty']=sum(
-                        n == 0 for n in agency_counts.values())-len(failures)
-                    counts['Government feeds failed']=len(failures)
-                    errors.extend(failures)
-                    failed_names={err.split(':',1)[0].strip() for err in failures}
-                    for board,number in agency_counts.items():
-                        health.append({'provider':label,'board':board,
-                                       'status':('Failed' if board in failed_names else
-                                                 'Active' if number else 'Empty'),
-                                       'records':number})
-                elif label in ('Greenhouse public boards','Ashby public boards',
-                               'SmartRecruiters public boards','NEOED education RSS',
-                               'Workable public boards','Lever employer boards'):
-                    records,failures,board_health=result
-                    jobs.extend(records)
-                    counts[label]=len(records)
-                    errors.extend(f'{label} / {message}' for message in failures)
-                    health.extend({**x,'provider':label} for x in board_health)
-                else:
-                    jobs.extend(result)
-                    counts[label]=len(result)
+    with request_budget(90):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures={executor.submit(fn):label for label,fn in tasks.items()}
+            for future in as_completed(futures):
+                label=futures[future]
+                try:
+                    result=future.result()
+                    if label=='NEOGOV government':
+                        records,failures,agency_counts=result
+                        jobs.extend(records)
+                        counts[label]=len(records)
+                        counts['Government agency feeds in location']=sum(
+                            state_filter is None or a[2] == state_filter
+                            for a in GOVERNMENT_AGENCIES)
+                        counts['Government agencies with RSS items']=sum(
+                            n>0 for n in agency_counts.values())
+                        counts['Government feeds empty']=sum(
+                            n == 0 for n in agency_counts.values())-len(failures)
+                        counts['Government feeds failed']=len(failures)
+                        errors.extend(failures)
+                        failed_names={err.split(':',1)[0].strip() for err in failures}
+                        for board,number in agency_counts.items():
+                            health.append({'provider':label,'board':board,
+                                           'status':('Failed' if board in failed_names else
+                                                     'Active' if number else 'Empty'),
+                                           'records':number})
+                    elif label in ('Greenhouse public boards','Ashby public boards',
+                                   'SmartRecruiters public boards','NEOED education RSS',
+                                   'Workable public boards','Lever employer boards'):
+                        records,failures,board_health=result
+                        jobs.extend(records)
+                        counts[label]=len(records)
+                        errors.extend(f'{label} / {message}' for message in failures)
+                        health.extend({**x,'provider':label} for x in board_health)
+                    else:
+                        jobs.extend(result)
+                        counts[label]=len(result)
+                        diag=getattr(result,'diagnostics',{})
+                        partial=bool(diag.get('failed_details') or diag.get('truncated') or diag.get('partial_error'))
+                        if partial: errors.append(label+': partial results; '+str(diag))
+                        health.append({'provider':label,'board':label,
+                                       'status':'Partial' if partial else 'Active' if result else 'Empty',
+                                       'records':len(result),**diag})
+                except Exception as exc:
+                    counts[label]=0
+                    errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
                     health.append({'provider':label,'board':label,
-                                   'status':'Active' if result else 'Empty',
-                                   'records':len(result)})
-            except Exception as exc:
-                counts[label]=0
-                errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
-                health.append({'provider':label,'board':label,
-                               'status':'Failed','records':0,
-                               'error':type(exc).__name__})
+                                   'status':'Failed','records':0,
+                                   'error':type(exc).__name__})
     return jobs,errors,counts,sorted(health,
                 key=lambda x:(x['provider'],x['board'].casefold()))
 
@@ -1460,21 +1414,8 @@ def tracker_cloud_enabled():
 
 
 def persist_tracker_if_unlocked():
-    """Sync only an explicitly unlocked private workspace, never the Git repo."""
-    if not tracker_cloud_enabled() or not st.session_state.get('tracker_unlocked'):
-        return False
-    try:
-        save_remote_workspace(
-            _secret('TRACKER_DATABASE_URL'),
-            _secret('TRACKER_WORKSPACE_ID') or 'personal',
-            st.session_state.jobs,
-            st.session_state.seen_jobs,
-            st.session_state.search_baseline)
-        st.session_state.tracker_storage_error=''
-        return True
-    except Exception as exc:
-        st.session_state.tracker_storage_error=type(exc).__name__
-        return False
+    return tracker_sync.persist(st.session_state,_secret('TRACKER_DATABASE_URL'),
+        _secret('TRACKER_WORKSPACE_ID') or 'personal',tracker_cloud_enabled())
 
 
 def unlock_tracker_workspace(password):
@@ -1483,23 +1424,10 @@ def unlock_tracker_workspace(password):
     remote=load_remote_workspace(
         _secret('TRACKER_DATABASE_URL'),
         _secret('TRACKER_WORKSPACE_ID') or 'personal')
-    # The saved cloud record is authoritative. Preserve any session-only
-    # entries made before unlock, without discarding the saved cloud history.
-    existing={posting_id({'company':x['Company'],'title':x['Job Title'],
-                          'location':x['Location'],'url':x['Job URL']}):x
-              for x in remote['jobs']}
-    for item in st.session_state.jobs:
-        key=posting_id({'company':item['Company'],'title':item['Job Title'],
-                        'location':item['Location'],'url':item['Job URL']})
-        existing.setdefault(key,item)
-    st.session_state.jobs=list(existing.values())
-    st.session_state.seen_jobs=sorted(set(st.session_state.seen_jobs) |
-                                      set(remote['seen']))
-    st.session_state.search_baseline=(st.session_state.search_baseline
-                                     or remote['has_baseline'])
-    st.session_state.tracker_unlocked=True
-    st.session_state.tracker_loaded=True
-    persist_tracker_if_unlocked()
+    conflicts=tracker_sync.adopt_remote(st.session_state,remote)
+    if not conflicts:
+        persist_tracker_if_unlocked()
+
     return True
 
 
@@ -1511,6 +1439,8 @@ page = st.radio(
     ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
     horizontal=True,label_visibility='collapsed',key='top_navigation'
 )
+
+sync_notice=st.empty()
 
 if page == 'Dashboard':
     # A named Streamlit container gives metrics a real inset from the
@@ -1850,6 +1780,10 @@ elif page == 'Find Jobs':
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
+        partial_count=sum(r.get('status') in ('Partial','Failed') or r.get('truncated',False) for r in stats.get('board_health',[]))
+        if partial_count or stats.get('errors'):
+            st.warning('Search coverage is incomplete. Some sources failed or reached a retrieval limit. See source coverage below.')
+        st.caption('Results are a snapshot. Provider JSON may be cached for up to 15 minutes; confirm availability on the original posting.')
         # Use the same deduplicated, filtered jobs for all three metrics.
         government_total=sum(1 for job in all_results if job['government'])
         private_total=len(all_results)-government_total
@@ -2021,11 +1955,11 @@ elif page == 'Find Jobs':
                         st.link_button('View job',job['url'],use_container_width=True)
                         if st.button('Save',key=f'clean_save_{n}',use_container_width=True):
                             if save_result_to_tracker(job):
-                                st.success('Saved')
+                                st.info('Added to Job Tracker. Storage status is shown above.')
                             else:
                                 st.info('Already saved')
                     with st.expander('Employer verification'):
-                        render_employer_checker(job,n,_secret('SEC_CONTACT_EMAIL'))
+                        render_employer_checker(job,n,_secret('SEC_CONTACT_EMAIL'),on_change=persist_tracker_if_unlocked)
             before, middle, after=st.columns([1,2,1],vertical_alignment='center')
             with before:
                 if st.button('← Previous',disabled=page_no==0,use_container_width=True):
@@ -2053,9 +1987,10 @@ elif page == 'Find Jobs':
                 healthy=sum(row['status']=='Active' for row in board_rows)
                 empty=sum(row['status']=='Empty' for row in board_rows)
                 failed=sum(row['status']=='Failed' for row in board_rows)
+                partial=sum(row['status']=='Partial' or row.get('truncated',False) for row in board_rows)
                 st.write(f'**Career-board health:** {healthy} returned records · '
                          f'{empty} responded with zero qualifying feed records · '
-                         f'{failed} were unavailable')
+                         f'{failed} were unavailable · {partial} were partial or capped')
                 filter_health=st.selectbox('Board status',[
                     'All boards','Active','Empty','Partial','Failed'],key='board_health_filter')
                 shown=[r for r in board_rows if filter_health=='All boards'
@@ -2094,7 +2029,9 @@ elif page == 'Job Tracker':
 
     if tracker_cloud_enabled():
         if st.session_state.tracker_unlocked:
-            st.success('Private cloud tracker unlocked. Changes are synchronized to configured Postgres storage.')
+            st.caption('Private cloud tracker unlocked.')
+            tracker_sync.render_history(_secret('TRACKER_DATABASE_URL'),
+                _secret('TRACKER_WORKSPACE_ID') or 'personal')
         else:
             with st.form('tracker_unlock'):
                 entered_password=st.text_input('Private tracker password',type='password',
@@ -2138,7 +2075,7 @@ elif page == 'Job Tracker':
         download_file_widget(
             'Download tracker backup JSON',
             export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
-                                  st.session_state.search_baseline),
+                                  st.session_state.search_baseline,st.session_state.get('employer_checks',{})),
             'job_tracker_full_backup.json','application/json',
             'tracker_full_backup')
     with backup_right:
@@ -2146,6 +2083,7 @@ elif page == 'Job Tracker':
             'Download applications CSV',
             export_tracker_csv(st.session_state.jobs),
             'job_tracker.csv','text/csv','tracker_applications_csv')
+        st.caption('CSV is spreadsheet-safe. Use JSON for exact restoration, history and employer evidence.')
     with st.expander('Restore applications and job history'):
         uploaded_backup=st.file_uploader('Choose prior Job Tracker CSV or full JSON backup',
                                          type=['csv','json'],key='tracker_restore_file')
@@ -2164,8 +2102,10 @@ elif page == 'Job Tracker':
                 if restore_mode.startswith('Replace'):
                     st.session_state.jobs=restored_jobs
                     if incoming is not None:
+                        st.session_state.employer_checks={**incoming.get('employer_evidence',{}),**st.session_state.get('employer_checks',{})}
                         st.session_state.seen_jobs=incoming['seen']
                         st.session_state.search_baseline=incoming['has_baseline']
+                        st.session_state.employer_checks=incoming.get('employer_evidence',{})
                 else:
                     merged={posting_id({'company':x['Company'],'title':x['Job Title'],
                                        'location':x['Location'],'url':x['Job URL']}):x
@@ -2177,6 +2117,7 @@ elif page == 'Job Tracker':
                         merged.setdefault(key,entry)
                     st.session_state.jobs=list(merged.values())
                     if incoming is not None:
+                        st.session_state.employer_checks={**incoming.get('employer_evidence',{}),**st.session_state.get('employer_checks',{})}
                         st.session_state.seen_jobs=sorted(
                             set(st.session_state.seen_jobs) | set(incoming['seen']))
                         st.session_state.search_baseline=(
@@ -2240,6 +2181,12 @@ elif page == 'Job Tracker':
         idx=st.selectbox('Update a job',range(len(jobs)),
                          format_func=lambda i:f"{jobs[i]['Company']} — {jobs[i]['Job Title']}")
         job=jobs[idx]
+        for report in st.session_state.get('employer_checks',{}).values():
+            if report.get('company')==job['Company'] and (report.get('posting') or {}).get('url')==job['Job URL']:
+                with st.expander('Saved employer evidence'):
+                    from employer_ui import render_evidence
+                    render_evidence(report)
+                    st.caption('Evidence is a dated snapshot. Recheck the original posting before applying.')
         new_status=st.selectbox('New status',STATUSES,index=STATUSES.index(job['Status']),key=f'status_{idx}')
         new_notes=st.text_area('Update notes',value=job['Notes'],key=f'notes_{idx}')
         prior_follow=job.get('Follow-up Date','')
@@ -2265,3 +2212,8 @@ elif page == 'Job Tracker':
                 st.rerun()
     else:
         st.info('No jobs tracked yet. Save an opening from Find Jobs or import a prior backup.')
+
+
+with sync_notice.container():
+    tracker_sync.render_sync_status(_secret('TRACKER_DATABASE_URL'),
+        _secret('TRACKER_WORKSPACE_ID') or 'personal',tracker_cloud_enabled())

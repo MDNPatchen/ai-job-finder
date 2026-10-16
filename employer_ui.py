@@ -44,6 +44,7 @@ def render_evidence(report):
                ' · Posting host: ' + report['posting']['hostname'])
     st.write('**Posting source:** ' + report['posting']['status'])
     st.caption(report['posting']['detail'])
+    st.write('**Vacancy availability:** '+report['posting'].get('vacancy_status','Open status not established'))
     identity=report.get('identity') or {}
     st.write('**Employer identity:** ' + identity.get('status','Not verified'))
     st.caption(identity.get('note','No independent identity evidence available.'))
@@ -87,7 +88,7 @@ def render_evidence(report):
     st.caption(report['warning'])
 
 
-def render_employer_checker(job, number, sec_email=''):
+def render_employer_checker(job, number, sec_email='',on_change=None):
     """Show one button, only check external services if it is clicked."""
     if 'employer_checks' not in st.session_state:
         st.session_state.employer_checks={}
@@ -111,9 +112,20 @@ def render_employer_checker(job, number, sec_email=''):
                 st.session_state.employer_checks[identifier]=_cached_employer_check(
                     job['company'],job['source'],job['url'],bool(job['government']),
                     version,sec_email,raw.decode('utf-8'))
+                if len(st.session_state.employer_checks)>1000:
+                    oldest=min(st.session_state.employer_checks,key=lambda k:st.session_state.employer_checks[k].get('checked_at',''))
+                    del st.session_state.employer_checks[oldest]
+                if on_change: on_change()
             except Exception as exc:
                 st.warning('Employer check unavailable: '+type(exc).__name__)
     saved=st.session_state.employer_checks.get(identifier)
     if saved:
+        from datetime import datetime,timezone
+        try:
+            checked=datetime.fromisoformat(saved['checked_at'])
+            stale=(datetime.now(timezone.utc)-checked).total_seconds()>86400
+        except (KeyError,ValueError,TypeError):
+            stale=True
+        if stale: st.warning('Employer evidence is over 24 hours old or undated. Check again before applying.')
         with st.expander('Employer background and financial evidence',expanded=True):
             render_evidence(saved)

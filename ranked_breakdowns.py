@@ -9,6 +9,7 @@ description mentioning one common skill from scoring 100/100.
 """
 
 import re
+from description_quality import assess_description
 from career_priority import leadership_tier
 
 
@@ -87,7 +88,8 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'ranking_caution_calibration': q.get('ranking_overlap_note') or '',
             'internal_only_restriction': bool(q.get('application_restricted')),
             'important_cautions': q.get('cautions') or [],
-            'description_completeness': q.get('description_completeness') or 'Not assessed',
+            'description_completeness': assess_description(job)['label'],
+            'description_quality':assess_description(job),
             'index_explanation': ('Transferable-strength fit index, 0–96: primarily '
                                   'documented résumé strengths shared with listed duties, '
                                   'with minor title influence and caution for specialized '

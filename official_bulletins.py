@@ -6,7 +6,7 @@ search engines, guessed job IDs, credentials, or paid APIs. An inaccessible
 or ambiguous bulletin leaves the original listing untouched and visibly
 incomplete. The candidate set is bounded to keep nationwide searches usable.
 """
-from concurrent.futures import ThreadPoolExecutor
+from source_http import ContextPool as ThreadPoolExecutor, open_response
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -99,11 +99,11 @@ def parse_bulletin_html(html,title):
                   r"|contact information)\s*$",text)
     if end:
         text=text[:end.start()]
-    text=text[:30000].strip()
+    text=text[:26000].strip()
     return text if _QUALIFICATIONS.search(text) and len(text)>800 else ""
 
 
-def fetch_official_bulletin(job, timeout=5, opener=urlopen):
+def fetch_official_bulletin(job, timeout=5, opener=open_response):
     """Try the provider's printable bulletin, then its own job-detail page.
 
     Both links use the *same existing official vacancy ID and agency slug*.
@@ -189,6 +189,7 @@ def enrich_priority_government_jobs(original_jobs, ranked_results,
         new=dict(item)
         if new.get("url") in results:
             new["description"]=results[new["url"]]
+            new["description_truncated"]=len(new["description"])>=26000
             new["description_source"]="Official full public job bulletin"
         elif short_or_partial(new):
             new["description_source"]="RSS summary only — important requirements may be missing"

@@ -4,6 +4,7 @@ An absent resume phrase never proves the applicant lacks a qualification.
 Required credentials and years are flagged for human verification.
 """
 import re
+from evidence_context import affirmative_match, affirmative_resume_text
 from functools import lru_cache
 from qualification_v2 import extract_requirements, recalibrate_match
 
@@ -11,7 +12,7 @@ CAPABILITIES = (
     ('Financial & P&L leadership', (r'\bp\s*&\s*l\b', r'profit and loss', r'profitability', r'\bbudgets?\b', r'\bbudgeting\b', r'financial (?:management|planning|performance|oversight)', r'\bforecast(?:ing|s)?\b', r'cash flow')),
     ('Multi-site business leadership', (r'multi[- ](?:site|location|unit)', r'multiple (?:sites|locations|facilities|publications|branches|businesses)', r'regional (?:leadership|management|operations)', r'\bgroup publisher\b', r'\bdistrict (?:director|manager)\b')),
     ('Operations leadership', (r'\boperations? (?:management|leadership|director|manager|oversight|strategy|improvement)\b', r'operational (?:excellence|efficien\w*|performance|management|leadership)', r'process improvement', r'\bworkflow\b', r'\bcontinuous improvement\b', r'\boperational planning\b')),
-    ('Talent & organizational change', (r'\b(?:supervis\w*|manag\w*|lead\w*) (?:staff|employees|teams|managers|people|personnel)\b', r'\b(?:hiring|recruitment|onboarding|training|mentoring|coaching)\b', r'\borganizational (?:change|development|transformation)\b', r'\bchange management\b', r'\bworkforce\b', r'\bemployee relations\b')),
+    ('Talent & organizational change', (r'\b(?:supervis\w*|manag\w*|lead\w*|led) (?:staff|employees|teams|managers|people|personnel)\b', r'\b(?:hiring|recruitment|onboarding|training|mentoring|coaching)\b', r'\borganizational (?:change|development|transformation)\b', r'\bchange management\b', r'\bworkforce\b', r'\bemployee relations\b')),
     ('Revenue growth & transformation', (r'\brevenue\b', r'\bsales (?:growth|strategy|management|leadership|teams?)\b', r'\bbusiness development\b', r'\bcommercial strategy\b', r'\bturnaround\b', r'\bmarket (?:growth|expansion)\b')),
     ('Advertising & sales leadership', (r'\badvertis\w*\b', r'\b(?:sales|account) (?:team|leadership|executives?|management|strategy)\b', r'\bclient acquisition\b', r'\baccounts? management\b')),
     ('Editorial & cross-functional leadership', (r'\beditorial\b', r'\bnewsroom\b', r'\bmanaging editor\b', r'\bpublisher\b', r'\bcross[- ]functional (?:teams?|leadership|management)\b')),
@@ -59,9 +60,11 @@ def compile_resume_profile(resume_text, confirmed_areas=()):
     for area, patterns in _COMPILED:
         matches = []
         for line in lines:
-            if any(p.search(line) for p in patterns):
-                if line not in matches:
-                    matches.append(line[:280])
+            supported=affirmative_match(patterns,line)
+            if supported:
+                excerpt=supported[0].strip()
+                if excerpt not in matches:
+                    matches.append(excerpt[:280])
             if len(matches) == 2:
                 break
         if matches:
@@ -77,7 +80,7 @@ def _qualification_screeners(description, resume):
 
 def assess_job_qualifications(job, profile, resume_text=''):
     """Grounded overlap assessment, not a credential or hiring-eligibility verdict."""
-    description = str(job.get('description') or '')[:16000]
+    description = str(job.get('description') or '')[:26000]
     job_title = str(job.get('title') or '')
     matched, confirmed_only, missing = [], [], []
     for area, patterns in _COMPILED:
@@ -98,7 +101,8 @@ def assess_job_qualifications(job, profile, resume_text=''):
             confirmed_only.append(entry)
         else:
             missing.append(entry)
-    screeners = _qualification_screeners(description, resume_text)
+    supported_resume = affirmative_resume_text(resume_text)
+    screeners = _qualification_screeners(description, supported_resume)
     m, c, n = len(matched), len(confirmed_only), len(missing)
     if not profile['resume_present']:
         label = 'Upload a resume for evidence-based matching'
@@ -129,7 +133,7 @@ def assess_job_qualifications(job, profile, resume_text=''):
               'not_documented': missing, 'screeners': screeners,
               'total_areas': m+c+n, 'rank_bonus': rank_bonus,
               'resume_focus': focus, 'resume_present': profile['resume_present']}
-    review = recalibrate_match(job, result, resume_text)
+    review = recalibrate_match(job, result, supported_resume)
     result['fit_index'] = review['index']
     result['role_alignment_index'] = review['role_alignment']
     result['specialized_requirements'] = review['specialties']

@@ -1,0 +1,33 @@
+name: Verify deployed app
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: Public deployment URL to check
+        required: true
+      expected_version:
+        description: Expected visible build version
+        default: '3.2.0'
+        required: true
+permissions:
+  contents: read
+jobs:
+  deployed-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser_smoke.cjs
+        env:
+          APP_URL: ${{ inputs.app_url }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployed-browser-screenshots
+          path: artifacts/

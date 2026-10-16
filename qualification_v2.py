@@ -121,7 +121,7 @@ def _requirement_priority(context):
 
 def extract_requirements(description, resume=''):
     """Only report phrases visibly present in the posting, never invent credentials."""
-    body=re.sub(r'\s+', ' ',str(description or ''))[:16500]
+    body=re.sub(r'\s+', ' ',str(description or ''))[:26000]
     # Career sites append unrelated job recommendations. Do not interpret
     # those titles (especially RN/nurse jobs) as this role's credentials.
     body=re.split(r'\b(?:Similar Jobs|Jobs for you|Recently Viewed Jobs|'

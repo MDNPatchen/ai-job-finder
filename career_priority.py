@@ -50,8 +50,6 @@ def career_review_category(title):
 
 
 def has_detailed_description(job):
-    """Only known detailed provenance counts; absence is not evidence."""
-    return job.get('description_source') in (
-        'Employer posting details as supplied by provider',
-        'Official full public job bulletin',
-    )
+    """Require usable duties as well as known provenance."""
+    from description_quality import assess_description
+    return assess_description(job)['detailed']

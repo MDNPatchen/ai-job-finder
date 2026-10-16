@@ -132,7 +132,7 @@ def clean_posting(text):
     text = re.split(r'\b(?:Similar Jobs|Jobs for you|Recently Viewed Jobs|'
                     r'Top Matches for You|Insights from previous hires)\b',
                     text, maxsplit=1, flags=re.I)[0]
-    return re.sub(r'\s+', ' ', text)[:16000].strip()
+    return re.sub(r'\s+', ' ', text)[:26000].strip()
 
 
 def _excerpt(text, match, radius=115):

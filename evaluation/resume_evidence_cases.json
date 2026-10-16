@@ -1,0 +1,22 @@
+[
+ {"id":"affirmative-budget","text":"Managed annual budgets of $12 million.","area":"Financial & P&L leadership","supported":true},
+ {"id":"negated-budget","text":"I have no experience with budgeting.","area":"Financial & P&L leadership","supported":false},
+ {"id":"affirmative-vendor","text":"Negotiated vendor contracts for six locations.","area":"Negotiation & vendor management","supported":true},
+ {"id":"aspiration-vendor","text":"Seeking a position in vendor management.","area":"Negotiation & vendor management","supported":false},
+ {"id":"affirmative-logistics","text":"Directed logistics and distribution operations.","area":"Distribution & logistics","supported":true},
+ {"id":"coursework-logistics","text":"Coursework in logistics and distribution.","area":"Distribution & logistics","supported":false},
+ {"id":"affirmative-project","text":"Led project management for regional launches.","area":"Project & program management","supported":true},
+ {"id":"aspiration-project","text":"Interested in project management opportunities.","area":"Project & program management","supported":false},
+ {"id":"negative-list","text":"No experience with logistics, budgeting, or project management.","area":"Project & program management","supported":false},
+ {"id":"never-managed","text":"Never managed budgets.","area":"Financial & P&L leadership","supported":false},
+ {"id":"positive-not-only","text":"Not only managed budgets but also led teams.","area":"Financial & P&L leadership","supported":true},
+ {"id":"positive-independent","text":"Managed budgets without supervision.","area":"Financial & P&L leadership","supported":true},
+ {"id":"separate-positive","text":"No logistics experience. Managed annual budgets.","area":"Financial & P&L leadership","supported":true},
+ {"id":"separate-negative","text":"No logistics experience. Managed annual budgets.","area":"Distribution & logistics","supported":false},
+ {"id":"affirmative-people","text":"Led teams of department managers.","area":"Talent & organizational change","supported":true},
+ {"id":"learning-marketing","text":"Learning about digital marketing.","area":"Digital transformation","supported":false},
+ {"id":"affirmative-digital","text":"Grew digital revenue by launching subscription products.","area":"Digital transformation","supported":true},
+ {"id":"quoted-requirement","text":"Job requirements: vendor management experience.","area":"Negotiation & vendor management","supported":false},
+ {"id":"affirmative-strategy","text":"Owned strategic planning across five offices.","area":"Strategic planning & execution","supported":true},
+ {"id":"no-downtime","text":"Led logistics improvements with no downtime.","area":"Distribution & logistics","supported":true}
+]

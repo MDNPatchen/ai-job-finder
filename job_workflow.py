@@ -70,7 +70,10 @@ def annotate_new_results(jobs, previously_seen, has_baseline):
         key=posting_id(job)
         result.append({**job, 'posting_id':key,
                        'new_since_last_search':bool(has_baseline and key not in seen)})
-    return result, sorted(seen | {x['posting_id'] for x in result})
+    current=[x['posting_id'] for x in result]
+    current_set=set(current)
+    retained=[x for x in (previously_seen or []) if x not in current_set]
+    return result, list(dict.fromkeys(retained+current))[-25000:]
 
 
 
