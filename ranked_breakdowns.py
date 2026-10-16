@@ -9,6 +9,7 @@ description mentioning one common skill from scoring 100/100.
 """
 
 import re
+from career_priority import leadership_tier
 
 
 def _safe_spreadsheet_value(value):
@@ -55,6 +56,11 @@ def breakdowns_json(jobs, matching_version='', search_run_id=''):
             'matching_engine_version': matching_version or 'not recorded',
             'search_run_id': search_run_id or 'not recorded',
             'job_title': job.get('title') or '',
+            'career_level': ('Executive / multi-site leadership' if leadership_tier(job.get('title'))==4
+                             else 'Director leadership' if leadership_tier(job.get('title'))==3
+                             else 'Related leadership / other' if leadership_tier(job.get('title'))==2
+                             else 'Manager' if leadership_tier(job.get('title'))==1
+                             else 'Supervisor / specialist'),
             'employer': job.get('company') or '',
             'employer_identity_kind': job.get('employer_identity_kind') or
                                       'Company named by source; identity not independently verified',
@@ -145,6 +151,7 @@ def breakdowns_csv_rows(jobs, matching_version='', search_run_id=''):
                 if x.get('needs_verification')),
             'Important qualification cautions': ' | '.join(item['important_cautions']),
             'Job-description completeness': item['description_completeness'],
+            'Career level (title-based)': item['career_level'],
             'Employer': item['employer'],
             'Employer identification': item['employer_identity_kind'],
             'Work arrangement evidence': item['work_arrangement_source'],
