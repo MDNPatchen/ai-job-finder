@@ -69,8 +69,8 @@ _SOCIAL_MEDIA_YEARS = re.compile(
     r'\b\d+(?:\s*[-–]\s*\d+)?\+?\s*years?\b.{0,95}'
     r'\b(?:social.media|paid social|social campaigns?|social content)\b',re.I)
 _RELOCATION_ALLOWED = re.compile(
-    r'\b(?:(?:reside\s+in\s+or\s+relocat(?:e|ing)\s+to)|'
-    r'(?:(?:willing|able|prepared|agree|expect(?:ed)?)\s+to\s+relocat(?:e|ing)|'
+    r'\b(?:reside\s+in\s+or\s+relocat(?:e|ing)\s+to|'
+    r'(?:willing|able|prepared|agree|expect(?:ed)?)\s+to\s+relocat(?:e|ing)|'
     r'(?:may|can|could|option\s+to|allowed\s+to|permitted\s+to)\s+'
     r'relocat(?:e|ing)|(?:relocat(?:e|ion|ing))\s+'
     r'(?:is\s+)?(?:permitted|allowed|acceptable|an option)|'
