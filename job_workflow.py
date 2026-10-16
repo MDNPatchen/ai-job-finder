@@ -86,6 +86,30 @@ def explicitly_remote_title(title):
     return bool(_EXPLICITLY_REMOTE_TITLE.search(str(title or '')))
 
 
+
+# Private-sector remote vacancies remain excluded, except Mayo Clinic.
+# The following government sources are populated exclusively through
+# the app's public agency RSS/NYC official data ingestion. The ranking
+# path independently verifies each NEOGOV/NEOED agency and vacancy URL.
+_TRUSTED_PUBLIC_SECTOR_SOURCES=frozenset((
+    'NEOGOV','NEOED Schooljobs','NYC Open Data'
+))
+
+
+def permitted_remote_source(job):
+    """Allow Mayo or a verified public-sector vacancy; not self-named gov jobs.
+
+    This does not classify an unknown arrangement as remote. It only
+    decides whether an independently identified remote job may be shown.
+    """
+    source=str(job.get('source') or '')
+    if source=='Mayo Clinic' and str(job.get('company') or '').strip()=='Mayo Clinic':
+        return True
+    return (job.get('government') is True
+            and source in _TRUSTED_PUBLIC_SECTOR_SOURCES)
+
+
+
 def salary_lower_bound(raw):
     """Return only an explicitly annual USD lower bound, never infer hourly."""
     value=str(raw or '').strip()

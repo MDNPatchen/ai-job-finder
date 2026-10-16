@@ -9,7 +9,7 @@ from ranked_breakdowns import (
     evidence_index, evidence_sort_key, breakdowns_json, breakdowns_csv_rows
 )
 from posting_metadata import reconcile_workplace_record
-from job_workflow import preferences_allow, explicitly_remote_title
+from job_workflow import preferences_allow, explicitly_remote_title, permitted_remote_source
 from government_feed_identity import dedupe_vacancy_urls, belongs_to_configured_agency
 from employer_postings import posting_quality
 
@@ -60,6 +60,7 @@ def extracted_filter():
         "reconcile_workplace_record":reconcile_workplace_record,
         "preferences_allow":preferences_allow,
         "explicitly_remote_title":explicitly_remote_title,
+        "permitted_remote_source":permitted_remote_source,
         "posting_quality":posting_quality,
         "dedupe_vacancy_urls":dedupe_vacancy_urls,
         "belongs_to_configured_agency":belongs_to_configured_agency,

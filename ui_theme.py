@@ -32,12 +32,36 @@ html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
 [data-testid="stDecoration"]{display:none!important;}
 [data-testid="stSidebar"],[data-testid="stSidebarNav"],
 [data-testid="collapsedControl"]{display:none!important;}
-[data-testid="block-container"]{
-  max-width:1390px!important;
-  width:calc(100% - 6.5rem)!important;
+/* Match both native Streamlit 1.41's main block selector and the
+   legacy block-container class. Previously the selector missed the
+   actual root, leaving metrics flush against the surrounding rail. */
+[data-testid="stMainBlockContainer"],.block-container,
+[data-testid="stMain"] .block-container{
+  max-width:1370px!important;
+  width:calc(100% - 8rem)!important;
   margin-left:auto!important;margin-right:auto!important;
   box-sizing:border-box!important;
-  padding:1.65rem 2.55rem 3.5rem!important;
+  padding:2rem 3rem 4rem!important;
+  background:var(--page)!important;
+  border:0!important;border-radius:0!important;
+}
+/* A real dashboard wrapper creates a second modest inset. Do not style
+   it as one large rounded card; the six individual metrics are modules. */
+.st-key-dashboard_content,
+.st-key-dashboard_content[data-testid="stVerticalBlockBorderWrapper"]{
+  background:var(--page)!important;
+  padding:1rem 1.55rem 1.8rem!important;
+  margin:0 auto!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;
+}
+.st-key-dashboard_content > div[data-testid="stVerticalBlock"]{
+  background:transparent!important;
+  padding:.45rem .55rem 1rem!important;
+  row-gap:1.3rem!important;
+}
+.st-key-dashboard_content [data-testid="stHorizontalBlock"]{
+  column-gap:1.35rem!important;
+  row-gap:1.35rem!important;
 }
 h1,h2,h3,h4,.stMarkdown h1,.stMarkdown h2,.stMarkdown h3{
   color:var(--ink)!important;letter-spacing:-.025em!important;
@@ -259,7 +283,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
 .job-hint{font-size:.74rem;color:var(--muted)!important;}
 
 @media(max-width:900px){
-  [data-testid="block-container"]{width:100%!important;max-width:100%!important;padding:1rem 1.2rem 3rem!important;}
+  [data-testid="stMainBlockContainer"],.block-container,
+  [data-testid="stMain"] .block-container{
+    width:100%!important;max-width:100%!important;
+    padding:1rem 1.2rem 3rem!important;
+  }
+  .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
+  .st-key-dashboard_content > div[data-testid="stVerticalBlock"]{
+    padding:.2rem .15rem .7rem!important;
+  }
   .job-topbar{flex-wrap:wrap!important;}
   .st-key-top_navigation [role="radiogroup"]{gap:4px!important;}
   .st-key-top_navigation [role="radiogroup"] label{

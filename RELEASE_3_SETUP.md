@@ -1,5 +1,37 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.17 — true dashboard inset and verified government remote exception
+
+October 16 screenshot review exposed a UI issue not visible from CSS-only
+checks: the dashboard's summary cards touched the left/right edge of
+the large page surface even after the earlier max-width updates. The
+CSS was targeting only an older Streamlit block-container selector.
+The app now targets the actual Streamlit main-block container as well
+as its legacy class, and nests the Dashboard in a named native
+Streamlit container with its own symmetric inner margins. Three-column
+metric rows use substantial horizontal and vertical gutters, with
+mobile-safe responsive spacing. The nonblack slate background, white
+on green controls, borderless modular cards and top navigation stay.
+
+The user now permits fully remote and hybrid government positions.
+Verified NEOGOV and NEOED employer RSS positions (validated against
+their original government agency/official posting URLs during
+ranking), and NYC Open Data positions are eligible for the same
+remote exception already granted to Mayo Clinic. Non-government
+private-sector remote-only vacancies remain excluded. A generic
+'government' flag from a private board does not create eligibility.
+On-site-only and Hybrid-only search modes remain strict, and unknown
+workplace metadata is not relabeled as remote. On-site and hybrid
+public/private positions retain their prior eligibility.
+
+Version 3.1.17 marks the changed workplace filtering so a new search
+recalculates all matches. CSV/JSON native download fragments and
+existing qualification-scorer behavior remain intact. Regression
+tests verify trusted government/Mayo remote records, excluded private
+remote entries, invalid agency matches, strict work-mode filters,
+hybrid eligibility and the dashboard's real symmetric gutters.
+
+
 ## Version 3.1.16 — roomier slate modules, trusted government detail fallback
 
 Audited the uploaded Oct. 16 v3.1.15 CSV: 430 unique vacancy records,

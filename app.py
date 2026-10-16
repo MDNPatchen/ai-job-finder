@@ -32,7 +32,7 @@ from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
-    preferences_allow, explicitly_remote_title
+    preferences_allow, explicitly_remote_title, permitted_remote_source
 )
 from tracker_store import (
     COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
@@ -1320,9 +1320,9 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
             continue
         if 'spacex' in job['company'].casefold():
             continue
-        # Mayo Clinic is the only employer permitted to show fully remote roles.
-        # On-site only and Hybrid only remain strict for every employer.
-        # Unspecified arrangements remain labeled for verification.
+        # Remote exceptions are Mayo Clinic and verified government
+        # postings. On-site-only and Hybrid-only filters remain strict.
+        # Unknown workplaces remain labeled for verification.
         arrangement=job.get('work_style') or (
             'Remote' if job.get('remote') else 'Not specified')
         # Cached provider records also need title-based remote screening;
@@ -1332,8 +1332,7 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
             job['work_style']='Remote'
             job['remote']=True
             job['arrangement_source']='Vacancy title explicitly states remote-only work'
-        mayo_remote=(arrangement == 'Remote' and job.get('source') == 'Mayo Clinic')
-        if arrangement == 'Remote' and not mayo_remote:
+        if arrangement == 'Remote' and not permitted_remote_source(job):
             excluded['location']+=1
             continue
         quality=posting_quality(job)
@@ -1494,20 +1493,23 @@ page = st.radio(
 )
 
 if page == 'Dashboard':
-    st.markdown(hero('Dashboard','Your applications at a glance'),unsafe_allow_html=True)
-    jobs = st.session_state.jobs
-    a, b, c = st.columns(3)
-    a.metric('Tracked Jobs', len(jobs))
-    b.metric('Applied', sum(j['Status'] == 'Applied' for j in jobs))
-    c.metric('Interviewing', sum(j['Status'] == 'Interviewing' for j in jobs))
-    a, b, c = st.columns(3)
-    a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
-    b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
-    c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
-    if jobs:
-        st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
-    else:
-        st.caption('No tracked jobs yet.')
+    # A named Streamlit container gives metrics a real inset from the
+    # outside page rail even on Streamlit versions with changing CSS classes.
+    with st.container(border=False, key='dashboard_content'):
+        st.markdown(hero('Dashboard','Your applications at a glance'),unsafe_allow_html=True)
+        jobs = st.session_state.jobs
+        a, b, c = st.columns(3, gap='large')
+        a.metric('Tracked Jobs', len(jobs))
+        b.metric('Applied', sum(j['Status'] == 'Applied' for j in jobs))
+        c.metric('Interviewing', sum(j['Status'] == 'Interviewing' for j in jobs))
+        a, b, c = st.columns(3, gap='large')
+        a.metric('Offers', sum(j['Status'] == 'Offer' for j in jobs))
+        b.metric('Saved', sum(j['Status'] == 'Saved' for j in jobs))
+        c.metric('Skipped', sum(j['Status'] == 'Skipped' for j in jobs))
+        if jobs:
+            st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
+        else:
+            st.caption('No tracked jobs yet.')
 
 
 elif page == 'My Resume':
@@ -1711,7 +1713,7 @@ elif page == 'Find Jobs':
         with col_type:
             chosen_work=st.selectbox('Work style',
                 ['On-site + Hybrid','On-site only','Hybrid only'],
-                help='On-site + Hybrid also includes fully remote Mayo Clinic jobs only. All other fully remote jobs are excluded. On-site only and Hybrid only remain strict. Unspecified arrangements in combined results require verification.')
+                help='On-site + Hybrid includes fully remote Mayo Clinic and verified government jobs; fully remote private-sector positions remain excluded. On-site only and Hybrid only are strict. Unknown arrangements require verification.')
         chosen_listing_scope=st.selectbox(
             'Employer type', [
                 'Direct employers only (recommended)',
@@ -1741,7 +1743,7 @@ elif page == 'Find Jobs':
             verified_work=st.checkbox(
                 'Exclude listings with unspecified on-site/hybrid arrangements',
                 value=False,
-                help='This excludes unknown arrangements but still permits explicitly remote Mayo Clinic roles.')
+                help='This excludes unknown arrangements but allows explicitly remote Mayo Clinic and verified government jobs.')
         submitted=st.form_submit_button('Search',type='primary',use_container_width=True)
 
     if submitted:
