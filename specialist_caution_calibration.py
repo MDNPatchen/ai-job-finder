@@ -61,7 +61,9 @@ def calibrate_cautions(specialties, career_findings, posting_checks):
 
     winners={}
     for family,points,priority,source,index in candidates:
-        suggestion=(points,priority,source,index)
+        # Employer minimum qualifications take precedence over inferred
+        # title/domain caution even when their suggested point amounts differ.
+        suggestion=(priority,points,source,index)
         if family not in winners or suggestion[:2]>winners[family][:2]:
             winners[family]=suggestion
     for family,_points,_priority,source,index in candidates:
