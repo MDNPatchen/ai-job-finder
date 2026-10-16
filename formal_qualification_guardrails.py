@@ -147,11 +147,13 @@ def _degree_resume_evidence(resume, level, required_line):
     return True,'Degree level is mentioned; confirm employer discipline requirements.'
 
 
-def extract_formal_minimums(job, resume=''):
+
+_ALTERNATIVE_DEGREE_CONNECTOR=re.compile(r'\b(?:or|alternatively|either)\s*[,;:]?\s*(?:an?\s+)?
     desc=_clean(job.get('description'))
     resume=_clean(resume)
     out=[]
     seen=set()
+    degree_hits=[]
     for level,pattern,base_penalty in _LEVELS:
         for match in list(pattern.finditer(desc))[:12]:
             # Skip mismatched fragments, references in unrelated narrative,
@@ -202,7 +204,152 @@ def extract_formal_minimums(job, resume=''):
                 'resume_status':status,
                 'ranking_caution':score
             })
+            degree_hits.append((match.start(),match.end(),level,out[-1]))
             break
+
+    _reconcile_degree_pathways(desc,degree_hits)
+
+    # Require explicit licensure, not simply a "registered professionals" duty.
+    for match in list(_LICENSE.finditer(desc))[:12]:
+        line=_line(desc,match.start(),match.end())
+        section=_qualification_scope(desc,match.start())
+        if not (_QUAL_CONTEXT.search(line) or
+                re.search(r'\b(?:qualifications?|requirements?|education)\b',section,re.I)):
+            continue
+        local=_LICENSE.search(line)
+        if not local:
+            continue
+        tail=line[local.start():local.end()+120]
+        if _PREFERRED.search(tail):
+            priority='Preferred / mentioned'
+        elif re.search(r'\b(?:required|must|mandatory|active|current)\b',
+                       line,re.I) or re.search(
+                           r'\b(?:qualifications?|requirements?)\b',section,re.I):
+            priority='Required / minimum — verify exact wording'
+        else:
+            priority='Mentioned — verify status'
+        # Never treat "supervise licensed architects" as personal licensing.
+        if re.search(r'\b(?:supervise|manage|work with|coordinate with|'
+                     r'lead teams of)\s+(?:licensed|registered)\b',line,re.I):
+            continue
+        related=bool(re.search(r'\b(?:architectural license|architect licen[sc]e|'
+                               r'licensed architect|PE license|licensed professional '
+                               r'engineer|registered architect)\b',resume,re.I))
+        score=22 if priority.startswith('Required') and not related else 0
+        out.append({
+            'area':'Professional license / registration',
+            'type':'Education / professional credential',
+            'priority':priority,'listing_excerpt':re.sub(r'\s+',' ',line)[:280],
+            'resume_status':('Possible professional credential mentioned in résumé; verify current standing.'
+                             if related else
+                             'Active professional licensure not established by résumé.'),
+            'ranking_caution':score
+        })
+        break
+    return {'checks':out,
+            'ranking_caution':min(38,sum(x['ranking_caution'] for x in out)),
+            'unverified_mandatory':any(x['ranking_caution']>0 for x in out)}
+,re.I)
+
+
+def _reconcile_degree_pathways(desc, degree_hits):
+    """Single deduction for explicitly alternative education routes."""
+    group=[]
+    groups=[]
+    for hit in sorted(degree_hits,key=lambda x:x[0]):
+        if group:
+            prior=group[-1]
+            between=desc[prior[1]:hit[0]]
+            linked=(prior[2]!=hit[2] and len(between)<=950
+                    and _ALTERNATIVE_DEGREE_CONNECTOR.search(between[-130:])
+                    and prior[3]['priority'].startswith('Required')
+                    and hit[3]['priority'].startswith('Required'))
+            if not linked:
+                if len(group)>1:
+                    groups.append(group)
+                group=[]
+        group.append(hit)
+    if len(group)>1:
+        groups.append(group)
+
+    for group in groups:
+        penalties=[int(item['ranking_caution']) for *_,item in group]
+        cheapest=min(penalties)
+        winner=penalties.index(cheapest) if cheapest>0 else -1
+        paths=' / '.join(level.capitalize()+"'s" for _,_,level,_ in group)
+        for ix,(_,_,level,item) in enumerate(group):
+            raw=item['ranking_caution']
+            if ix!=winner:
+                item['ranking_caution']=0
+                if raw:
+                    item['covered_by_alternative_degree_pathway']=True
+            item['alternative_degree_pathways']=paths
+            item['resume_status']+=(
+                ' These are alternate degree routes, not cumulative education '
+                'requirements; verify the experience minimum for each route.'
+            )
+
+
+def extract_formal_minimums(job, resume=''):
+    desc=_clean(job.get('description'))
+    resume=_clean(resume)
+    out=[]
+    seen=set()
+    degree_hits=[]
+    for level,pattern,base_penalty in _LEVELS:
+        for match in list(pattern.finditer(desc))[:12]:
+            # Skip mismatched fragments, references in unrelated narrative,
+            # and benefits/education-assistance descriptions.
+            line=_line(desc,match.start(),match.end())
+            local=pattern.search(line)
+            if not local:
+                continue
+            section=_qualification_scope(desc,match.start())
+            if not section:
+                # Some ATS feeds place EDUCATION and/or EXPERIENCE directly
+                # before the required degree in the same paragraph.
+                prefix=desc[max(0,match.start()-200):match.start()]
+                heading_re=(r'\b(?:education\s+and/or\s+experience|'
+                            r'education(?:al)?\s+requirements?|'
+                            r'minimum\s+qualifications?)\s*:\s*'
+                            r'(?:[•●*\-]\s*)?$')
+                if re.search(heading_re,prefix,re.I):
+                    section='education'
+            if re.search(r"\b(?:benefits|perks|what we offer|"
+                         r"tuition reimbursement|professional development)\b",
+                         section,re.I):
+                continue
+            if re.search(r"\b(?:tuition reimbursement|education assistance|"
+                         r"student loan forgiveness)\b",line,re.I):
+                continue
+            if not (_QUAL_CONTEXT.search(line) or
+                    re.search(r"\b(?:qualifications?|education|requirements?)\b",section,re.I)):
+                continue
+            priority=_degree_status(line,local,section)
+            # Scope only a degree-specific excerpt to avoid nearby preferred
+            # degrees changing the required master's or bachelor's status.
+            key=(level,priority)
+            if key in seen:
+                continue
+            seen.add(key)
+            verified,status=_degree_resume_evidence(resume,level,line)
+            mandatory=priority.startswith('Required')
+            score=(base_penalty if mandatory and not verified else 0)
+            if _TECHNICAL_FIELD.search(line) and mandatory and not verified:
+                score=max(score,22)
+            out.append({
+                'area':level.capitalize()+' degree'+
+                       (' in technical/professional field' if _TECHNICAL_FIELD.search(line) else ''),
+                'type':'Education / professional credential',
+                'priority':priority,
+                'listing_excerpt':re.sub(r'\s+',' ',line)[:280],
+                'resume_status':status,
+                'ranking_caution':score
+            })
+            degree_hits.append((match.start(),match.end(),level,out[-1]))
+            break
+
+    _reconcile_degree_pathways(desc,degree_hits)
 
     # Require explicit licensure, not simply a "registered professionals" duty.
     for match in list(_LICENSE.finditer(desc))[:12]:
