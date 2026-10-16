@@ -80,6 +80,7 @@ _EXPLICITLY_REMOTE_TITLE=re.compile(
     r'\(\s*remote(?:\s*[-|,/ ]\s*(?:us|usa|united states))?\s*\)|'
     r'\[\s*remote(?:\s*[-|,/ ]\s*(?:us|usa|united states))?\s*\]|'
     r'\b(?:fully[- ]remote|remote[- ]only|100%\s*remote)\b|'
+    r'^remote\s*[-|,:]\s+|'
     r'(?:^|\s[-|,]\s|\s)remote\s*(?:[-|,]\s*(?:us|usa|united states)\b|'
     r'\(\s*(?:us|usa|united states)\s*\)|$)',re.I)
 
