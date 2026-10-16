@@ -45,6 +45,44 @@ FIELD_QUALIFIER = re.compile(
     r'\b(?:experience|knowledge|expertise|background|'
     r'proficiency|certification|license|licence|credential|'
     r'training|skills|portfolio)\b', re.I)
+# A generic reference to SEO and social media does NOT mean an applicant
+# must have spent years running paid campaigns or managing social channels.
+_SOCIAL_MEDIA_HANDS_ON = re.compile(
+    r'\b(?:social.media|paid social|social campaigns?|social content)\b'
+    r'.{0,75}\b(?:manag(?:e|ing|ement)|campaigns?|strateg(?:y|ies)|'
+    r'production|advertising|content creation|channel growth)\b|'
+    r'\b(?:manag(?:e|ing|ement)|lead(?:ing)?|ran|run|develop(?:ing|ed)?|'
+    r'execut(?:e|ing)|produc(?:e|ing))\b.{0,70}'
+    r'\b(?:social.media|paid social|social campaigns?|social content)\b|'
+    r'\b(?:social media (?:strategy|management|marketing|campaigns?)|'
+    r'paid social (?:advertising|campaigns?))\b',re.I)
+_SOCIAL_MEDIA_FAMILIARITY = re.compile(
+    r'\b(?:familiarity|knowledge|understanding|awareness|exposure|'
+    r'working knowledge|conversant|basic skills)\b.{0,95}'
+    r'\b(?:SEO|social.media|social platforms?|paid social)\b',re.I)
+_SOCIAL_MEDIA_YEARS = re.compile(
+    r'\b\d+(?:\s*[-–]\s*\d+)?\+?\s*years?\b.{0,95}'
+    r'\b(?:social.media|paid social|social campaigns?|social content)\b',re.I)
+_RELOCATION_ALLOWED = re.compile(
+    r'\b(?:(?:willing|able|prepared|agree|expect(?:ed)?)\s+to\s+relocat(?:e|ing)|'
+    r'(?:may|can|could|option\s+to|allowed\s+to|permitted\s+to)\s+'
+    r'relocat(?:e|ing)|(?:relocat(?:e|ion|ing))\s+'
+    r'(?:is\s+)?(?:permitted|allowed|acceptable|an option)|'
+    r'(?:reside|residency)\b.{0,95}\b(?:upon hire|after hiring|'
+    r'within\s+\d+\s+(?:days?|months?)\s+of\s+(?:hire|start))'
+    r'.{0,85}\brelocat(?:e|ion|ing))',re.I)
+
+
+def _required_social_media_experience(clause):
+    """Reserve specialist penalties for campaign/channel work, not familiarity."""
+    if _SOCIAL_MEDIA_FAMILIARITY.search(clause):
+        # The same item can explicitly require both SEO familiarity and
+        # years of hands-on social work; preserve that specific requirement.
+        return bool(_SOCIAL_MEDIA_YEARS.search(clause) and
+                    _SOCIAL_MEDIA_HANDS_ON.search(clause))
+    return bool(_SOCIAL_MEDIA_HANDS_ON.search(clause))
+
+
 OPPORTUNITY_TO_OBTAIN = re.compile(
     r'\b(?:ability|able|eligible)\s+to\s+(?:obtain|acquire|earn)|'
     r'\b(?:obtain|acquire|earn)\b.{0,42}\b(?:within|by|after)\b', re.I)
@@ -368,9 +406,15 @@ def extract_posting_requirements(job, resume=''):
         if re.search(r'\b(?:waived|not required|no residency requirement)\b',
                      clause,re.I):
             continue
+        relocation_allowed=bool(_RELOCATION_ALLOWED.search(desc))
         add('Employer residency condition','Residency / location',
-            'Required / minimum — verify exact wording',clause,13,
-            'Residence or willingness and ability to relocate is not established by the résumé.')
+            ('Relocation or post-hire residency may satisfy requirement — verify deadline'
+             if relocation_allowed else
+             'Required / minimum — verify exact wording'),clause,
+            0 if relocation_allowed else 13,
+            ('Employer appears to permit relocation; confirm qualifying location and timing.'
+             if relocation_allowed else
+             'Residence or willingness and ability to relocate is not established by the résumé.'))
 
     for area,pattern,evidence,penalty in FIELDS:
         # The first mention is often a responsibility. Prefer the strongest
@@ -386,6 +430,9 @@ def extract_posting_requirements(job, resume=''):
             if _employer_offer_text(section,clause,area):
                 continue
             priority=_priority(clause,local,section)
+            if (area=='Dedicated social media campaign leadership' and
+                    not _required_social_media_experience(clause)):
+                priority='Familiarity / related marketing mentioned — not proven mandatory specialist experience'
             if (priority=='Field expertise mentioned — verify'
                     and not FIELD_QUALIFIER.search(clause)):
                 continue
