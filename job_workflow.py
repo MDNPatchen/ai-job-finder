@@ -77,8 +77,11 @@ def annotate_new_results(jobs, previously_seen, has_baseline):
 # A provider may omit work arrangement even while the title explicitly
 # says "(Remote)". Respect the user's Mayo-only remote exception.
 _EXPLICITLY_REMOTE_TITLE=re.compile(
-    r'\(\s*remote\s*\)|\[\s*remote\s*\]|'
-    r'\b(?:fully[- ]remote|remote[- ]only|100%\s*remote)\b',re.I)
+    r'\(\s*remote(?:\s*[-|,/ ]\s*(?:us|usa|united states))?\s*\)|'
+    r'\[\s*remote(?:\s*[-|,/ ]\s*(?:us|usa|united states))?\s*\]|'
+    r'\b(?:fully[- ]remote|remote[- ]only|100%\s*remote)\b|'
+    r'(?:^|\s[-|,]\s|\s)remote\s*(?:[-|,]\s*(?:us|usa|united states)\b|'
+    r'\(\s*(?:us|usa|united states)\s*\)|$)',re.I)
 
 
 def explicitly_remote_title(title):
