@@ -84,6 +84,22 @@ SPECIALIZED_TITLE_FIELDS = (
      r"technical project manager|systems implementation project manager)\b",
      r"\b(?:IT project management|technology project management|"
      r"enterprise IT implementation|software systems integration)\b", 23),
+    ("Dedicated social media strategy / campaigns",
+     r"\b(?:senior\s+)?social media (?:manager|director|lead|specialist)\b|"
+     r"\b(?:paid social|social media strategist)\b",
+     r"\b(?:social media (?:strategy|management|marketing|campaigns?|"
+     r"content strategy)|paid social (?:campaigns?|advertising)|"
+     r"social media channel management)\b", 21),
+    ("Music rights and licensing clearances",
+     r"\b(?:music rights?|music licens(?:e|ing)|"
+     r"music clearances?|music copyright|sync licensing)\b",
+     r"\b(?:music rights? administration|music licensing|"
+     r"music clearances?|music copyright administration|"
+     r"synchronization licensing|sync licensing)\b", 24),
+    ("Experiential event marketing specialization",
+     r"\b(?:experiential marketing|event marketing)\b",
+     r"\b(?:event marketing|experiential marketing|"
+     r"event production|large.scale event strategy)\b", 13),
     ("Marketing science / statistical analysis",
      r"\b(?:marketing science|marketing analytics scientist|"
      r"measurement science director)\b",
@@ -117,6 +133,12 @@ def _career_stage_caution(title, resume):
         return ("Early-career internship or trainee role",
                 "The job title indicates an early-career role despite extensive "
                 "leadership experience documented in the résumé.", 35)
+    if re.search(r"\b(?:logistics coordinator|administrative specialist\s*\d*|"
+                 r"office coordinator|inventory coordinator)\b",t,re.I):
+        return ("Coordination / administrative career stage to review",
+                "This role appears to emphasize coordination or specialist "
+                "duties rather than the broad leadership responsibility "
+                "documented in the résumé. Confirm scope and seniority.", 17)
     if re.search(r"\b(?:shift lead|team lead|executive assistant|"
                  r"administrative assistant|office assistant|"
                  r"intake coordinator|finance coordinator)\b",t,re.I):
