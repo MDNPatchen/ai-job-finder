@@ -19,6 +19,7 @@ from ranked_breakdowns import evidence_index, evidence_sort_key, breakdowns_json
 from build_info import MATCHING_ENGINE_VERSION, needs_search_refresh, export_filename
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
+    strict_onsite_requirement,
     employer_identity_kind, greenhouse_workplace_label,
     reconcile_workplace_record
 )
@@ -374,6 +375,8 @@ def classify_work_arrangement(location, description, declared_remote=False, decl
     job-specific arrangement language in the advertisement. Unknown stays unknown.
     """
     style = declared_arrangement(declared_style)
+    if strict_onsite_requirement(html_to_text(description)):
+        return 'On-site'
     if style:
         return style
     loc=str(location or '')
@@ -396,15 +399,24 @@ def standard_job(title, company, url, location, description, source,
         return None
     arrangement = classify_work_arrangement(location, description, remote, declared_style)
     explicit_style = declared_arrangement(declared_style)
-    arrangement_source = ('No explicit workplace label in public posting'
-                          if arrangement == 'Not specified' else
-                          'Employer ATS workplace label' if explicit_style else
-                          'Provider remote flag' if affirmative(remote) else
-                          'Posting location or description text')
+    workplace_conflict = ''
+    if (strict_onsite_requirement(html_to_text(description))
+            and explicit_style in ('Remote','Hybrid')):
+        workplace_conflict = ('Provider reports '+explicit_style+
+                              ', but employer posting requires in-person work.')
+    arrangement_source = (
+        'Explicit employer in-person requirement conflicts with provider label'
+        if workplace_conflict else
+        'No explicit workplace label in public posting'
+        if arrangement == 'Not specified' else
+        'Employer ATS workplace label' if explicit_style else
+        'Provider remote flag' if affirmative(remote) else
+        'Posting location or description text')
     return {
         'title': str(title).strip(), 'company': str(company).strip(),
         'employer_identity_kind': employer_identity_kind(company),
         'arrangement_source': arrangement_source,
+        'workplace_conflict': workplace_conflict,
         'url': url, 'location': str(location or 'Location not specified'),
         'description': html_to_text(description)[:12500], 'source': source,
         'remote': arrangement == 'Remote', 'work_style': arrangement,
@@ -1639,7 +1651,7 @@ elif page == 'Find Jobs':
         else:
             if st.session_state.resume_text.strip():
                 st.write('**Sorted by transferable strengths supported by your résumé: highest to lowest.**')
-                st.caption('The transferable-strength fit index primarily weighs your actual résumé examples against job duties, then considers the job-specific technical background and career-stage alignment. A high overlap score alone does not establish career suitability. Job-specific cautions reduce rank but never automatically remove a posting. This is NOT a hiring probability or eligibility determination.')
+                st.caption('Transferable-strength fit compares résumé evidence to actual duties, then checks employer-stated minimum qualifications, internal-only restrictions, residency rules and specialized credentials. Explicit requirements lower ranking when not documented; preferred experience is not treated as mandatory. Work-arrangement conflicts are shown. The index is NOT eligibility verification or a hiring probability.')
                 run_id = stats.get('run_id','')
                 all_breakdowns = breakdowns_json(
                     all_results, matching_version=MATCHING_ENGINE_VERSION, search_run_id=run_id)
@@ -1706,11 +1718,21 @@ elif page == 'Find Jobs':
                                 st.caption('Career fit to verify: '+
                                     ' · '.join(x['area'] for x in
                                              q['career_fit_cautions'][:2]))
+                            if q.get('application_restricted'):
+                                st.warning('Posting indicates internal applicants only; verify you are eligible to apply.')
+                            if q.get('posting_requirement_checks'):
+                                flagged=[x['area'] for x in q['posting_requirement_checks']
+                                         if x['ranking_caution']]
+                                if flagged:
+                                    st.caption('Employer minimums / restrictions to review: '+
+                                               ' · '.join(flagged[:3]))
                         st.caption(' · '.join([
                             job['company'],job['location'],
                             job.get('work_style') or 'Not specified',
                             job['date']]))
                         st.caption('Government' if job['government'] else job['source'])
+                        if job.get('workplace_conflict'):
+                            st.warning('Work arrangement conflict: '+job['workplace_conflict'])
                         quality=posting_quality(job)
                         if quality['recruiter']:
                             st.warning('Recruiting intermediary: the underlying hiring employer is not established.')
@@ -1761,6 +1783,12 @@ elif page == 'Find Jobs':
                                         st.write('• ' + specialization['area'])
                                         st.caption('Job posting: ' + specialization['listing_excerpt'])
                                         st.caption(specialization['resume_status'])
+                                if qualification.get('posting_requirement_checks'):
+                                    st.write('**Employer-stated minimums and application rules**')
+                                    for requirement in qualification['posting_requirement_checks'][:10]:
+                                        st.write('**'+requirement['area']+'** — '+requirement['priority'])
+                                        st.caption('Employer posting: '+requirement['listing_excerpt'])
+                                        st.caption('Résumé review: '+requirement['resume_status'])
                                 if qualification['screeners']:
                                     st.write('**Education, credentials, eligibility and years to verify**')
                                     for requirement in qualification['screeners']:
