@@ -30,10 +30,29 @@ from government_feed_identity import belongs_to_configured_agency, dedupe_vacanc
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
+import job_workflow as _job_workflow
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
-    preferences_allow, explicitly_remote_title, permitted_remote_source
+    preferences_allow, explicitly_remote_title
 )
+
+
+def permitted_remote_source(job):
+    """Safe startup if Streamlit publishes app.py before its helper module.
+
+    Always prefer the current shared policy function. An older cached
+    job_workflow.py may not have the new government-remote function yet,
+    even though that symbol already exists on GitHub's main branch.
+    Do not crash at import time during that short deployment mismatch.
+    """
+    check=getattr(_job_workflow,'permitted_remote_source',None)
+    if callable(check):
+        return check(job)
+    source=str(job.get('source') or '')
+    if source=='Mayo Clinic' and str(job.get('company') or '').strip()=='Mayo Clinic':
+        return True
+    return (job.get('government') is True and source in
+            ('NEOGOV','NEOED Schooljobs','NYC Open Data'))
 from tracker_store import (
     COLUMNS as TRACKER_COLUMNS, STATUSES as TRACKER_STATUSES,
     import_tracker_csv, export_tracker_csv, import_workspace_json,

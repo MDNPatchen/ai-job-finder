@@ -1,5 +1,28 @@
 # AI Job Finder 3.0 — full workflow release
 
+## 3.1.17 startup import hotfix
+
+A Streamlit Cloud screenshot showed an ImportError at `app.py` line 33
+while loading `job_workflow`, before any page could render. The repo's
+main branch already included the newly added public-sector remote eligibility
+helper, so deployment-time module-version inconsistency is a likely cause,
+although the redacted traceback does not expose the exact missing name.
+
+The app no longer requires that new helper symbol when importing the shared
+module. Instead, it uses the common implementation when present and safely
+falls back to the same narrowly scoped remote policy if Streamlit temporarily
+serves an older cached `job_workflow.py`. This keeps verified government and
+Mayo remote jobs eligible, excludes non-government private remote jobs, and
+avoids disabling any source-verification or ranking guardrail.
+
+In addition to ordinary application startup and qualification checks, CI
+now runs a simulated deployment mismatch: it deliberately removes the helper
+from the imported module and starts the real Streamlit application. This
+prevents this specific class of deployment import error from regressing.
+No matching engine / export version bump, source or dashboard redesign is
+needed for this startup compatibility fix.
+
+
 ## Version 3.1.17 — true dashboard inset and verified government remote exception
 
 October 16 screenshot review exposed a UI issue not visible from CSS-only

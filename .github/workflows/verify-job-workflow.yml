@@ -22,6 +22,7 @@ on:
       - "test_official_bulletins.py"
       - "test_v3116_public_bulletins_and_workplace.py"
       - "test_v3117_remote_government_dashboard.py"
+      - "test_v3117_streamlit_import_recovery.py"
       - "test_posting_requirements.py"
       - "qualification_v2.py"
       - "qualification_matcher.py"
@@ -53,4 +54,4 @@ jobs:
       - name: Compile full application and helpers
         run: python -m py_compile app.py job_workflow.py employer_postings.py posting_metadata.py tracker_store.py
       - name: Test identities, preferences, imports, new-job history and feed health
-        run: python -m unittest -v test_v3117_remote_government_dashboard test_job_workflow test_employer_postings test_tracker_store test_source_health test_ranked_breakdowns test_source_catalog_expansion test_build_version
+        run: python -m unittest -v test_v3117_streamlit_import_recovery test_v3117_remote_government_dashboard test_job_workflow test_employer_postings test_tracker_store test_source_health test_ranked_breakdowns test_source_catalog_expansion test_build_version
