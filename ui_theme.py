@@ -280,7 +280,7 @@ def brand(version=""):
     return ('<div class="job-topbar"><div class="job-brand">'
             '<span class="job-mark" aria-hidden="true"></span>'
             '<span class="job-brand-title">AI Job Finder</span></div>'
-            + ('<span class="job-version">Version '+_safe(version)+'</span>'
+            + ('<span class="job-version">Version '+_safe(version)+' · Compact Slate</span>'
                if version else '') + '</div>')
 
 
