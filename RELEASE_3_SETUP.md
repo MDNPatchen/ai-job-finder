@@ -1,5 +1,41 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.3 — official full government bulletins (October 15, 2026)
+
+Version 3.1.2 still ranked some public-sector positions at 96/96 because
+agency RSS feeds gave abbreviated duties without detailed minimum
+qualifications. Version 3.1.3 uses a bounded second-pass retrieval for up to
+28 top-ranked NEOGOV/NEOED jobs with abbreviated or incomplete RSS text:
+
+- The official vacancy-specific GovernmentJobs/SchoolJobs print bulletin is
+  derived from the actual employer RSS vacancy URL; no IDs or job links are
+  invented. Only allowed HTTPS governmentjobs.com/schooljobs.com hosts and
+  print paths are fetched with strict time and size bounds.
+- A title- and qualification-section-validated full bulletin can replace
+  the summary before final ranking. Failed, blocked or incomplete retrieval
+  keeps the original job with transparent **RSS summary only** provenance.
+- Explicit full-bulletin **Qualifications / Minimum Qualifications** sections
+  now supply mandatory field-experience cues even when a sentence doesn't
+  repeat "required". **Desired / Preferred Qualifications** remain
+  nonmandatory. Existing post-hire-certification, residency and
+  internal-only flags remain in place.
+- Summary-only government postings are capped at 82/96, and other
+  unverified-depth provider RSS entries at 88/96; authentic full bulletins
+  retain their evidence-based ranking. No job is automatically deleted.
+- Job results, CSV and JSON exports show the description's provenance.
+  Diagnostics report official full-bulletin retrievals and remaining
+  summary-only government posts.
+
+These are automated research rankings, not credential verification or a
+prediction of hiring. Actual employer postings may be inaccessible to this
+server, and only a bounded group of priority vacancies is enriched.
+Existing employer-direct, U.S.-only, 45-day, on-site/hybrid and Mayo
+exception filters remain unchanged.
+
+This update invalidates older rankings. Look for **Matching engine v3.1.3**
+and new download filenames containing **_v313_**.
+
+
 ## Version 3.1.2 — actual minimum qualifications (October 15, 2026)
 
 The 3.1.1 ranked export still put water-system operators, EHS specialists,
