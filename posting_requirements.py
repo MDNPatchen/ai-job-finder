@@ -91,6 +91,46 @@ def _required_social_media_experience(clause):
     return bool(_SOCIAL_MEDIA_HANDS_ON.search(clause))
 
 
+# A professional degree in construction management is NOT itself proof
+# that the employer demands construction work history. The previous generic
+# field regex interpreted degree-only clauses as 25-point experience gaps.
+_CONSTRUCTION_DEGREE_WORDS = re.compile(
+    r'\b(?:bachelor|associate|master|degree|major coursework|'
+    r'accredited (?:college|university))\b',re.I)
+_CONSTRUCTION_EXPERIENCE_WORDS = re.compile(
+    r'\b(?:experience|experienced|professional background|work history|'
+    r'track record|hands.on)\b',re.I)
+_SEPARATE_WORK_DURATION = re.compile(
+    r'\b(?:\d+|three|five|seven|eight|ten|fifteen|twenty)'
+    r'(?:\s*(?:-|–|to)\s*\d+)?\+?\s*years?\b'
+    r'.{0,90}\b(?:experience|working|manag(?:ing|ement))\b',re.I)
+_DEGREE_EQUIVALENT_ONLY = re.compile(
+    r'\b(?:or\s+(?:an?\s+)?equivalent\s+(?:amount\s+of\s+)?'
+    r'(?:work\s+)?experience|equivalent\s+combination\s+of\s+'
+    r'(?:education|training)\s+(?:and|or)\s+experience|'
+    r'experience\s+in\s+lieu\s+of\s+(?:a\s+)?degree)\b',re.I)
+
+
+def _required_construction_work_experience(clause):
+    """Check the *work experience* requirement, not a degree field name.
+
+    This is deliberately local to one bullet/sentence. A degree with an
+    'equivalent experience' alternative does not independently establish
+    years of work in the construction industry. A separate construction
+    work-history clause is assessed normally.
+    """
+    if not _CONSTRUCTION_EXPERIENCE_WORDS.search(clause):
+        return False
+    if _CONSTRUCTION_DEGREE_WORDS.search(clause):
+        if not _SEPARATE_WORK_DURATION.search(clause):
+            return False
+        # A numbered years-of-work minimum is independent of the
+        # offered educational pathway in a mixed qualification item.
+    if _DEGREE_EQUIVALENT_ONLY.search(clause) and not _SEPARATE_WORK_DURATION.search(clause):
+        return False
+    return True
+
+
 OPPORTUNITY_TO_OBTAIN = re.compile(
     r'\b(?:ability|able|eligible)\s+to\s+(?:obtain|acquire|earn)|'
     r'\b(?:obtain|acquire|earn)\b.{0,42}\b(?:within|by|after)\b', re.I)
@@ -461,6 +501,9 @@ def extract_posting_requirements(job, resume=''):
             if _employer_offer_text(section,clause,area):
                 continue
             priority=_priority(clause,local,section)
+            if (area=='Construction / preconstruction delivery experience' and
+                    not _required_construction_work_experience(clause)):
+                priority='Education or responsibilities mentioned — no separate work-experience minimum'
             if (area=='Dedicated social media campaign leadership' and
                     not _required_social_media_experience(clause)):
                 priority='Familiarity / related marketing mentioned — not proven mandatory specialist experience'
