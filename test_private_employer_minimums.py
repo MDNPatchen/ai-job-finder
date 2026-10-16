@@ -98,7 +98,8 @@ class PrivateEmployerMinimumTests(unittest.TestCase):
                      'bioanalytical method development and chromatography.')
         q=scored(job)
         self.assertGreater(q['posting_requirement_penalty'],0)
-        self.assertGreater(q['career_fit_penalty'],0)
+        self.assertTrue(any(x['ranking_caution']>0 for x in q['career_fit_cautions']))
+        self.assertGreater(q['ranking_overlap_relief'],0)
         self.assertLess(evidence_index(q),evidence_index(
             scored({'title':'Regional Operations Manager','description':DUTIES})))
 
@@ -110,7 +111,8 @@ class PrivateEmployerMinimumTests(unittest.TestCase):
         self.assertTrue(any(x['area']=='IT-specific project delivery'
                             and x['ranking_caution']>0
                             for x in q['posting_requirement_checks']))
-        self.assertGreater(q['career_fit_penalty'],0)
+        self.assertTrue(any(x['ranking_caution']>0 for x in q['career_fit_cautions']))
+        self.assertGreater(q['ranking_overlap_relief'],0)
 
     def test_transfer_only_title_is_application_restriction(self):
         job={'title':'Accounting Coordinator (TRANSFER ONLY)',
