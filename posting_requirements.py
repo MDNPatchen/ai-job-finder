@@ -355,12 +355,15 @@ def extract_posting_requirements(job, resume=''):
                 TRANSFER_ONLY_APPLICATION.search(scope)))
         if not match:
             continue
-        # A job may require supporting existing internal applicants as a
-        # duty; that is not a restriction on who can apply for this vacancy.
+        # Supporting internal applicants is a job duty, not an application
+        # restriction. Require explicit hiring context for this distinction.
         before=scope[max(0,match.start()-50):match.start()]
         if (field_name=='description' and
                 re.search(r'\b(?:work with|coordinate with|assist|support|'
-                          r'serve|help)\s*
+                          r'serve|help)\s*$',before,re.I)):
+            continue
+        if not INTERNAL_NEGATION.search(_context(scope,match,100)):
+            add('Internal applicants only','Application eligibility',
                 'Explicit restriction — verify eligibility',
                 _context(scope,match,85),50,
                 'Current employment with this organization not verified; check before applying.')
