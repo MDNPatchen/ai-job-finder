@@ -32,44 +32,27 @@ html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
 [data-testid="stDecoration"]{display:none!important;}
 [data-testid="stSidebar"],[data-testid="stSidebarNav"],
 [data-testid="collapsedControl"]{display:none!important;}
-/* Match both native Streamlit 1.41's main block selector and the
-   legacy block-container class. Previously the selector missed the
-   actual root, leaving metrics flush against the surrounding rail. */
+/* One content gutter for every page. Never pad Streamlit's root
+   VerticalBlock: it behaves differently inside page containers and columns.
+   This fixes the uneven rails introduced in v3.1.19. */
 [data-testid="stMainBlockContainer"],.block-container,
 [data-testid="stMain"] .block-container{
-  max-width:1370px!important;
-  width:calc(100% - 8rem)!important;
-  margin-left:auto!important;margin-right:auto!important;
   box-sizing:border-box!important;
-  padding:2rem 3rem 4rem!important;
+  width:calc(100% - 6rem)!important;
+  max-width:1440px!important;
+  margin-inline:auto!important;
+  padding:1.8rem clamp(24px,3vw,48px) 3.5rem!important;
   background:var(--page)!important;
   border:0!important;border-radius:0!important;
 }
-/* Keep page headings, navigation, filters and results off the content rail.
-   In Streamlit 1.41 the visible widgets live in the root VerticalBlock,
-   so padding only the outer block-container did not inset them. */
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
-[data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],
-section.main .block-container > [data-testid="stVerticalBlock"]{
-  box-sizing:border-box!important;
-  padding-inline:clamp(24px,3.1vw,52px)!important;
-  row-gap:.9rem!important;
+/* Dashboard already has its own internal module inset; leave that
+   working layout's effective padding and content width intact. */
+[data-testid="stMainBlockContainer"]:has(.st-key-dashboard_content),
+.block-container:has(.st-key-dashboard_content){
+  width:calc(100% - 5rem)!important;
+  padding:1.65rem 1.25rem 3.5rem!important;
 }
-/* Explicit heading offsets provide a fallback for older Streamlit DOMs. */
-.job-hero,.job-module-heading,.job-module-caption,.job-topbar{
-  margin-left:0!important;margin-right:0!important;
-}
-[data-testid="stForm"]{
-  margin-top:.3rem!important;
-}
-@media (min-width:901px){
-  [data-testid="stMainBlockContainer"],.block-container,
-  [data-testid="stMain"] .block-container{
-    width:calc(100% - 5rem)!important;
-    max-width:1440px!important;
-    padding:1.65rem 1.25rem 3.5rem!important;
-  }
-}
+[data-testid="stForm"]{margin-top:.3rem!important;}
 
 /* A real dashboard wrapper creates a second modest inset. Do not style
    it as one large rounded card; the six individual metrics are modules. */
@@ -313,11 +296,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
   [data-testid="stMain"] .block-container{
     width:100%!important;max-width:100%!important;
     padding:1rem 1.2rem 3rem!important;
-  }
-  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
-  [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"],
-  section.main .block-container > [data-testid="stVerticalBlock"]{
-    padding-inline:1rem!important;
   }
   .st-key-dashboard_content{padding:.55rem .6rem 1.15rem!important;}
   .st-key-dashboard_content > div[data-testid="stVerticalBlock"]{
