@@ -1329,9 +1329,8 @@ if page == 'Dashboard':
     if jobs:
         st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
     else:
-        st.info('Go to Job Tracker to add a job.')
-    st.caption('The Job Tracker supports CSV/JSON backups, and can sync to private '
-               'Postgres storage after you configure Streamlit Secrets and unlock it.')
+        st.caption('No tracked jobs yet.')
+
 
 elif page == 'My Resume':
     st.markdown(hero('Resume','Upload and review your experience'),unsafe_allow_html=True)
@@ -1464,7 +1463,7 @@ elif page == 'Career Analysis':
             approved = list(dict.fromkeys(verified_drafts + approved))
             st.session_state.approved_suggestions = approved
             if approved:
-                st.download_button('⬇️ Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
+                st.download_button('Download approved wording', '\n\n'.join(approved), 'approved_resume_suggestions.txt', 'text/plain')
             st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
 
 elif page == 'Career Matches':
@@ -1506,7 +1505,7 @@ elif page == 'Career Matches':
                         st.write('All mapped areas had phrase matches; verify that the duties were actually performed.')
                     st.write('**Resume tailoring idea:**', r['focus'])
                     st.caption('Only add achievements, responsibilities and numbers you can substantiate. Use Career Analysis to edit and approve suggested wording.')
-            st.download_button('⬇️ Export Career Matches CSV',
+            st.download_button('Export Career Matches CSV',
                 pd.DataFrame([{'Career':r['title'], 'Industry':r['industry'],
                     'Documented overlap (%)':r['score'],
                     'Matched areas':'; '.join(r['matched']),
@@ -1837,7 +1836,7 @@ elif page == 'Find Jobs':
                'Automatic cloud persistence requires configured private database credentials.')
 
 elif page == 'Job Tracker':
-    st.title('📋 Job Application Tracker')
+    st.markdown(hero('Job Tracker','Applications and follow-ups'),unsafe_allow_html=True)
     st.caption('Track applications, interviews, offers, skipped openings and notes. '
                'A JSON backup also includes your previously seen vacancy history.')
 
@@ -1861,10 +1860,7 @@ elif page == 'Job Tracker':
             st.warning('Not unlocked: edits are session-only. Unlock before searching to '
                        'retain job history across devices or deployments.')
     else:
-        st.info('Session-only mode: no private database is configured. '
-                'Use JSON backup/restore to preserve your applications and seen jobs. '
-                'For automatic persistence, configure TRACKER_DATABASE_URL and '
-                'TRACKER_ACCESS_PASSWORD in Streamlit Secrets.')
+        st.caption('Session-only · Export a backup to keep your history.')
     if st.session_state.get('tracker_storage_error'):
         st.error('Cloud save failed ('+st.session_state.tracker_storage_error+
                  '). Export a JSON backup now; the latest changes are in this session.')
@@ -1873,13 +1869,13 @@ elif page == 'Job Tracker':
     backup_left,backup_right=st.columns(2)
     with backup_left:
         st.download_button(
-            '⬇️ Download complete tracker backup (JSON)',
+            'Export backup JSON',
             export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
                                   st.session_state.search_baseline),
             'job_tracker_full_backup.json','application/json',use_container_width=True)
     with backup_right:
         st.download_button(
-            '⬇️ Export applications CSV',
+            'Export applications CSV',
             export_tracker_csv(st.session_state.jobs),'job_tracker.csv',
             'text/csv',use_container_width=True)
     with st.expander('Restore applications and job history'):
@@ -1926,7 +1922,7 @@ elif page == 'Job Tracker':
             except (UnicodeDecodeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
                 st.error('Backup not imported: '+str(exc)[:280])
 
-    with st.expander('➕ Add a New Job', expanded=False):
+    with st.expander('Add a job', expanded=False):
         with st.form('add_job'):
             company=st.text_input('Company')
             title=st.text_input('Job Title')
