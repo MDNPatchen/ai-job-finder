@@ -1,5 +1,39 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.5 — employer benefits vs applicant minimums (October 15, 2026)
+
+The 3.1.4 ranked job export revealed a false positive: CLEAR and Imprint
+management postings were given **22-point compensation administration
+cautions** for the company's *total rewards and equity benefits offered to
+employees*. These are not applicant qualifications.
+
+Version 3.1.5:
+- Recognizes explicit employer **Benefits**, **Perks**, **Total Rewards**,
+  **Compensation & Benefits**, and **What We Offer** sections as employee
+  benefits. Does not score specialty qualifications from these sections.
+- Recognizes standalone offer language such as **We offer holistic total
+  rewards** and **Competitive compensation and equity packages**, even when
+  an employer omitted a Benefits heading or placed the text after its
+  qualifications section.
+- Preserves legitimate applicant requirements: a compensation and equity
+  manager who needs relevant years of administering pay programs still gets
+  a transparent specialist caution when résumé evidence is absent.
+- Improves *career-level* ranking for a documented senior publishing and
+  operations leadership background: sourcing specialists, talent acquisition
+  and recruiting coordinators, purchasing/marketing coordinators, and
+  assistant store managers are flagged for review without exclusion.
+- Preserves cross-industry operations managers, vendor and partnership
+  leadership, procurement managers, and legitimate logistics roles.
+- Contains regression tests for CLEAR operations VP, Imprint general
+  manager, EHS specialist, UX/product designer, mass-spec scientist,
+  internal-transfer-only coordinator and both junior/senior résumé levels.
+- Updates the matching engine, clearing old session rankings and producing
+  new exports marked **_v315_**.
+
+Flags are comparative research aids, never determinations of hiring
+eligibility. Confirm current qualifications with the original employer.
+
+
 ## Version 3.1.4 — private-employer specialist minimums (October 15, 2026)
 
 The v3.1.3 audit found highly specialized private-sector jobs still near the
