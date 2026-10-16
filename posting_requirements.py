@@ -96,6 +96,40 @@ FIELDS = (
      r'curriculum design|instructional leadership credential)\b',
      r'\b(?:teaching certificate|teaching licen[sc]e|'
      r'curriculum design|instructional leadership credential)\b',18),
+    ('Compensation and equity administration',
+     r'\b(?:compensation (?:and|&)\s*equity|'
+     r'compensation (?:programs?|benchmarking|strateg(?:y|ies)|'
+     r'analysis|administration)|equity compensation|'
+     r'(?:stock options?|equity awards?)\s+(?:administration|plans?)|'
+     r'total rewards|pay equity|salary bands?)\b',
+     r'\b(?:compensation (?:and|&)\s*equity|'
+     r'compensation (?:programs?|benchmarking|strateg(?:y|ies)|'
+     r'analysis|administration)|equity compensation|'
+     r'(?:stock options?|equity awards?)\s+(?:administration|plans?)|'
+     r'total rewards|pay equity)\b',22),
+    ('Analytical laboratory mass spectrometry',
+     r'\b(?:LC[- ]?MS/?MS|mass spectrometr(?:y|ic)|'
+     r'bioanalytical testing|chromatograph\w*|'
+     r'analytical chemistry|laboratory (?:scientist|method development))\b',
+     r'\b(?:LC[- ]?MS/?MS|mass spectrometr(?:y|ic)|'
+     r'bioanalytical testing|chromatograph\w*|'
+     r'analytical chemistry|laboratory (?:scientist|method development))\b',30),
+    ('IT-specific project delivery',
+     r'\b(?:IT project management|technology project management|'
+     r'software implementation projects?|systems integrations?|'
+     r'enterprise IT (?:infrastructure|projects?)|'
+     r'information technology projects?|technical project management)\b',
+     r'\b(?:IT project management|technology project management|'
+     r'software implementation projects?|systems integrations?|'
+     r'enterprise IT (?:infrastructure|projects?)|'
+     r'information technology projects?|technical project management)\b',23),
+    ('Advanced marketing science / statistical modeling',
+     r'\b(?:marketing science|marketing mix model(?:ing|ling)|'
+     r'econometric modeling|statistical programming|'
+     r'causal inference modeling|incrementality testing)\b',
+     r'\b(?:marketing science|marketing mix model(?:ing|ling)|'
+     r'econometric modeling|statistical programming|'
+     r'causal inference modeling|incrementality testing)\b',22),
 )
 
 # These are unambiguous job-specific credentials / application artifacts.
