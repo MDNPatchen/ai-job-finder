@@ -1,5 +1,42 @@
 # AI Job Finder 3.0 — full workflow release
 
+## Version 3.1.16 — roomier slate modules, trusted government detail fallback
+
+Audited the uploaded Oct. 16 v3.1.15 CSV: 430 unique vacancy records,
+0 duplicate or blank application URLs, scores ordered high-to-low and
+all posting dates inside the 45-day window. 145 government/education
+listings were marked RSS summaries or otherwise unverified for full
+qualifications, and 317 jobs lacked an explicit work-arrangement label.
+These are coverage gaps, not grounds to invent requirements or remote work.
+
+- Restore comfortable interior card padding and 105px summary modules,
+  with 40px buttons/navigation instead of 35px. Desktop main content
+  is centered and bounded at 1390px, with an additional 6.5rem of
+  side gutters and 2.55rem of internal padding. Mobile gets its own
+  safe full-width padding. The slate-green page, separate panels,
+  no-green-border policy and white text on green buttons remain.
+- Full government bulletin enrichment covers up to 40 highest-ranked
+  partial government postings (previously 28), with up to six parallel
+  public requests. When the official GovernmentJobs/SchoolJobs print
+  route fails, it tries the official detail route for the *same agency
+  and vacancy ID*. External redirects, other vacancy IDs, missing
+  qualifications, brief portal shells and oversized pages are rejected.
+  A failed attempt leaves the RSS summary clearly identified; it is
+  not represented as a full description.
+- The government RSS reader consumes explicitly named workplace
+  fields, when a provider actually supplies one. Missing or conflicting
+  labels remain "Not specified". A city name, remote-related job title
+  or "telework eligible" field does not by itself establish a new
+  work-arrangement classification. The Mayo-only remote restriction
+  and explicit remote-title safeguards remain.
+- Regression tests cover the verified same-ID print/detail fallback,
+  blocked/mismatched redirects, RSS workplace metadata, absence of
+  data, unchanged cache inputs, margins and all legacy exports.
+- Matching engine / download suffix updated to 3.1.16 because
+  description retrieval may change qualification rankings, and
+  explicitly labeled work modes can change search inclusion.
+
+
 ## Compact Slate UI refresh — 3.1.15 scoring unchanged
 
 The uploaded Oct. 16 live v3.1.15 CSV was audited before changing the

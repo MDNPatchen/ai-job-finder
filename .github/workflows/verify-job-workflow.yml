@@ -20,6 +20,7 @@ on:
       - "formal_qualification_guardrails.py"
       - "official_bulletins.py"
       - "test_official_bulletins.py"
+      - "test_v3116_public_bulletins_and_workplace.py"
       - "test_posting_requirements.py"
       - "qualification_v2.py"
       - "qualification_matcher.py"

@@ -88,7 +88,7 @@ class NavigationAndDownloadsTests(unittest.TestCase):
     def test_compact_slate_appearance_preserves_native_downloads(self):
         self.assertIn("#27342F",APP_CSS)
         self.assertIn("#34443D",APP_CSS)
-        self.assertIn("padding:.87rem 1.05rem",APP_CSS)
+        self.assertIn("padding:1.18rem 1.38rem",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("Compact Slate",brand(MATCHING_ENGINE_VERSION))
         self.assertNotIn("<img",brand(MATCHING_ENGINE_VERSION))

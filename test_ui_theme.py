@@ -21,17 +21,28 @@ class MinimalUIThemeTests(unittest.TestCase):
     def test_compact_modules_have_smaller_interiors_without_green_borders(self):
         self.assertIn("Compact independent modules:",
                       APP_CSS)
-        self.assertIn("padding:.87rem 1.05rem",APP_CSS)
-        self.assertIn("padding:.85rem 1rem",APP_CSS)
-        self.assertIn("padding:1.1rem 1.3rem",APP_CSS)
-        self.assertIn("min-height:87px",APP_CSS)
-        self.assertIn("min-height:35px",APP_CSS)
-        self.assertIn("font-size:1.01rem",APP_CSS)
-        self.assertIn("font-size:.67rem",APP_CSS)
+        self.assertIn("padding:1.18rem 1.38rem",APP_CSS)
+        self.assertIn("padding:1.12rem 1.32rem",APP_CSS)
+        self.assertIn("padding:1.45rem 1.65rem",APP_CSS)
+        self.assertIn("min-height:105px",APP_CSS)
+        self.assertIn("min-height:40px",APP_CSS)
+        self.assertIn("font-size:1.10rem",APP_CSS)
+        self.assertIn("font-size:.71rem",APP_CSS)
         self.assertIn("border:0!important",APP_CSS)
         self.assertNotIn("border-left:4px",APP_CSS)
         self.assertNotIn("border-top:3px",APP_CSS)
         self.assertIn("background:var(--paper)",APP_CSS)
+
+    def test_roomier_modules_have_balanced_side_margins(self):
+        self.assertIn("max-width:1390px",APP_CSS)
+        self.assertIn("width:calc(100% - 6.5rem)",APP_CSS)
+        self.assertIn("margin-left:auto!important",APP_CSS)
+        self.assertIn("margin-right:auto!important",APP_CSS)
+        self.assertIn("padding:1.65rem 2.55rem 3.5rem",APP_CSS)
+        self.assertIn("width:100%!important;max-width:100%!important",APP_CSS)
+        self.assertIn("min-height:105px",APP_CSS)
+        self.assertIn("min-height:40px",APP_CSS)
+        self.assertNotIn("border-left:4px",APP_CSS)
 
     def test_green_filled_controls_keep_white_text(self):
         self.assertIn("label:has(input:checked) *",APP_CSS)

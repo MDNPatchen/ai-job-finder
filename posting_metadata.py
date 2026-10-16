@@ -22,6 +22,33 @@ def declared_arrangement(value):
     return ''
 
 
+
+# Some agency RSS feeds provide a structured work-arrangement label, but
+# most do not. Only explicit, named workplace metadata is authoritative.
+# 'Telework eligible' is NOT proof of a fully remote vacancy.
+_RSS_WORKPLACE_TAGS=frozenset({
+    'workplacetype','workarrangement','workmodel',
+    'worklocationtype','workingmodel','workmode',
+    'joblocationtype','remoteworktype'
+})
+
+
+def rss_workplace_style(item):
+    """Return an unambiguous structured RSS workplace label, or unknown."""
+    if item is None:
+        return ''
+    styles=set()
+    for node in item.iter():
+        tag=str(getattr(node,'tag','')).rsplit('}',1)[-1]
+        key=re.sub(r'[^a-z0-9]','',tag.casefold())
+        if key not in _RSS_WORKPLACE_TAGS:
+            continue
+        style=declared_arrangement(getattr(node,'text',''))
+        if style:
+            styles.add(style)
+    return next(iter(styles)) if len(styles)==1 else ''
+
+
 def strict_onsite_requirement(description):
     """Full-time in-person requirement, not a hybrid office-day schedule."""
     text=re.sub(r'\s+',' ',str(description or ''))[:12500]
