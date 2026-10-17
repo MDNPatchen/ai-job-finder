@@ -38,3 +38,27 @@ class PostgresIntegrationTests(unittest.TestCase):
         history=load_workspace_history(self.url,self.workspace)
         self.assertEqual(len(history),20)
         self.assertEqual(history[0]['revision'],23)
+    def test_restart_backup_restore_preserves_applications_and_employer_checks(self):
+        from tracker_store import export_workspace_json,import_workspace_json
+        from tracker_sync import apply_workspace,snapshot
+        from workspace_recovery import prepare_restore
+        evidence={'posting-id':{'checked_at':'2026-10-17T10:00:00Z','posting':{'url':'https://example.org/1'}}}
+        jobs=[{'Company':'Test','Job Title':'Director','Status':'Applied','Notes':'Original résumé notes',
+               'Follow-up Date':'2026-10-21','Job URL':'https://example.org/1'}]
+        save_remote_workspace(self.url,self.workspace,jobs,['a'*32],True,expected_revision=0,employer_evidence=evidence)
+        # A new connection/session reloads all durable fields.
+        loaded=load_remote_workspace(self.url,self.workspace)
+        backup=export_workspace_json(loaded['jobs'],loaded['seen'],loaded['has_baseline'],loaded['employer_evidence'])
+        save_remote_workspace(self.url,self.workspace,[],[],False,expected_revision=1)
+        current=load_remote_workspace(self.url,self.workspace)
+        restored,_=prepare_restore(current,import_workspace_json(backup.encode()),replace=True)
+        fresh={};apply_workspace(fresh,restored)
+        save_remote_workspace(self.url,self.workspace,fresh['jobs'],fresh['seen_jobs'],fresh['search_baseline'],
+            expected_revision=current['revision'],employer_evidence=fresh['employer_checks'])
+        final=load_remote_workspace(self.url,self.workspace)
+        self.assertEqual(final['jobs'],loaded['jobs']);self.assertEqual(final['seen'],['a'*32])
+        self.assertEqual(final['employer_evidence'],evidence);self.assertEqual(final['revision'],3)
+        # Recovery versions remain available after restoring a backup.
+        history=load_workspace_history(self.url,self.workspace)
+        self.assertEqual([x['revision'] for x in history],[3,2,1])
+        self.assertEqual(history[-1]['payload']['employer_evidence'],evidence)

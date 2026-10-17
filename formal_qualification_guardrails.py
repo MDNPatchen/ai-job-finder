@@ -234,6 +234,14 @@ def extract_formal_minimums(job, resume=''):
                     re.search(r"\b(?:qualifications?|education|requirements?)\b",section,re.I)):
                 continue
             priority=_degree_status(line,local,section)
+            # Long lists of acceptable majors can push the substitution clause
+            # beyond the display excerpt. Inspect this item's full sentence.
+            item_start=desc.rfind('\n',0,match.start())+1
+            item_end=desc.find('\n',match.end())
+            full_item=desc[item_start:item_end if item_end>=0 else len(desc)]
+            if (len(full_item)<3000 and re.search(r'(?i)^\s*Possession of (?:a|an) (?:graduate|master[^ ]*) degree',full_item)
+                    and re.search(r'(?i)may be substituted for.{0,80}required experience',full_item)):
+                priority='Alternative route or equivalent experience — verify'
             # Scope only a degree-specific excerpt to avoid nearby preferred
             # degrees changing the required master's or bachelor's status.
             key=(level,priority)

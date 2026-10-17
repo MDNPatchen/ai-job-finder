@@ -7,6 +7,7 @@ absence of a skill. Preferred conditions are never treated as mandatory.
 """
 import re
 from html import unescape
+from evidence_context import affirmative_match
 
 INTERNAL_ONLY = re.compile(
     r'\b(?:in[- ]house only|internal (?:applicants|candidates|employees) only|'
@@ -33,6 +34,7 @@ RESIDENCY = re.compile(
     r'residency\s+(?:is\s+)?(?:required|mandatory)|'
     r'(?:must|required to)\s+(?:be\s+)?(?:a\s+)?'
     r'(?:resident of|reside (?:in|within))\s+[^.;:]{3,75}|'
+    r'must\s+(?:be\s+a\s+[^.;:\n]{2,45}\s+resident|establish\s+residen(?:ce|cy)|live\s+within)\b[^.;:\n]{0,70}|'
     r'residency\s+(?:in|within)\s+[^.;:]{3,65}\s+(?:is\s+)?required)\b', re.I)
 REQUIRED = re.compile(
     r'\b(?:must|require(?:s|d|ment)?|mandatory|minimum|'
@@ -187,6 +189,9 @@ OPPORTUNITY_TO_OBTAIN = re.compile(
 # word; the company industry or role title alone does not create a required
 # qualification. A separately confirmed résumé term must be field-specific.
 FIELDS = (
+    ('Healthcare clinic management experience',
+     r'\b(?:management experience of a healthcare clinic|healthcare clinic management|managing (?:a |an )?(?:healthcare clinic|ambulatory surgical|multi.specialty clinic))',
+     r'\b(?:healthcare clinic management|managed (?:a |an )?(?:healthcare clinic|ambulatory surgical|multi.specialty clinic)|management experience of a healthcare clinic)',22),
     ('Manufacturing purchasing / buying experience',
      r'\b(?:purchas(?:ing|e)|buying|buyer|procurement)'
      r'\s+(?:or\s+(?:purchasing|buying|buyer)\s+)?'
@@ -325,9 +330,9 @@ CREDENTIALS = (
     ('Engineering professional license',
      r'\b(?:professional engineer(?:ing)?\s+(?:licen[sc]e|registration)|'
      r'PE\s+(?:licen[sc]e|registration)|'
-     r'licensed professional engineer)\b',
+     r'licensed (?:professional|civil|electrical|mechanical) (?:engineer|PE))\b',
      r'\b(?:professional engineer(?:ing)?\s+(?:licen[sc]e|registration)|'
-     r'PE\s+(?:licen[sc]e|registration))\b',26),
+     r'PE\s+(?:licen[sc]e|registration)|licensed (?:professional|civil|electrical|mechanical) (?:engineer|PE))\b',26),
     ('OSHA / EHS certification',
      r'\b(?:OSHA[- ]?(?:10|30)\s*(?:hour)?(?:\s+certificat(?:e|ion))?|'
      r'certified safety professional|CSP certification)\b',
@@ -537,7 +542,8 @@ def extract_posting_requirements(job, resume=''):
         if re.search(r'\b(?:waived|not required|no residency requirement)\b',
                      clause,re.I):
             continue
-        relocation_allowed=bool(_RELOCATION_ALLOWED.search(desc))
+        relocation_allowed=bool(_RELOCATION_ALLOWED.search(clause) or re.search(
+            r'\bwithin\s+(?:\d+|six|three|twelve|ninety)\s+(?:days?|months?)\s+(?:of|from)\s+(?:hire|hiring|start)',clause,re.I))
         add('Employer residency condition','Residency / location',
             ('Relocation or post-hire residency may satisfy requirement — verify deadline'
              if relocation_allowed else
@@ -609,7 +615,7 @@ def extract_posting_requirements(job, resume=''):
         _,_,priority,clause=max(candidates,key=lambda x:(x[0],x[1]))
         score=(penalty if priority.startswith('Required') else
                min(6,penalty) if priority.startswith('May be obtained later') else 0)
-        resume_has=bool(re.search(evidence,resume,re.I))
+        resume_has=bool(affirmative_match((re.compile(evidence,re.I),),resume))
         if resume_has:
             score=0
         add(area,'License / portfolio',priority,clause,score,

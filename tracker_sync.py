@@ -140,6 +140,9 @@ def render_history(database_url,workspace_id):
                 f"Version {versions[i]['revision']} · {versions[i]['saved_at']}")
             if st.checkbox('Replace this session with the selected saved version'):
                 if st.button('Restore saved version'):
+                    current=snapshot(st.session_state)
+                    st.session_state.before_restore_backup=store.export_workspace_json(current['jobs'],current['seen'],
+                        current['has_baseline'],current['employer_evidence'])
                     data=versions[idx]['payload']
                     apply_workspace(st.session_state,store.make_workspace(data.get('jobs'),data.get('seen'),
                         data.get('has_baseline'),data.get('employer_evidence')))

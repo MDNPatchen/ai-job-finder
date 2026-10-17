@@ -1,4 +1,5 @@
 import re
+import csv
 import json
 import hashlib
 import html
@@ -22,8 +23,14 @@ import tracker_sync
 from copy import deepcopy
 from career_priority import career_sort_key, career_review_category, has_detailed_description, order_for_review
 from coverage_health import coverage_messages
+from source_support import with_recovery_links
 from employer_evidence import attach_saved_evidence
 from description_quality import assess_description
+from search_task import SearchTask
+from workspace_recovery import prepare_restore
+from match_review import review_rows, export_review, evaluate_review
+from tracker_store import make_workspace
+from source_http import check_cancelled
 from posting_metadata import (
     affirmative, declared_arrangement, from_explicit_description,
     strict_onsite_requirement,
@@ -450,14 +457,15 @@ def html_to_text(value):
     return clean_posting_text(value)
 
 
-def classify_work_arrangement(location, description, declared_remote=False, declared_style=''):
+def classify_work_arrangement(location, description, declared_remote=False, declared_style='', *, cleaned=False):
     """Do not infer on-site status merely from a city or street address.
 
     Prefer an ATS workplace label, then a labeled work location, then explicit
     job-specific arrangement language in the advertisement. Unknown stays unknown.
     """
+    description = description if cleaned else html_to_text(description)
     style = declared_arrangement(declared_style)
-    if strict_onsite_requirement(html_to_text(description)):
+    if strict_onsite_requirement(description):
         return 'On-site'
     if style:
         return style
@@ -470,7 +478,7 @@ def classify_work_arrangement(location, description, declared_remote=False, decl
         return 'Remote'
     if re.search(r'\b(?:on[- ]site|onsite|in[- ]person|office[- ]based)\b',loc,re.I):
         return 'On-site'
-    return from_explicit_description(html_to_text(description)) or 'Not specified'
+    return from_explicit_description(description) or 'Not specified'
 
 
 def standard_job(title, company, url, location, description, source,
@@ -479,12 +487,13 @@ def standard_job(title, company, url, location, description, source,
     posted_date = parse_posted_date(posted)
     if not title or not company or not isinstance(url, str) or not url.startswith('https://'):
         return None
-    arrangement = classify_work_arrangement(location, description, remote, declared_style)
+    description = html_to_text(description)
+    arrangement = classify_work_arrangement(location, description, remote, declared_style, cleaned=True)
     if explicitly_remote_title(title):
         arrangement='Remote'
     explicit_style = declared_arrangement(declared_style)
     workplace_conflict = ''
-    if (strict_onsite_requirement(html_to_text(description))
+    if (strict_onsite_requirement(description)
             and explicit_style in ('Remote','Hybrid')):
         workplace_conflict = ('Provider reports '+explicit_style+
                               ', but employer posting requires in-person work.')
@@ -504,8 +513,8 @@ def standard_job(title, company, url, location, description, source,
         'arrangement_source': arrangement_source,
         'workplace_conflict': workplace_conflict,
         'url': url, 'location': str(location or 'Location not specified'),
-        'description': html_to_text(description)[:26000], 'source': source,
-        'description_truncated':len(html_to_text(description))>26000,
+        'description': description[:26000], 'source': source,
+        'description_truncated':len(description)>26000,
         'description_source':'Employer posting details as supplied by provider' if source not in ('NEOGOV','NEOED Schooljobs') else 'Provider RSS text — completeness not verified',
         'remote': arrangement == 'Remote', 'work_style': arrangement,
         'salary': str(salary or ''),
@@ -919,7 +928,7 @@ def retrieve_boards(boards, worker, max_workers=8):
                 failures.append(f'{info[1]}: {type(exc).__name__}')
                 health.append({'board':info[1], 'feed_id':info[0],
                                'status':'Failed', 'records':0,
-                               'error':type(exc).__name__})
+                               'error':type(exc).__name__+': '+str(exc)[:160]})
     return jobs, failures, sorted(health,key=lambda x:(x['board'].casefold(),x['feed_id']))
 
 
@@ -1119,7 +1128,7 @@ def load_mayo_clinic(catalog_version=None):
     return SourceRecords(out,getattr(listings,'diagnostics',{}))
 
 
-def fetch_all_free_jobs(query_terms, state_filter=None):
+def fetch_all_free_jobs(query_terms, state_filter=None, progress=None, credentials=None):
     tasks={
         'NEOGOV government': lambda: load_neogov_feeds(state_filter, SOURCE_CATALOG_VERSION),
         'NYC government': lambda: load_nyc_jobs(),
@@ -1133,7 +1142,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
         'Workable public boards': lambda: load_workable_boards(SOURCE_CATALOG_VERSION),
         'Mayo Clinic careers': lambda: load_mayo_clinic(SOURCE_CATALOG_VERSION),
     }
-    usa_key, usa_email=_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL')
+    usa_key, usa_email=credentials if credentials is not None else (_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL'))
     if usa_key and usa_email:
         tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
     jobs, errors, counts, health=[],[],{},[]
@@ -1187,7 +1196,10 @@ def fetch_all_free_jobs(query_terms, state_filter=None):
                     errors.append(f'{label}: {type(exc).__name__} ({str(exc)[:120]})')
                     health.append({'provider':label,'board':label,
                                    'status':'Failed','records':0,
-                                   'error':type(exc).__name__})
+                                   'error':type(exc).__name__+': '+str(exc)[:160]})
+                check_cancelled()
+                if progress:
+                    progress(jobs,errors,counts,health,len(counts),len(tasks))
     return jobs,errors,counts,sorted(health,
                 key=lambda x:(x['provider'],x['board'].casefold()))
 
@@ -1261,15 +1273,19 @@ def score_job(job, resume, words='', qualification_profile=None):
 
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
                          max_per_employer=None, preferences=None,
-                         listing_scope='Direct employers only (recommended)'):
+                         listing_scope='Direct employers only (recommended)',
+                         confirmed=None, scoring_cache=None):
+    from source_http import check_cancelled
+    import hashlib,json
     qualification_profile = compile_resume_profile(
-        resume, tuple(sorted(verified_competencies())))
+        resume, tuple(sorted(verified_competencies() if confirmed is None else confirmed)))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
               'location':0,'employer_limit':0,'preferences':0,
               'recruiter':0,'directory_link':0,'indirect_source':0,
               'foreign_location':0}
     for cached_job in dedupe_vacancy_urls(jobs):
+        check_cancelled()
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
         job=reconcile_workplace_record(cached_job)
@@ -1338,7 +1354,12 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
         if not preferences_allow(job,state_ids,preferences):
             excluded['preferences']+=1
             continue
-        ranked=score_job(job,resume,query,qualification_profile)
+        cache_key=hashlib.sha256(json.dumps(job,sort_keys=True,default=str).encode()).hexdigest()
+        if scoring_cache is not None and cache_key in scoring_cache:
+            ranked=scoring_cache[cache_key]
+        else:
+            ranked=score_job(job,resume,query,qualification_profile)
+            if scoring_cache is not None: scoring_cache[cache_key]=ranked
         if ranked is None:
             excluded['irrelevant']+=1
             continue
@@ -1432,6 +1453,92 @@ def unlock_tracker_workspace(password):
     return True
 
 
+def search_fingerprint():
+    return hashlib.sha256(json.dumps([MATCHING_ENGINE_VERSION,st.session_state.resume_text,
+        sorted(verified_competencies())]).encode()).hexdigest()
+
+
+def run_search_task(task,settings):
+    """All inputs are captured on the UI thread; no session state in workers."""
+    cache={}
+    base={'preferences':settings['preferences'],'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
+          'matching_version':MATCHING_ENGINE_VERSION,'scope':settings['scope'],
+          'work':settings['work'],'listing_scope':settings['listing_scope'],
+          'employer_scope':settings['employer_scope'],'searched':datetime.now().strftime('%b %d, %Y %I:%M %p')}
+    def rank(raw):
+        return filter_and_rank_jobs(raw,settings['code'],settings['work'],settings['query'],
+            settings['resume'],settings['employer_cap'],settings['preferences'],
+            settings['listing_scope'],confirmed=settings['confirmed'],scoring_cache=cache)
+    def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None):
+        matches,excluded=rank(raw)
+        bulletin=dict(bulletin or {})
+        if bulletin:
+            bulletin['summary_only_fetched']=bulletin.get('summary_only',0)
+            bulletin['summary_only']=sum(x.get('description_source','').startswith('RSS summary') for x in matches)
+        stats={**base,'fetched':len(raw),'sources':dict(counts),'errors':list(errors),
+            'board_health':with_recovery_links(health),'excluded':excluded,'new_count':0,'had_baseline':False,
+            'government':sum(bool(x['government']) for x in matches),
+            'bulletin_diagnostics':bulletin or {},'search_status':'running'}
+        task.publish({'matches':matches,'stats':stats},
+            f'{len(health)} sources reported · {len(matches)} matches so far')
+    raw,errors,counts,health=fetch_all_free_jobs((settings['query'],),settings['code'],
+        progress=publish,credentials=settings['credentials'])
+    if settings['resume'].strip():
+        task.publish(message='Checking full government descriptions; current results remain available')
+        preview,_=rank(raw)
+        raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
+    else: bulletin={}
+    publish(raw,errors,counts,health,bulletin=bulletin)
+
+
+def consume_search_update():
+    task=st.session_state.get('active_search')
+    if task is None: return
+    if task.fingerprint!=search_fingerprint():
+        task.cancel()
+        del st.session_state['active_search']
+        return
+    if task.snapshot(False)['revision']==st.session_state.get('search_task_revision'): return
+    snap=task.snapshot()
+    st.session_state.search_task_revision=snap['revision']
+    payload=snap['payload']
+    if payload is None: return # Keep the previous search if none completed.
+    matches=payload['matches']; stats=payload['stats']
+    terminal=snap['status']!='running'
+    matches,new_seen=annotate_new_results(matches,st.session_state.seen_jobs,st.session_state.search_baseline)
+    stats.update(search_status=snap['status'],elapsed_seconds=snap['elapsed'],
+        had_baseline=st.session_state.search_baseline,
+        new_count=sum(bool(x['new_since_last_search']) for x in matches))
+    if terminal:
+        st.session_state.seen_jobs=new_seen
+        st.session_state.search_baseline=True
+        persist_tracker_if_unlocked()
+    st.session_state.search_results=matches
+    st.session_state.search_stats=stats
+    st.session_state.search_page=0
+
+
+@st.fragment(run_every=1)
+def render_search_progress():
+    task=st.session_state.get('active_search')
+    if task is None: return
+    snap=task.snapshot(False)
+    if snap['revision']!=st.session_state.get('search_task_revision') and st.session_state.get('top_navigation')=='Find Jobs':
+        st.rerun()
+    if snap['status']=='running':
+        st.info(f"{snap['message']} · {int(snap['elapsed'])} seconds. You can use other pages while this search runs.")
+        if st.button('Stop search',key='cancel_search'):
+            task.cancel()
+        if task.cancel_event.is_set():
+            st.caption('Stopping outstanding requests; completed results will remain available.')
+    elif snap['status']!='complete':
+        st.warning(snap['message'])
+    else:
+        st.caption(f"Search complete · {snap['elapsed']} seconds · Results available in Find Jobs")
+
+
+consume_search_update()
+
 # The former sidebar is intentionally retired. Horizontal native controls
 # keep every section accessible even when the browser window is narrow.
 st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
@@ -1442,6 +1549,7 @@ page = st.radio(
 )
 
 sync_notice=st.empty()
+render_search_progress()
 
 if page == 'Dashboard':
     # A named Streamlit container gives metrics a real inset from the
@@ -1722,16 +1830,11 @@ elif page == 'Find Jobs':
         submitted=st.form_submit_button('Search',type='primary',use_container_width=True)
 
     if submitted:
-        # Search multiple related role families behind the scenes. No tokens,
-        # agency IDs, employer exclusions or API parameters shown to user.
-        terms = [search_text.strip()] if search_text.strip() else [
-            'chief operating officer','director of operations','general manager',
-            'business development director','marketing director',
-            'regional director','partnerships director']
-        with st.spinner('Searching free job boards and government employer feeds…'):
+        running=st.session_state.get('active_search')
+        if running and running.snapshot(False)['status']=='running':
+            st.info('A search is already running. Stop it before starting another.')
+        else:
             code = chosen_state.rsplit('(',1)[-1].rstrip(')') if chosen_state!='All states' else None
-            raw, errors, source_counts, board_health = fetch_all_free_jobs(tuple(terms), code)
-            employer_cap=(3 if chosen_employer_scope.startswith('Compact') else None)
             preferences={
                 'included_states':[x.split(' ',1)[0] for x in include_states],
                 'excluded_states':[x.split(' ',1)[0] for x in exclude_states],
@@ -1740,47 +1843,24 @@ elif page == 'Find Jobs':
                 'include_unlisted_salary':include_unknown_pay,
                 'verified_workplace_only':verified_work,
             }
-            # The first pass identifies high-ranked, summary-only official
-            # government postings. Fetch their FULL public bulletins (bounded)
-            # before the final qualification assessment and ordering.
-            bulletin_stats={'attempted':0,'full_bulletins':0,'summary_only':0}
-            if st.session_state.resume_text.strip():
-                preview,_=filter_and_rank_jobs(raw,code,chosen_work,
-                    search_text,st.session_state.resume_text,None,preferences,
-                    chosen_listing_scope)
-                raw,bulletin_stats=enrich_priority_government_jobs(
-                    raw,preview,limit=40)
-            matches, excluded=filter_and_rank_jobs(raw,code,chosen_work,
-                search_text,st.session_state.resume_text,employer_cap,preferences,
-                chosen_listing_scope)
-        had_baseline=st.session_state.search_baseline
-        matches,new_seen=annotate_new_results(
-            matches,st.session_state.seen_jobs,had_baseline)
-        st.session_state.seen_jobs=new_seen
-        st.session_state.search_baseline=True
-        persist_tracker_if_unlocked()
-        st.session_state.search_results=matches
-        st.session_state.search_page=0
-        st.session_state.search_stats={
-            'fetched':len(raw),'sources':source_counts,'errors':errors,
-            'board_health':board_health,'preferences':preferences,
-            'bulletin_diagnostics':bulletin_stats,
-            'new_count':sum(bool(x['new_since_last_search']) for x in matches),
-            'had_baseline':had_baseline,
-            'excluded':excluded,'searched':datetime.now().strftime('%b %d, %Y %I:%M %p'),
-            'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
-            'matching_version':MATCHING_ENGINE_VERSION,
-            'government':sum(bool(x['government']) for x in matches),
-            'scope':chosen_state,'work':chosen_work,
-            'listing_scope':chosen_listing_scope,
-            'employer_scope':chosen_employer_scope,
-        }
+            settings={'code':code,'work':chosen_work,'query':search_text,
+                'resume':st.session_state.resume_text,'confirmed':tuple(sorted(verified_competencies())),
+                'employer_cap':3 if chosen_employer_scope.startswith('Compact') else None,
+                'preferences':preferences,'listing_scope':chosen_listing_scope,
+                'scope':chosen_state,'employer_scope':chosen_employer_scope,
+                'credentials':(_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL'))}
+            st.session_state.active_search=SearchTask(
+                lambda task, captured=deepcopy(settings): run_search_task(task,captured),search_fingerprint())
+            st.session_state.search_task_revision=-1
+            st.rerun()
 
     if 'search_results' not in st.session_state:
         st.caption('Search to find current openings. Leave the keyword blank for career matches.')
     else:
         all_results=st.session_state.search_results
         stats=st.session_state.search_stats
+        if stats.get('search_status') in ('running','cancelled','failed'):
+            st.caption('Partial search results · coverage and rankings may change as more sources finish.')
         for severity,message in coverage_messages(stats.get('board_health',[])):
             getattr(st,severity)(message)
         if stats.get('errors') and not stats.get('board_health'):
@@ -1826,6 +1906,21 @@ elif page == 'Find Jobs':
             # Export controls are no longer hidden behind résumé upload.
             # The fragment keeps data stable when the user clicks Download.
             ranked_exports(all_results,stats.get('run_id',''))
+            if st.session_state.resume_text.strip() and stats.get('search_status','complete')=='complete':
+                with st.expander('Review match quality'):
+                    st.caption('Review up to 40 jobs: the first 20 plus a spread across the remaining results. Read requirements and resume evidence, then enter Suitable, Unsuitable, or Uncertain in Your judgment. Keep all rows and reference fields.')
+                    sample=review_rows(all_results,st.session_state.resume_text,stats.get('run_id',''))
+                    st.download_button('Download match review sample',export_review(sample),
+                        'match_review_'+stats.get('run_id','')+'.csv','text/csv',key='match_review_download')
+                    reviewed=st.file_uploader('Load completed match review',type=['csv'],key='match_review_upload')
+                    if reviewed:
+                        try:
+                            evaluation=evaluate_review(reviewed.getvalue(),sample)
+                            st.write(evaluation)
+                            st.download_button('Download review results',json.dumps(evaluation,indent=2),
+                                'match_review_results.json','application/json')
+                        except (ValueError,UnicodeDecodeError,csv.Error) as exc:
+                            st.error('Review not accepted: '+str(exc))
 
             st.markdown('<div class="job-module-heading">03 / Job listings</div>',unsafe_allow_html=True)
             new_only=st.checkbox('Show only new positions since the previous search',
@@ -2009,6 +2104,10 @@ elif page == 'Find Jobs':
                 st.write(f'**Career-board health:** {healthy} returned records · '
                          f'{empty} responded with zero qualifying feed records · '
                          f'{failed} were unavailable · {partial} were partial or capped')
+                for source_row in board_rows:
+                    if source_row.get('recovery_url'):
+                        st.link_button('Open official careers: '+source_row['board'],source_row['recovery_url'])
+                        st.caption(source_row['recovery_note'])
                 filter_health=st.selectbox('Board status',[
                     'All boards','Active','Empty','Partial','Failed'],key='board_health_filter')
                 shown=[r for r in board_rows if filter_health=='All boards'
@@ -2102,6 +2201,11 @@ elif page == 'Job Tracker':
             export_tracker_csv(st.session_state.jobs),
             'job_tracker.csv','text/csv','tracker_applications_csv')
         st.caption('CSV is spreadsheet-safe. Use JSON for exact restoration, history and employer evidence.')
+    if st.session_state.get('restore_notice'):
+        st.info(st.session_state.restore_notice)
+    if st.session_state.get('before_restore_backup'):
+        download_file_widget('Download backup from before restore',st.session_state.before_restore_backup,
+            'before_restore.json','application/json','before_restore_download')
     with st.expander('Restore applications and job history'):
         uploaded_backup=st.file_uploader('Choose prior Job Tracker CSV or full JSON backup',
                                          type=['csv','json'],key='tracker_restore_file')
@@ -2117,29 +2221,13 @@ elif page == 'Job Tracker':
                 else:
                     restored_jobs=import_tracker_csv(raw)
                     incoming=None
-                if restore_mode.startswith('Replace'):
-                    st.session_state.jobs=restored_jobs
-                    if incoming is not None:
-                        st.session_state.employer_checks={**incoming.get('employer_evidence',{}),**st.session_state.get('employer_checks',{})}
-                        st.session_state.seen_jobs=incoming['seen']
-                        st.session_state.search_baseline=incoming['has_baseline']
-                        st.session_state.employer_checks=incoming.get('employer_evidence',{})
-                else:
-                    merged={posting_id({'company':x['Company'],'title':x['Job Title'],
-                                       'location':x['Location'],'url':x['Job URL']}):x
-                            for x in st.session_state.jobs}
-                    for entry in restored_jobs:
-                        key=posting_id({'company':entry['Company'],
-                                       'title':entry['Job Title'],
-                                       'location':entry['Location'],'url':entry['Job URL']})
-                        merged.setdefault(key,entry)
-                    st.session_state.jobs=list(merged.values())
-                    if incoming is not None:
-                        st.session_state.employer_checks={**incoming.get('employer_evidence',{}),**st.session_state.get('employer_checks',{})}
-                        st.session_state.seen_jobs=sorted(
-                            set(st.session_state.seen_jobs) | set(incoming['seen']))
-                        st.session_state.search_baseline=(
-                            st.session_state.search_baseline or incoming['has_baseline'])
+                current=tracker_sync.snapshot(st.session_state)
+                staged,conflicts=prepare_restore(current,incoming if incoming is not None else make_workspace(restored_jobs),
+                    replace=restore_mode.startswith('Replace'),applications_only=incoming is None)
+                st.session_state.before_restore_backup=export_workspace_json(current['jobs'],current['seen'],
+                    current['has_baseline'],current['employer_evidence'])
+                tracker_sync.apply_workspace(st.session_state,staged)
+                st.session_state.restore_notice=f"Restored {len(restored_jobs)} applications. {conflicts} competing records kept from this session."
                 synced=persist_tracker_if_unlocked()
                 if tracker_cloud_enabled() and st.session_state.tracker_unlocked and not synced:
                     st.warning('Imported into this session, but cloud save failed. Keep a backup.')

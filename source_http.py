@@ -2,12 +2,34 @@
 import contextvars
 import json
 import time
+import ssl
+import certifi
+from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError,URLError
 
 _deadline=contextvars.ContextVar('source_deadline',default=None)
+_cancel=contextvars.ContextVar('source_cancel',default=None)
+
+
+class SearchCancelled(RuntimeError):
+    pass
+
+
+@contextmanager
+def cancellation_scope(event):
+    token=_cancel.set(event)
+    try: yield
+    finally: _cancel.reset(token)
+
+
+def check_cancelled():
+    event=_cancel.get()
+    if event is not None and event.is_set():
+        raise SearchCancelled('Search cancelled')
+
 
 
 class ContextPool(ThreadPoolExecutor):
@@ -25,6 +47,7 @@ def request_budget(seconds):
 
 
 def remaining(timeout):
+    check_cancelled()
     deadline=_deadline.get()
     if deadline is None: return timeout
     left=deadline-time.monotonic()
@@ -32,8 +55,17 @@ def remaining(timeout):
     return min(timeout,left)
 
 
+@lru_cache(maxsize=1)
+def trusted_context():
+    # Retain host trust settings and add the pinned public CA bundle. Never
+    # disable certificate or hostname verification for incomplete host stores.
+    context=ssl.create_default_context()
+    context.load_verify_locations(cafile=certifi.where())
+    return context
+
+
 def open_response(request,timeout=10):
-    return urlopen(request,timeout=remaining(timeout))
+    return urlopen(request,timeout=remaining(timeout),context=trusted_context())
 
 
 def fetch_json(url,timeout=12,opener=None,sleep=time.sleep):

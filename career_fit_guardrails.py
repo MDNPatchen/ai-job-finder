@@ -103,7 +103,7 @@ SPECIALIZED_TITLE_FIELDS = (
      r"\b(?:laboratory research|mass spectrometry|LC[- ]?MS/?MS|"
      r"bioanalytical testing|analytical chemistry)\b", 32),
     ("IT technical project delivery",
-     r"\b(?:IT project manager|information technology project manager|"
+     r"\b(?:I\.?T\.? project manager|information technology project manager|"
      r"technical project manager|systems implementation project manager)\b",
      r"\b(?:IT project management|technology project management|"
      r"enterprise IT implementation|software systems integration)\b", 23),

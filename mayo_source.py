@@ -7,7 +7,7 @@ Site layout changes or blocked requests are reported as provider errors.
 import re
 from datetime import datetime
 from concurrent.futures import as_completed
-from source_http import ContextPool as ThreadPoolExecutor, open_response
+from source_http import ContextPool as ThreadPoolExecutor, open_response, read_bounded, check_cancelled
 from source_result import SourceRecords
 from html.parser import HTMLParser
 from urllib.parse import urlencode, urljoin, urlsplit, unquote
@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 ORIGIN = "https://jobs.mayoclinic.org"
 SEARCH = ORIGIN + "/search-jobs"
 KEYWORDS = ("operations", "director", "business development", "supply chain", "manager")
-MAX_DETAILS = 30
+MAX_DETAILS = 60
 ROLE = re.compile(
     r"\b(?:director|manager|chief|administrat\w*|operations?|logistics|"
     r"distribution|business|finance|revenue|marketing|supply chain|project|"
@@ -86,7 +86,7 @@ def read_html(url, timeout=8):
     with open_response(request, timeout=timeout) as response:
         if "html" not in response.headers.get("Content-Type", "").lower():
             raise ValueError("Mayo returned non-HTML content")
-        return response.read(2_500_000)
+        return read_bounded(response,limit=2_500_000)
 
 
 def _title_from_job_url(url):
@@ -181,16 +181,20 @@ def parse_detail(payload, url, search_title=''):
 def fetch_mayo_jobs(fetcher=read_html, max_details=MAX_DETAILS):
     """Search employer pages by leadership terms; check details before returning."""
     candidates, successful, search_failures = {}, 0, []
-    for term in KEYWORDS:
-        url = SEARCH + "?" + urlencode({"k": term, "orgIds": "33647"})
-        try:
-            page = parse_page(fetcher(url))
-            successful += 1
-            for href, title in page.links:
-                if ROLE.search(title):
-                    candidates.setdefault(href, title)
-        except Exception as exc:
-            search_failures.append(f"{term}: {type(exc).__name__}")
+    def search(term):
+        return parse_page(fetcher(SEARCH + "?" + urlencode({"k": term, "orgIds": "33647"})))
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        pending={pool.submit(search,term):term for term in KEYWORDS}
+        for future in as_completed(pending):
+            check_cancelled()
+            term=pending[future]
+            try:
+                page=future.result()
+                successful += 1
+                for href,title in page.links:
+                    if ROLE.search(title): candidates.setdefault(href,title)
+            except Exception as exc:
+                search_failures.append(f"{term}: {type(exc).__name__} {str(exc)[:100]}")
     if not successful:
         raise ValueError("Mayo search pages unavailable: " + ", ".join(search_failures))
     if not candidates:
@@ -225,5 +229,6 @@ def fetch_mayo_jobs(fetcher=read_html, max_details=MAX_DETAILS):
                          (errors[0] if errors else "no usable detail records"))
     return SourceRecords(jobs,{'search_pages':successful,'failed_details':len(errors),
         'details_attempted':len(chosen),'candidates':len(candidates),
+        'details_remaining':max(0,len(candidates)-len(chosen)),
         'truncated':len(candidates)>len(chosen),'bounded_coverage':True,'partial_error':'; '.join(search_failures),
         'coverage_note':'Bounded keyword search pages; not a complete employer inventory'})

@@ -46,6 +46,9 @@ jobs:
           python -m streamlit run app.py --server.headless true > /tmp/streamlit.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:8501/_stcore/health && break || sleep 1; done
           node scripts/browser_smoke.cjs
+          python -m streamlit run scripts/search_fixture.py --server.port 8503 --server.headless true > /tmp/search-fixture.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:8503/_stcore/health && break || sleep 1; done
+          node scripts/browser_search_workflow.cjs
           python -m streamlit run scripts/browser_fixture.py --server.port 8502 --server.headless true > /tmp/streamlit-fixture.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:8502/_stcore/health && break || sleep 1; done
           APP_URL=http://localhost:8502 POPULATED=1 ARTIFACT_DIR=artifacts/populated node scripts/browser_smoke.cjs

@@ -5,6 +5,7 @@ disk and session state are NOT durable across Community Cloud deployments.
 No credentials, resume text, or tracker data are saved in GitHub.
 """
 import csv
+import hashlib
 from datetime import datetime, timezone
 from io import StringIO
 import hmac
@@ -112,11 +113,17 @@ def make_workspace(jobs=None,seen=None,has_baseline=False,employer_evidence=None
 
 def export_workspace_json(jobs,seen,has_baseline,employer_evidence=None):
     payload=make_workspace(jobs,seen,has_baseline,employer_evidence)
+    payload['integrity_sha256']=workspace_digest(payload)
     payload['exported_utc']=datetime.now(timezone.utc).isoformat()
     text=json.dumps(payload,indent=2,ensure_ascii=False)
     if len(text.encode('utf-8'))>MAX_BYTES:
         raise ValueError('Workspace exceeds the supported 256 MB backup size')
     return text
+
+
+def workspace_digest(payload):
+    fields={key:payload.get(key) for key in ('schema_version','jobs','seen','has_baseline','employer_evidence')}
+    return hashlib.sha256(json.dumps(fields,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
 
 def import_workspace_json(raw):
@@ -125,6 +132,12 @@ def import_workspace_json(raw):
     obj=json.loads(raw.decode('utf-8-sig'))
     if not isinstance(obj,dict) or obj.get('schema_version') not in (1,2):
         raise ValueError('Unsupported tracker backup version')
+    if not isinstance(obj.get('jobs'),list) or not isinstance(obj.get('seen',[]),list):
+        raise ValueError('Backup must contain an applications array and valid history')
+    if not isinstance(obj.get('has_baseline',False),bool):
+        raise ValueError('Invalid search history flag')
+    if 'integrity_sha256' in obj and obj['integrity_sha256']!=workspace_digest(obj):
+        raise ValueError('Backup integrity check failed; file may be incomplete or modified')
     return make_workspace(obj.get('jobs'),obj.get('seen'),obj.get('has_baseline',False),
                           obj.get('employer_evidence'))
 

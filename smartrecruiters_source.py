@@ -6,7 +6,7 @@ from source_result import SourceRecords
 from posting_metadata import declared_arrangement,affirmative
 
 
-def fetch_board(board,getter,normalize,classify,parse_date,max_age,max_pages=10,max_details=100):
+def fetch_board(board,getter,normalize,classify,parse_date,max_age,max_pages=50,max_details=100):
     token,employer,government=board
     root='https://api.smartrecruiters.com/v1/companies/'+quote(token)+'/postings'
     candidates=[];seen=set();pages=0;provider_records=0;truncated=False;issue=''
@@ -55,5 +55,6 @@ def fetch_board(board,getter,normalize,classify,parse_date,max_age,max_pages=10,
         with ContextPool(max_workers=3) as pool:
             checked=list(pool.map(detail,candidates[:max_details]))
     return SourceRecords([j for j in checked if j],{'provider_records':provider_records,
+        'page_limit':max_pages,'reported_total':total if 'total' in locals() else None,
         'pages':pages,'candidates':len(candidates),'details_attempted':len(checked),
         'failed_details':sum(j is None for j in checked),'truncated':truncated,'partial_error':issue})
