@@ -133,3 +133,9 @@ class ResumeReviewRegressions(unittest.TestCase):
         context=trusted_context()
         self.assertTrue(context.check_hostname)
         self.assertEqual(context.verify_mode,ssl.CERT_REQUIRED)
+    def test_operational_keywords_do_not_waive_legal_rail_or_trade_specialties(self):
+        from career_fit_guardrails import evaluate_career_fit
+        for title in ['Paralegal 4','ATCS Support & Test Specialist','Highway Maintenance Worker 3','Accounts Payable Specialist']:
+            with self.subTest(title=title):
+                self.assertGreater(evaluate_career_fit({'title':title,'description':'Lead operations and manage budgets.'},'Led newspaper operations and budgets.')['penalty'],0)
+        self.assertEqual(evaluate_career_fit({'title':'Paralegal','description':'Legal support'},'Performed paralegal and litigation support work.')['penalty'],0)

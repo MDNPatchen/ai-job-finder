@@ -12,6 +12,15 @@ import re
 # A finance *operations* job can remain relevant even at a hospital, but a
 # senior accountant requires accounting-specific work.
 SPECIALIZED_TITLE_FIELDS = (
+    ("Paralegal / legal support specialization",
+     r"\b(?:paralegal|legal assistant)\b",
+     r"\b(?:paralegal|legal assistant|legal research|litigation support)\b",26),
+    ("Train control / railroad operations specialization",
+     r"\b(?:ATCS|advanced train control|train control|train dispatcher)\b",
+     r"\b(?:train control|train dispatch|railroad operations|railroad operating rules)\b",26),
+    ("Highway maintenance / equipment specialization",
+     r"\b(?:highway maintenance worker|roadway maintenance worker)\b",
+     r"\b(?:highway maintenance|roadway maintenance|heavy equipment operation|commercial driver)\b",24),
     ("Payroll systems / compliance specialization",
      r"\bpayroll\b",
      r"\b(?:payroll (?:administration|processing|management|systems|compliance)|payroll tax|time capture systems)\b", 22),
@@ -48,7 +57,7 @@ SPECIALIZED_TITLE_FIELDS = (
      r"construction project management|construction estimating|"
      r"commercial construction|capital construction projects?)\b",24),
     ("Specialist accounting / capital markets",
-     r"\b(?:accountant|accounting manager|controller|treasury manager|"
+     r"\b(?:accountant|accounting manager|accounting technician|accounts payable specialist|controller|treasury manager|"
      r"capital markets|financial analyst|FP&A|tax manager|auditor|"
      r"chief financial officer)\b",
      r"\b(?:accounting|accountant|controller|treasury|"
