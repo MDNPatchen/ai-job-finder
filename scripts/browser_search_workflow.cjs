@@ -9,6 +9,7 @@ const assert=require('node:assert/strict');
   const start=Date.now();
   await page.getByRole('button',{name:'Search',exact:true}).click();
   await page.getByText('Total jobs',{exact:true}).waitFor({timeout:8000});
+  await page.locator('.job-role').first().waitFor({timeout:4000});
   assert.ok(Date.now()-start<8000,'first result before slow source completes');
   assert.equal(await page.locator('.job-role').count(),1);
   await page.getByRole('radio',{name:'Job Tracker',exact:true}).locator('xpath=ancestor::label').click();
