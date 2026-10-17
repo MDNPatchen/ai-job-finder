@@ -4,7 +4,7 @@ import json
 import time
 import ssl
 import certifi
-from functools import lru_cache
+from threading import Lock
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from urllib.request import Request,urlopen
@@ -55,13 +55,20 @@ def remaining(timeout):
     return min(timeout,left)
 
 
-@lru_cache(maxsize=1)
+_tls_context=None
+_tls_lock=Lock()
+
+
 def trusted_context():
     # Retain host trust settings and add the pinned public CA bundle. Never
     # disable certificate or hostname verification for incomplete host stores.
-    context=ssl.create_default_context()
-    context.load_verify_locations(cafile=certifi.where())
-    return context
+    global _tls_context
+    with _tls_lock:
+        if _tls_context is None:
+            context=ssl.create_default_context()
+            context.load_verify_locations(cafile=certifi.where())
+            _tls_context=context
+        return _tls_context
 
 
 def open_response(request,timeout=10):

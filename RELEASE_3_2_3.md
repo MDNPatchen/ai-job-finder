@@ -15,3 +15,5 @@ The supplied-resume review also identified and corrected missed Civil PE credent
 Validation includes regression and evidence tests, PostgreSQL backup/recovery integration, six-page/six-width theme checks, and a deterministic browser workflow covering partial results, navigation, cancellation, retained results, and a second completed search. Forest-green styling and margins are unchanged.
 
 Limitations: stopping waits for bounded in-flight requests to return; tasks are session-local and do not survive server restarts. Search health is a snapshot. Match reviews require user judgments. A disposable-database restore test is not a production disaster-recovery exercise.
+
+Deployment validation exposed a slower cold start than local tests. Public JSON caching now runs independently of Streamlit, bounds cache storage to 32 MB of serialized public data, and coalesces concurrent requests for the same URL. Certificate trust initializes once under a lock. Source coverage exports include completion status, worker first-result time and elapsed time so UI delay can be distinguished from retrieval time.

@@ -139,3 +139,31 @@ class ResumeReviewRegressions(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertGreater(evaluate_career_fit({'title':title,'description':'Lead operations and manage budgets.'},'Led newspaper operations and budgets.')['penalty'],0)
         self.assertEqual(evaluate_career_fit({'title':'Paralegal','description':'Legal support'},'Performed paralegal and litigation support work.')['penalty'],0)
+
+class PublicCacheTests(unittest.TestCase):
+    def test_concurrent_readers_share_one_fetch_and_get_isolated_values(self):
+        from public_cache import PublicJSONCache
+        from concurrent.futures import ThreadPoolExecutor
+        import time
+        cache=PublicJSONCache();calls=[]
+        def fetch():calls.append(1);time.sleep(.03);return {'jobs':[1]}
+        with ThreadPoolExecutor(8) as pool:values=list(pool.map(lambda _:cache.get('url',fetch),range(8)))
+        self.assertEqual(len(calls),1)
+        values[0]['jobs'].append(2)
+        self.assertEqual(cache.get('url',fetch),{'jobs':[1]})
+    def test_failed_request_is_retryable_and_cache_is_bounded(self):
+        from public_cache import PublicJSONCache
+        cache=PublicJSONCache(max_bytes=30)
+        with self.assertRaises(ValueError):cache.get('bad',lambda:(_ for _ in ()).throw(ValueError()))
+        self.assertEqual(cache.get('bad',lambda:{'ok':1}),{'ok':1})
+        for i in range(20):cache.get(str(i),lambda:{'a':'1234567890'})
+        self.assertLessEqual(cache.bytes,30)
+    def test_expired_entries_refetch(self):
+        from public_cache import PublicJSONCache
+        cache=PublicJSONCache(ttl=-1)
+        self.assertEqual(cache.get('url',lambda:1),1)
+        self.assertEqual(cache.get('url',lambda:2),2)
+    def test_first_result_time_is_recorded_independently_of_ui(self):
+        task=SearchTask(lambda t:t.publish({'matches':[1]}),'resume');task.thread.join(2)
+        self.assertGreaterEqual(task.snapshot(False)['first_results_seconds'],0)
+        self.assertNotIn('payload',task.snapshot(False))

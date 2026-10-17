@@ -19,6 +19,8 @@ class SearchTask:
     def publish(self, payload=None, message=None):
         with self._lock:
             if payload is not None:
+                if payload.get('matches') and 'first_results_seconds' not in self._snapshot:
+                    self._snapshot['first_results_seconds']=round(monotonic()-self.started,1)
                 self._snapshot['payload'] = deepcopy(payload)
             if message is not None:
                 self._snapshot['message'] = message

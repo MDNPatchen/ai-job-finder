@@ -415,10 +415,10 @@ SPECIALIST_EXCLUSIONS = re.compile(
     r'professor|principal software|head of product engineering)\b', re.I)
 
 
-@st.cache_data(ttl=900,show_spinner=False)
 def fetch_json(url, timeout=12):
     from source_http import fetch_json as request_json
-    return request_json(url,timeout)
+    from public_cache import public_json
+    return public_json.get(url,lambda: request_json(url,timeout))
 
 
 def parse_posted_date(value):
@@ -1507,6 +1507,7 @@ def consume_search_update():
     terminal=snap['status']!='running'
     matches,new_seen=annotate_new_results(matches,st.session_state.seen_jobs,st.session_state.search_baseline)
     stats.update(search_status=snap['status'],elapsed_seconds=snap['elapsed'],
+        first_results_seconds=snap.get('first_results_seconds'),
         had_baseline=st.session_state.search_baseline,
         new_count=sum(bool(x['new_since_last_search']) for x in matches))
     if terminal:
@@ -2082,7 +2083,10 @@ elif page == 'Find Jobs':
         with st.expander('Source coverage and diagnostics'):
             download_file_widget('Download source coverage report',
                 json.dumps({'version':MATCHING_ENGINE_VERSION,'search_run_id':stats.get('run_id'),
-                            'sources':stats.get('board_health',[]),'errors':stats.get('errors',[])},
+                            'sources':stats.get('board_health',[]),'errors':stats.get('errors',[]),
+                            'search_status':stats.get('search_status','complete'),
+                            'elapsed_seconds':stats.get('elapsed_seconds'),
+                            'first_results_seconds':stats.get('first_results_seconds')},
                            ensure_ascii=False,default=str,indent=2).encode('utf-8'),
                 'source_coverage_'+stats.get('run_id','unknown')+'.json','application/json','source_coverage_report')
             configured_states = sorted({a[2] for a in GOVERNMENT_AGENCIES} | {a[2] for a in SCHOOLJOBS_AGENCIES})
