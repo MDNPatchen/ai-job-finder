@@ -74,7 +74,7 @@ from tracker_store import (
     authenticate, upcoming_followups, complete_followup
 )
 
-st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='collapsed')
+st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='auto')
 st.markdown(APP_CSS, unsafe_allow_html=True)
 
 SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
@@ -1558,14 +1558,20 @@ def render_search_progress():
 
 consume_search_update()
 
-# The former sidebar is intentionally retired. Horizontal native controls
-# keep every section accessible even when the browser window is narrow.
-st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
-page = st.radio(
-    'Navigation',
-    ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
-    horizontal=True,label_visibility='collapsed',key='top_navigation'
-)
+# Sidebar navigation, laid out like the MDN billing app: wordmark, then one
+# row per page. The widget key stays 'top_navigation' so saved sessions,
+# tests and the search-progress refresh keep working. On phones Streamlit
+# collapses the sidebar behind its menu button.
+with st.sidebar:
+    st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
+    page = st.radio(
+        'Navigation',
+        ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
+        label_visibility='collapsed',key='top_navigation'
+    )
+    st.divider()
+    _tracked=len(st.session_state.jobs)
+    st.caption(f"{_tracked} job{'s' if _tracked!=1 else ''} in your tracker")
 
 sync_notice=st.empty()
 render_search_progress()

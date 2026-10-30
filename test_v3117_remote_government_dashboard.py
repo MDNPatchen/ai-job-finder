@@ -103,14 +103,14 @@ class DashboardInsetTests(unittest.TestCase):
         self.assertIn('[data-testid="stMainBlockContainer"]',APP_CSS)
         self.assertIn('.block-container',APP_CSS)
         self.assertIn('max-width:1280px',APP_CSS)
-        self.assertIn('padding:88px 48px 64px',APP_CSS)
+        self.assertIn('padding:56px 48px 64px',APP_CSS)  # brand moved to sidebar
         self.assertIn('margin-inline:auto!important',APP_CSS)
         self.assertIn('.st-key-dashboard_content',APP_CSS)
         self.assertIn('padding:0!important;background:transparent',APP_CSS)
 
     def test_mobile_inset_remains_responsive(self):
         self.assertIn('@media(max-width:900px)',APP_CSS)
-        self.assertIn('padding:76px 20px 40px',APP_CSS)
+        self.assertIn('padding:56px 20px 40px',APP_CSS)
         self.assertNotIn('border-left:4px',APP_CSS)
         self.assertNotIn('border-top:3px',APP_CSS)
 
