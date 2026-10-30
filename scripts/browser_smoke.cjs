@@ -89,6 +89,7 @@ const fs=require('node:fs');
   console.error(error);
   // Also surface the reason as a GitHub annotation, readable without the raw log.
   const summary=String(error&&error.message||error).split('\n').slice(0,6).join(' | ').replace(/[\r%]/g,'');
-  console.log('::error title=browser_smoke::'+summary);
-  process.exit(1);
+  // Write synchronously and set the exit code: process.exit() can drop buffered output.
+  require('node:fs').writeSync(1,'\n::error title=browser_smoke::'+summary+'\n');
+  process.exitCode=1;
 });

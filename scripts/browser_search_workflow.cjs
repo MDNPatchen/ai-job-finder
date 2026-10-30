@@ -30,6 +30,7 @@ const assert=require('node:assert/strict');
 })().catch(e=>{
   console.error(e);
   const summary=String(e&&e.message||e).split('\n').slice(0,6).join(' | ').replace(/[\r%]/g,'');
-  console.log('::error title=browser_search_workflow::'+summary);
-  process.exit(1);
+  // Write synchronously and set the exit code: process.exit() can drop buffered output.
+  require('node:fs').writeSync(1,'\n::error title=browser_search_workflow::'+summary+'\n');
+  process.exitCode=1;
 });
