@@ -73,7 +73,7 @@ const fs=require('node:fs');
       assert.ok(heading.y>=40,name+' page title must clear platform header');
       assert.equal(await surface.locator('[data-testid="stSidebar"] .job-brand-title').count(),1,name+' sidebar wordmark');
       if([390,1440].includes(size.width)) await page.screenshot({path:output+'/'+name.replaceAll(' ','-')+'-'+size.width+'.png',fullPage:true});
-      assert.equal(layout.color,'rgb(17, 25, 22)',name+' dark green background');
+      assert.equal(layout.color,'rgb(48, 51, 56)',name+' charcoal grey background');
       assert.ok(Math.abs(layout.left-layout.right)<22,name+' symmetric outer margins');
       assert.ok(layout.width<=layout.viewport+2,name+' horizontal overflow');
     }
@@ -84,5 +84,5 @@ const fs=require('node:fs');
     await page.screenshot({path:output+'/dashboard-'+size.width+'.png',fullPage:true});
   }
   await browser.close();
-  console.log('PASS six pages at six widths; actual content gutters, sidebar wordmark, dark green background, no horizontal overflow');
+  console.log('PASS six pages at six widths; actual content gutters, sidebar wordmark, charcoal grey background, no horizontal overflow');
 })().catch(error=>{console.error(error);process.exit(1)});

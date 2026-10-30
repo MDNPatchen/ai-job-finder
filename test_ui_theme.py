@@ -8,10 +8,10 @@ from pathlib import Path
 
 
 class MinimalUIThemeTests(unittest.TestCase):
-    def test_dark_background_is_not_pure_black(self):
-        self.assertIn("#111916",APP_CSS)
-        self.assertIn("#1A2520",APP_CSS)
-        self.assertIn("#EEF3EF",APP_CSS)
+    def test_off_grey_background_is_not_black(self):
+        self.assertIn("#303338",APP_CSS)
+        self.assertIn("#3A3E44",APP_CSS)
+        self.assertIn("#F3F4F6",APP_CSS)
         self.assertNotIn("#000000",APP_CSS)
         self.assertEqual(APP_CSS.count("<style>"),1)
         self.assertEqual(APP_CSS.count("</style>"),1)
@@ -22,9 +22,10 @@ class MinimalUIThemeTests(unittest.TestCase):
     def test_matches_billing_app_type_and_cards(self):
         self.assertIn("Barlow Condensed",APP_CSS)
         self.assertIn("Inter",APP_CSS)
-        self.assertIn("Bodoni Moda",APP_CSS)
+        self.assertIn("Outfit",APP_CSS)
         self.assertIn('section[data-testid="stSidebar"]',APP_CSS)
-        self.assertIn("border-left:5px solid var(--forest)",APP_CSS)
+        self.assertIn("border-left:5px solid var(--accent)",APP_CSS)
+        self.assertNotIn("#4CC38A",APP_CSS)  # no green accent
 
     def test_shell_does_not_style_structural_wrappers_as_cards(self):
         self.assertNotIn('[data-testid="stVerticalBlockBorderWrapper"]', APP_CSS)

@@ -87,8 +87,8 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         self.assertIn("'approved_resume_wording'",self.source)
 
     def test_dark_appearance_preserves_native_downloads(self):
-        self.assertIn("#111916",APP_CSS)
-        self.assertIn("#1A2520",APP_CSS)
+        self.assertIn("#303338",APP_CSS)
+        self.assertIn("#3A3E44",APP_CSS)
         self.assertIn("min-height:44px",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
