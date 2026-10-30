@@ -85,4 +85,10 @@ const fs=require('node:fs');
   }
   await browser.close();
   console.log('PASS six pages at six widths; actual content gutters, sidebar wordmark, charcoal grey background, no horizontal overflow');
-})().catch(error=>{console.error(error);process.exit(1)});
+})().catch(error=>{
+  console.error(error);
+  // Also surface the reason as a GitHub annotation, readable without the raw log.
+  const summary=String(error&&error.message||error).split('\n').slice(0,6).join(' | ').replace(/[\r%]/g,'');
+  console.log('::error title=browser_smoke::'+summary);
+  process.exit(1);
+});
