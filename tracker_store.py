@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from io import StringIO
 import hmac
 import json
+from threading import Lock
+from time import monotonic
 from urllib.parse import urlsplit
 
 STATUSES=('Saved','Applied','Interviewing','Offer','Rejected','Skipped','Withdrawn')
@@ -148,6 +150,31 @@ def authenticate(password,expected):
     return hmac.compare_digest(str(password).encode(),str(expected).encode())
 
 
+class UnlockThrottle:
+    """Slow down password guessing. Shared by every session in this server
+    process, so opening a new browser tab does not reset the count."""
+    def __init__(self,max_failures=5,lockout_seconds=60,clock=monotonic):
+        self.max_failures=max_failures;self.lockout_seconds=lockout_seconds
+        self.clock=clock;self.failures=0;self.locked_until=0.0;self._lock=Lock()
+
+    def seconds_remaining(self):
+        with self._lock:
+            return max(0,int(self.locked_until-self.clock()+0.999))
+
+    def record(self,success):
+        with self._lock:
+            if success:
+                self.failures=0;self.locked_until=0.0
+                return
+            self.failures+=1
+            if self.failures>=self.max_failures:
+                # Each further failure while over the limit restarts the lockout.
+                self.locked_until=self.clock()+self.lockout_seconds
+
+
+unlock_throttle=UnlockThrottle()
+
+
 class WorkspaceConflict(RuntimeError):
     """Another session changed this workspace; reload/merge before saving."""
 
@@ -158,7 +185,16 @@ def _connect(database_url):
                            options='-c statement_timeout=10000 -c lock_timeout=5000')
 
 
-def _schema(cur):
+_schema_ready=set()
+_schema_lock=Lock()
+
+
+def _schema(cur,database_url=None):
+    # DDL (especially ALTER TABLE) takes a brief exclusive table lock, so run it
+    # once per database per server process rather than on every load and save.
+    key=hashlib.sha256(str(database_url).encode()).hexdigest() if database_url else None
+    if key is not None and key in _schema_ready:
+        return
     cur.execute('CREATE TABLE IF NOT EXISTS ai_job_finder_workspace '
                 '(workspace_id TEXT PRIMARY KEY, payload JSONB NOT NULL, '
                 'revision BIGINT NOT NULL DEFAULT 0, '
@@ -169,12 +205,17 @@ def _schema(cur):
                 '(workspace_id TEXT NOT NULL, revision BIGINT NOT NULL, '
                 'payload JSONB NOT NULL, saved_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, '
                 'PRIMARY KEY (workspace_id,revision))')
+    # Commit the idempotent DDL on its own so a later rollback (for example a
+    # save conflict) cannot undo tables this process already marked as ready.
+    cur.connection.commit()
+    if key is not None:
+        with _schema_lock: _schema_ready.add(key)
 
 
 def load_remote_workspace(database_url,workspace_id):
     with _connect(database_url) as conn:
         with conn.cursor() as cur:
-            _schema(cur)
+            _schema(cur,database_url)
             cur.execute('SELECT payload,revision,updated_at FROM ai_job_finder_workspace '
                         'WHERE workspace_id=%s',(workspace_id,))
             row=cur.fetchone()
@@ -193,7 +234,7 @@ def save_remote_workspace(database_url,workspace_id,jobs,seen,has_baseline,
     encoded=json.dumps(payload)
     with _connect(database_url) as conn:
         with conn.cursor() as cur:
-            _schema(cur)
+            _schema(cur,database_url)
             # Preserve legacy revision 0 before the first upgrade save.
             cur.execute('INSERT INTO ai_job_finder_history (workspace_id,revision,payload) '
                         'SELECT workspace_id,revision,payload FROM ai_job_finder_workspace '
@@ -226,7 +267,7 @@ def save_remote_workspace(database_url,workspace_id,jobs,seen,has_baseline,
 def load_workspace_history(database_url,workspace_id):
     with _connect(database_url) as conn:
         with conn.cursor() as cur:
-            _schema(cur)
+            _schema(cur,database_url)
             cur.execute('SELECT revision,saved_at,payload FROM ai_job_finder_history '
                         'WHERE workspace_id=%s ORDER BY revision DESC LIMIT 20',(workspace_id,))
             return [{'revision':r[0],'saved_at':r[1].isoformat(),'payload':r[2]} for r in cur.fetchall()]

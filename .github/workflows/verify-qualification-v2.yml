@@ -59,6 +59,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
       - name: Compile updated modules
         run: python -m py_compile specialist_caution_calibration.py government_feed_identity.py app.py ui_theme.py official_bulletins.py posting_requirements.py formal_qualification_guardrails.py career_fit_guardrails.py transfer_fit.py qualification_v2.py qualification_domains.py posting_metadata.py employer_ui.py qualification_matcher.py ranked_breakdowns.py mayo_source.py
       - name: Qualification and export unit tests

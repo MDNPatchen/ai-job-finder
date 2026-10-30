@@ -22,12 +22,13 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         cls.functions={n.name:n for n in cls.tree.body
                        if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
 
-    def test_navigation_is_top_level_horizontal_not_sidebar(self):
-        self.assertNotIn("st.sidebar.radio",self.source)
-        self.assertNotIn("st.sidebar.markdown",self.source)
+    def test_navigation_lives_in_sidebar_like_billing_app(self):
+        self.assertIn("with st.sidebar:",self.source)
         self.assertIn("key='top_navigation'",self.source)
-        self.assertIn("horizontal=True",self.source)
-        self.assertIn("brand(MATCHING_ENGINE_VERSION)",self.source)
+        self.assertNotIn("horizontal=True,label_visibility='collapsed',key='top_navigation'",self.source)
+        sidebar=self.source.split("with st.sidebar:",1)[1].split("\nsync_notice",1)[0]
+        self.assertIn("brand(MATCHING_ENGINE_VERSION)",sidebar)
+        self.assertIn("key='top_navigation'",sidebar)
         self.assertIn(".st-key-top_navigation",APP_CSS)
 
     def test_download_button_fragments_prevent_rerun(self):
@@ -85,9 +86,9 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         self.assertIn("'career_matches_export'",self.source)
         self.assertIn("'approved_resume_wording'",self.source)
 
-    def test_compact_slate_appearance_preserves_native_downloads(self):
-        self.assertIn("#27342F",APP_CSS)
-        self.assertIn("#34443D",APP_CSS)
+    def test_dark_appearance_preserves_native_downloads(self):
+        self.assertIn("#303338",APP_CSS)
+        self.assertIn("#3A3E44",APP_CSS)
         self.assertIn("min-height:44px",APP_CSS)
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))
         self.assertIn("AI Job Finder",brand(MATCHING_ENGINE_VERSION))

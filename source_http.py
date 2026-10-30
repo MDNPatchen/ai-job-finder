@@ -75,14 +75,14 @@ def open_response(request,timeout=10):
     return urlopen(request,timeout=remaining(timeout),context=trusted_context())
 
 
-def fetch_json(url,timeout=12,opener=None,sleep=time.sleep):
+def fetch_json(url,timeout=12,opener=None,sleep=time.sleep,headers=None):
     opener=opener or open_response
-    request=Request(url,headers={'User-Agent':'AIJobFinder/3.2 personal career research','Accept':'application/json'})
+    request=Request(url,headers={'User-Agent':'AIJobFinder/3.2 personal career research',
+                                 'Accept':'application/json',**(headers or {})})
     for attempt in range(3):
         try:
             with opener(request,timeout=remaining(timeout)) as response:
                 raw=read_bounded(response)
-            if len(raw)>12_000_000: raise ValueError('Provider response exceeds 12 MB')
             return json.loads(raw)
         except HTTPError as exc:
             if exc.code not in (429,500,502,503,504) or attempt==2: raise

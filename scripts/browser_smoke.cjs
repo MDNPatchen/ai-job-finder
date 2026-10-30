@@ -19,18 +19,36 @@ const fs=require('node:fs');
     if(!surface) await page.waitForTimeout(500);
   }
   assert.ok(surface,'Expected deployed version '+version+' in app or embedded frame');
+  // Navigation lives in the sidebar (as in the MDN billing app). On narrow
+  // screens Streamlit tucks it behind the menu button, so open it first.
+  const expandSidebar='[data-testid="stSidebarCollapsedControl"] button,[data-testid="collapsedControl"] button,[data-testid="stExpandSidebarButton"]';
+  const navigate=async name=>{
+    const option=surface.getByRole('radio',{name,exact:true}).locator('xpath=ancestor::label');
+    try{
+      // Visible check alone is racy while the sidebar animates, so try briefly.
+      await option.click({timeout:2500});
+    }catch(error){
+      await surface.locator(expandSidebar).first().click({timeout:5000});
+      await option.waitFor({state:'visible',timeout:5000});
+      await page.waitForTimeout(400); // let the slide-in animation settle
+      await option.click({timeout:10000});
+    }
+  };
   for(const size of [360,390,768,1024,1440,1920].map(width=>({width,height:1000}))){
     await page.setViewportSize(size);
+    await page.waitForTimeout(500); // Streamlit may collapse or expand the sidebar on resize
     for(const name of ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches']){
-      await surface.getByRole('radio',{name,exact:true}).locator('xpath=ancestor::label').click();
+      await navigate(name);
       await surface.getByRole('heading',{name:name==='My Resume'?'Resume':name,exact:true}).waitFor({timeout:15000});
       await page.waitForTimeout(350);
       assert.equal(await surface.getByText(/No secrets found/).count(),0,'Optional secrets should not render errors');
       assert.equal(await surface.locator('[data-testid="stException"]').count(),0,name+' exception');
       const layout=await surface.evaluate(()=>{
+        // Measure against the main area beside the sidebar, not the window.
+        const area=document.querySelector('[data-testid="stMain"]').getBoundingClientRect();
         const main=document.querySelector('[data-testid="stMainBlockContainer"]');
         const rect=main.getBoundingClientRect();
-        return {left:rect.left,right:innerWidth-rect.right,width:document.documentElement.scrollWidth,
+        return {left:rect.left-area.left,right:area.right-rect.right,width:document.documentElement.scrollWidth,
           viewport:innerWidth,color:getComputedStyle(document.querySelector('[data-testid="stAppViewContainer"]')).backgroundColor};
       });
       if(process.env.POPULATED==='1' && name==='Find Jobs'){
@@ -44,9 +62,11 @@ const fs=require('node:fs');
         }
       }
       const content=await surface.evaluate(()=>{
-        const selectors='.job-topbar,.job-hero,[data-testid="stForm"],[data-testid="stAlert"],[data-testid="stMetric"],[class*="st-key-job_card_"]';
-        return [...document.querySelectorAll(selectors)].filter(e=>e.getBoundingClientRect().width>0).map(e=>{
-          const r=e.getBoundingClientRect();return {left:r.left,right:innerWidth-r.right,name:e.className};
+        const area=document.querySelector('[data-testid="stMain"]').getBoundingClientRect();
+        const selectors='.job-hero,[data-testid="stForm"],[data-testid="stAlert"],[data-testid="stMetric"],[class*="st-key-job_card_"]';
+        return [...document.querySelectorAll(selectors)]
+          .filter(e=>e.getBoundingClientRect().width>0 && !e.closest('[data-testid="stSidebar"]')).map(e=>{
+          const r=e.getBoundingClientRect();return {left:r.left-area.left,right:area.right-r.right,name:e.className};
         });
       });
       const minimum=size.width<=520?19:size.width<=900?27:47;
@@ -54,19 +74,27 @@ const fs=require('node:fs');
         assert.ok(rect.left>=minimum && rect.right>=minimum,name+' content gutters: '+JSON.stringify(rect));
       }
       await surface.evaluate(()=>document.querySelector('[data-testid="stMain"]').scrollTo(0,0));
-      const brand=await surface.locator('.job-topbar').boundingBox();
-      assert.ok(brand.y>=60,name+' branding must clear platform header');
+      const heading=await surface.locator('[data-testid="stMain"] .job-hero').first().boundingBox();
+      assert.ok(heading.y>=40,name+' page title must clear platform header');
+      assert.equal(await surface.locator('[data-testid="stSidebar"] .job-brand-title').count(),1,name+' sidebar wordmark');
       if([390,1440].includes(size.width)) await page.screenshot({path:output+'/'+name.replaceAll(' ','-')+'-'+size.width+'.png',fullPage:true});
-      assert.equal(layout.color,'rgb(39, 52, 47)',name+' forest green background');
+      assert.equal(layout.color,'rgb(48, 51, 56)',name+' charcoal grey background');
       assert.ok(Math.abs(layout.left-layout.right)<22,name+' symmetric outer margins');
       assert.ok(layout.width<=layout.viewport+2,name+' horizontal overflow');
     }
-    await surface.getByRole('radio',{name:'Dashboard',exact:true}).locator('xpath=ancestor::label').click();
+    await navigate('Dashboard');
     await surface.getByRole('heading',{name:'Dashboard',exact:true}).waitFor({timeout:15000});
     await page.waitForTimeout(350);
     await surface.evaluate(()=>document.querySelector('[data-testid="stMain"]').scrollTo(0,0));
     await page.screenshot({path:output+'/dashboard-'+size.width+'.png',fullPage:true});
   }
   await browser.close();
-  console.log('PASS six pages at six widths; actual content gutters, visible branding, forest-green background, no horizontal overflow');
-})().catch(error=>{console.error(error);process.exit(1)});
+  console.log('PASS six pages at six widths; actual content gutters, sidebar wordmark, charcoal grey background, no horizontal overflow');
+})().catch(error=>{
+  console.error(error);
+  // Also surface the reason as a GitHub annotation, readable without the raw log.
+  const summary=String(error&&error.message||error).split('\n').slice(0,6).join(' | ').replace(/[\r%]/g,'');
+  // Written synchronously, so process.exit() cannot drop it.
+  require('node:fs').writeSync(1,'\n::error title=browser_smoke::'+summary+'\n');
+  process.exit(1);
+});

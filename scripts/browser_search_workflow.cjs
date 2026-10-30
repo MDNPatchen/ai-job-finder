@@ -27,4 +27,10 @@ const assert=require('node:assert/strict');
   assert.equal(await page.locator('[data-testid="stException"]').count(),0);
   console.log('PASS partial results, navigation during search, cancellation, retained results, new search completion');
  }finally{await browser.close();}
-})().catch(e=>{console.error(e);process.exit(1)});
+})().catch(e=>{
+  console.error(e);
+  const summary=String(e&&e.message||e).split('\n').slice(0,6).join(' | ').replace(/[\r%]/g,'');
+  // Written synchronously, so process.exit() cannot drop it.
+  require('node:fs').writeSync(1,'\n::error title=browser_search_workflow::'+summary+'\n');
+  process.exit(1);
+});

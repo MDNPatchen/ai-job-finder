@@ -57,10 +57,10 @@ def merge_latest(state,database_url,workspace_id,choice=None):
         return conflicts
     if conflicts:
         # Resolve only records edited on both sides; retain nonconflicting changes.
-        from workspace_merge import row_id
+        from workspace_merge import keyed_rows
         selected=snapshot(state) if choice=='Keep this session’s conflicting changes' else remote
-        by_id={row_id(r):r for r in merged['jobs']}
-        selected_rows={row_id(r):r for r in selected['jobs']}
+        by_id=dict(zip(merged['job_keys'],merged['jobs']))
+        selected_rows=keyed_rows(selected['jobs'])
         for conflict in conflicts:
             label,key=conflict.split(': ',1)
             target=by_id if label=='Application' else merged['employer_evidence']

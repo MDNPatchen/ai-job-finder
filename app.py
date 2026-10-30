@@ -74,7 +74,7 @@ from tracker_store import (
     authenticate, upcoming_followups, complete_followup
 )
 
-st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='collapsed')
+st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='auto')
 st.markdown(APP_CSS, unsafe_allow_html=True)
 
 SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
@@ -1075,20 +1075,29 @@ def _secret(name):
         return ''
 
 
-def load_usajobs_if_authorized(key, email):
+USAJOBS_DEFAULT_TERMS=('operations director','city administrator','business development',
+                       'program manager','communications director')
+
+
+def usajobs_terms(query_terms):
+    """Search the user's keyword; fall back to career-match titles when blank."""
+    typed=[str(t).strip() for t in (query_terms or ()) if str(t or '').strip()]
+    return tuple(dict.fromkeys(typed))[:5] or USAJOBS_DEFAULT_TERMS
+
+
+def load_usajobs_if_authorized(key, email, query_terms=()):
     # USAJOBS requires its own FREE authorization key: never try without one.
     if not key or not email:
         return []
+    from source_http import fetch_json as request_json
     all_jobs=[]
-    terms=('operations director','city administrator','business development',
-           'program manager','communications director')
-    for term in terms:
+    for term in usajobs_terms(query_terms):
         url='https://data.usajobs.gov/api/search?' + urlencode(
             {'Keyword':term,'ResultsPerPage':75})
-        req=Request(url,headers={'Host':'data.usajobs.gov',
-            'User-Agent':email,'Authorization-Key':key,'Accept':'application/json'})
-        with open_response(req,timeout=12) as response:
-            payload=json.load(response)
+        # Shared helper: retries, time budget and bounded response size.
+        # Not cached, because the request carries the private API key.
+        payload=request_json(url,timeout=12,headers={
+            'User-Agent':email,'Authorization-Key':key})
         records=payload.get('SearchResult',{}).get('SearchResultItems',[])
         for item in records:
             x=item.get('MatchedObjectDescriptor') or {}
@@ -1144,7 +1153,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None, progress=None, credentia
     }
     usa_key, usa_email=credentials if credentials is not None else (_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL'))
     if usa_key and usa_email:
-        tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email)
+        tasks['USAJOBS']=lambda: load_usajobs_if_authorized(usa_key,usa_email,query_terms)
     jobs, errors, counts, health=[],[],{},[]
     with request_budget(90):
         with ThreadPoolExecutor(max_workers=8) as executor:
@@ -1235,10 +1244,13 @@ def score_job(job, resume, words='', qualification_profile=None):
     query_rank_bonus=0
     search_terms=[x.lower() for x in re.findall(r'[A-Za-z0-9]+',words) if len(x)>2]
     if search_terms:
+        # Whole-word matching: "coo" must not match "cook", nor "art" match "start".
+        def has_word(term,text):
+            return re.search(r'\b'+re.escape(term)+r'\b',text) is not None
         title=job['title'].lower()
         description=job['description'].lower()
-        in_title=any(w in title for w in search_terms)
-        in_description=sum(w in description for w in search_terms)
+        in_title=any(has_word(w,title) for w in search_terms)
+        in_description=sum(has_word(w,description) for w in search_terms)
         if not (in_title or in_description>=max(1,len(search_terms)//2)):
             return None
         query_rank_bonus+=4 if in_title else 1
@@ -1441,7 +1453,12 @@ def persist_tracker_if_unlocked():
 
 
 def unlock_tracker_workspace(password):
-    if not authenticate(password,_secret('TRACKER_ACCESS_PASSWORD')):
+    from tracker_store import unlock_throttle
+    if unlock_throttle.seconds_remaining():
+        return False
+    accepted=authenticate(password,_secret('TRACKER_ACCESS_PASSWORD'))
+    unlock_throttle.record(accepted)
+    if not accepted:
         return False
     remote=load_remote_workspace(
         _secret('TRACKER_DATABASE_URL'),
@@ -1516,7 +1533,8 @@ def consume_search_update():
         persist_tracker_if_unlocked()
     st.session_state.search_results=matches
     st.session_state.search_stats=stats
-    st.session_state.search_page=0
+    # The page is reset when a new search starts, not on each partial update,
+    # so browsing results while sources finish does not jump back to page 1.
 
 
 @st.fragment(run_every=1)
@@ -1540,14 +1558,20 @@ def render_search_progress():
 
 consume_search_update()
 
-# The former sidebar is intentionally retired. Horizontal native controls
-# keep every section accessible even when the browser window is narrow.
-st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
-page = st.radio(
-    'Navigation',
-    ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
-    horizontal=True,label_visibility='collapsed',key='top_navigation'
-)
+# Sidebar navigation, laid out like the MDN billing app: wordmark, then one
+# row per page. The widget key stays 'top_navigation' so saved sessions,
+# tests and the search-progress refresh keep working. On phones Streamlit
+# collapses the sidebar behind its menu button.
+with st.sidebar:
+    st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
+    page = st.radio(
+        'Navigation',
+        ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
+        label_visibility='collapsed',key='top_navigation'
+    )
+    st.divider()
+    _tracked=len(st.session_state.jobs)
+    st.caption(f"{_tracked} job{'s' if _tracked!=1 else ''} in your tracker")
 
 sync_notice=st.empty()
 render_search_progress()
@@ -1853,6 +1877,7 @@ elif page == 'Find Jobs':
             st.session_state.active_search=SearchTask(
                 lambda task, captured=deepcopy(settings): run_search_task(task,captured),search_fingerprint())
             st.session_state.search_task_revision=-1
+            st.session_state.search_page=0
             st.rerun()
 
     if 'search_results' not in st.session_state:
@@ -2164,7 +2189,10 @@ elif page == 'Job Tracker':
                             st.success('Private applications loaded.')
                             st.rerun()
                         else:
-                            st.error('Incorrect password or password configuration.')
+                            from tracker_store import unlock_throttle
+                            wait=unlock_throttle.seconds_remaining()
+                            st.error(f'Too many incorrect attempts. Try again in {wait} seconds.' if wait
+                                     else 'Incorrect password or password configuration.')
                     except Exception as exc:
                         st.error('Could not load cloud tracker: '+type(exc).__name__)
             st.warning('Not unlocked: edits are session-only. Unlock before searching to '
@@ -2177,7 +2205,7 @@ elif page == 'Job Tracker':
 
     # Keep application follow-ups visible without navigating away from the tracker.
     active_rows=[j for j in st.session_state.jobs if j.get('Status') not in
-                 ('Skipped','Rejected','Withdrawn','Offer declined')]
+                 ('Skipped','Rejected','Withdrawn')]
     status_counts=Counter(str(j.get('Status') or 'Not started') for j in active_rows)
     st.markdown('<div class="job-module-heading">Application pipeline</div>',
                 unsafe_allow_html=True)
