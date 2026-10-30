@@ -21,17 +21,22 @@ const fs=require('node:fs');
   assert.ok(surface,'Expected deployed version '+version+' in app or embedded frame');
   // Navigation lives in the sidebar (as in the MDN billing app). On narrow
   // screens Streamlit tucks it behind the menu button, so open it first.
-  const expandSidebar='[data-testid="stSidebarCollapsedControl"] button,[data-testid="collapsedControl"] button';
+  const expandSidebar='[data-testid="stSidebarCollapsedControl"] button,[data-testid="collapsedControl"] button,[data-testid="stExpandSidebarButton"]';
   const navigate=async name=>{
     const option=surface.getByRole('radio',{name,exact:true}).locator('xpath=ancestor::label');
-    if(!(await option.isVisible())){
-      await surface.locator(expandSidebar).first().click();
+    try{
+      // Visible check alone is racy while the sidebar animates, so try briefly.
+      await option.click({timeout:2500});
+    }catch(error){
+      await surface.locator(expandSidebar).first().click({timeout:5000});
       await option.waitFor({state:'visible',timeout:5000});
+      await page.waitForTimeout(400); // let the slide-in animation settle
+      await option.click({timeout:10000});
     }
-    await option.click();
   };
   for(const size of [360,390,768,1024,1440,1920].map(width=>({width,height:1000}))){
     await page.setViewportSize(size);
+    await page.waitForTimeout(500); // Streamlit may collapse or expand the sidebar on resize
     for(const name of ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches']){
       await navigate(name);
       await surface.getByRole('heading',{name:name==='My Resume'?'Resume':name,exact:true}).waitFor({timeout:15000});
