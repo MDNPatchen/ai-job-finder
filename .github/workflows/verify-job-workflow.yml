@@ -51,6 +51,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
       - name: Compile full application and helpers
         run: python -m py_compile app.py job_workflow.py employer_postings.py posting_metadata.py tracker_store.py
       - name: Test identities, preferences, imports, new-job history and feed health
