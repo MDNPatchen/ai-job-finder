@@ -8,15 +8,23 @@ from pathlib import Path
 
 
 class MinimalUIThemeTests(unittest.TestCase):
-    def test_slate_background_is_dark_not_black(self):
-        self.assertIn("#27342F",APP_CSS)
-        self.assertIn("#34443D",APP_CSS)
-        self.assertIn("#F1F6F2",APP_CSS)
-        self.assertNotIn("#0B1114",APP_CSS)
+    def test_dark_background_is_not_pure_black(self):
+        self.assertIn("#111916",APP_CSS)
+        self.assertIn("#1A2520",APP_CSS)
+        self.assertIn("#EEF3EF",APP_CSS)
+        self.assertNotIn("#000000",APP_CSS)
         self.assertEqual(APP_CSS.count("<style>"),1)
         self.assertEqual(APP_CSS.count("</style>"),1)
         self.assertIn(".st-key-top_navigation",APP_CSS)
         self.assertIn("@media(max-width:900px)",APP_CSS)
+        self.assertNotRegex(APP_CSS,r"__\w+__")  # every palette token filled in
+
+    def test_matches_billing_app_type_and_cards(self):
+        self.assertIn("Barlow Condensed",APP_CSS)
+        self.assertIn("Inter",APP_CSS)
+        self.assertIn("Bodoni Moda",APP_CSS)
+        self.assertIn('section[data-testid="stSidebar"]',APP_CSS)
+        self.assertIn("border-left:5px solid var(--forest)",APP_CSS)
 
     def test_shell_does_not_style_structural_wrappers_as_cards(self):
         self.assertNotIn('[data-testid="stVerticalBlockBorderWrapper"]', APP_CSS)
@@ -27,12 +35,11 @@ class MinimalUIThemeTests(unittest.TestCase):
     def test_dark_streamlit_theme_and_readable_contrast(self):
         theme=Path(__file__).with_name(".streamlit").joinpath("config.toml").read_text()
         self.assertIn('base = "dark"',theme)
-        self.assertIn('backgroundColor = "#27342F"',theme)
-        self.assertIn('secondaryBackgroundColor = "#34443D"',theme)
-        self.assertIn('textColor = "#F1F6F2"',theme)
+        self.assertIn('backgroundColor = "'+PALETTE["background"]+'"',theme)
+        self.assertIn('secondaryBackgroundColor = "'+PALETTE["panel"]+'"',theme)
+        self.assertIn('textColor = "'+PALETTE["text"]+'"',theme)
+        self.assertIn('primaryColor = "'+PALETTE["accent"]+'"',theme)
         self.assertIn("AI Job Finder",brand("3.1.15"))
-        self.assertEqual(PALETTE["background"],"#27342F")
-        self.assertEqual(PALETTE["panel"],"#34443D")
         def luminance(hex_color):
             rgb=[int(hex_color[i:i+2],16)/255 for i in (1,3,5)]
             rgb=[value/12.92 if value<=0.04045 else
@@ -41,9 +48,13 @@ class MinimalUIThemeTests(unittest.TestCase):
         def contrast(a,b):
             high,low=sorted([luminance(a),luminance(b)],reverse=True)
             return (high+.05)/(low+.05)
-        self.assertGreaterEqual(contrast("#F1F6F2","#34443D"),7)
-        self.assertGreaterEqual(contrast("#BBCDC2","#34443D"),4.5)
-        self.assertGreaterEqual(contrast("#FFFFFF","#257B5B"),4.5)
+        P=PALETTE
+        for surface in (P["background"],P["sidebar"],P["panel"],P["raised"]):
+            self.assertGreaterEqual(contrast(P["text"],surface),7)
+            self.assertGreaterEqual(contrast(P["muted"],surface),4.5)
+        self.assertGreaterEqual(contrast(P["accent_bright"],P["panel"]),4.5)
+        self.assertGreaterEqual(contrast(P["accent_bright"],P["accent_tint"]),4.5)
+        self.assertGreaterEqual(contrast("#FFFFFF",P["accent"]),4.5)
 
     def test_no_generated_briefcase_or_stock_art(self):
         self.assertNotIn("<img",APP_CSS+brand())
