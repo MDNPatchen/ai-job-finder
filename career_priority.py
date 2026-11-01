@@ -24,6 +24,15 @@ def leadership_tier(title):
         return 3
     if re.search(r'\b(?:supervisor|coordinator|assistant|associate|specialist|analyst)\b',t):
         return 0
+    # Individual-contributor roles, including "manager" titles that manage
+    # accounts or territories rather than people.
+    if re.search(r'\b(?:representative|rep|clerk|intern|technician|agent|cashier|driver|teller|'
+                 r'sales development|business development representative|account executive)\b',t):
+        return 0
+    if re.search(r'\b(?:(?:key |strategic |national )?account|territory|channel(?: partner)?|partner|client|'
+                 r'customer success|case|shift|assistant store|office|property|portfolio)\s+(?:sales\s+)?manager\b'
+                 r'|\b(?:tech|technical|team|shift)\s+lead\b',t):
+        return 0
     if re.search(r'\bmanager\b',t):
         return 1
     return 2

@@ -44,3 +44,17 @@ class MinimumLevelTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class IndividualContributorTests(unittest.TestCase):
+    """Sales and support titles are below management even when they say 'manager'."""
+    def test_individual_roles_hidden_at_manager_and_above(self):
+        for title in ('Sales Development Representative', 'Account Manager - Event Sales',
+                      "Sr. Key Account Manager - Lowe's", 'Territory Sales Manager',
+                      'Senior Channel Partner Manager', 'Account Executive', 'Tech Lead', 'Office Manager'):
+            self.assertFalse(meets_minimum_level(title, 'Manager and above'), title)
+
+    def test_people_managers_still_shown(self):
+        for title in ('Sales Manager', 'Regional Sales Manager', 'Communications Manager',
+                      'Advertising Sales Manager', 'Business Development Manager', 'Store Manager'):
+            self.assertTrue(meets_minimum_level(title, 'Manager and above'), title)
