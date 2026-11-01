@@ -144,7 +144,7 @@ def main():
     chunk, size = [], 0
     chunks = []
     for line in lines:
-        if size + len(line) > 6000:
+        if size + len(line) > 45000:  # GitHub caps notices per job; keep them few
             chunks.append(chunk)
             chunk, size = [], 0
         chunk.append(line)
