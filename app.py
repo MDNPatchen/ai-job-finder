@@ -44,6 +44,9 @@ from government_feed_identity import belongs_to_configured_agency, dedupe_vacanc
 from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
 from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
+from career_profile import (PROFILE_QUESTIONS, YN_CHOICES, LEGACY_DEFAULT_ANSWERS,
+                            profile_areas, interpret_resume)
+from role_families import LABELS as ROLE_FAMILY_LABELS, family_for_title, rank_families, explain_job
 import job_workflow as _job_workflow
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
@@ -100,6 +103,7 @@ for key, default in {'jobs': [], 'resume_text': '', 'confirmed_titles': [], 'ana
                      'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy(),
                      'confirmed_qualifications': [], 'seen_jobs': [],
                      'search_baseline': False, 'tracker_unlocked': False,
+                     'profile_answers': dict(LEGACY_DEFAULT_ANSWERS),
                      'tracker_loaded': False}.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -247,28 +251,93 @@ CAREER_PATHS = [
 
 
 def verified_competencies():
-    return ({VERIFICATION_AREAS[duty] for duty in st.session_state.verified_duties
-             if duty in VERIFICATION_AREAS}
-            | set(st.session_state.confirmed_qualifications))
+    """Areas confirmed in the career profile plus any extra self-confirmations."""
+    confirmed, excluded = profile_areas(st.session_state.get('profile_answers'))
+    return (confirmed | set(st.session_state.confirmed_qualifications)) - excluded
+
+
+def excluded_competencies():
+    """Areas the person says the resume overstates; matching ignores them."""
+    return profile_areas(st.session_state.get('profile_answers'))[1]
+
+
+def resume_grades():
+    """{area: grade} from the resume interpretation, for role-family scoring."""
+    text = st.session_state.get('resume_text') or ''
+    report = interpret_resume(text, st.session_state.get('profile_answers'))
+    return {row['area']: row['grade'] for row in report['areas']}
 
 
 def verification_editor():
-    st.subheader('Experience Verification')
-    st.write('These eight publisher responsibilities were preselected because you confirmed them. '
-             'Uncheck anything you want to remove. Changes affect career matching immediately.')
-    with st.form('experience_verification_form'):
-        selected = []
-        for duty in VERIFICATION_AREAS:
-            if st.checkbox(duty, value=duty in st.session_state.verified_duties, key='verify_' + str(list(VERIFICATION_AREAS).index(duty))):
-                selected.append(duty)
-        if st.form_submit_button('Save verified experience'):
-            st.session_state.verified_duties = selected
+    """Career profile: short answers that confirm or overrule the resume."""
+    st.subheader('Your career profile')
+    st.write('Resumes leave things out and overstate others. Answer what is true; '
+             '**Yes/Partly** gives partial credit for experience the resume does not show, '
+             '**No** stops the matcher crediting something the resume implies.')
+    answers = st.session_state.profile_answers
+    if answers == LEGACY_DEFAULT_ANSWERS:
+        st.caption('Pre-filled from the eight responsibilities you confirmed earlier. Review each one.')
+    with st.form('career_profile_form'):
+        new = {}
+        yn = [q for q in PROFILE_QUESTIONS if q['kind'] == 'yn']
+        nums = [q for q in PROFILE_QUESTIONS if q['kind'] == 'number']
+        left, right = st.columns(2)
+        for i, q in enumerate(yn):
+            with (left if i % 2 == 0 else right):
+                current = answers.get(q['key'], 'Not sure')
+                new[q['key']] = st.selectbox(q['question'], YN_CHOICES,
+                    index=YN_CHOICES.index(current) if current in YN_CHOICES else 0,
+                    key='profile_' + q['key'])
+        st.markdown('**Scale** (leave 0 if you prefer not to say)')
+        cols = st.columns(len(nums))
+        for col, q in zip(cols, nums):
+            with col:
+                new[q['key']] = int(st.number_input(q['question'], min_value=0, step=1,
+                    value=int(answers.get(q['key']) or 0), key='profile_' + q['key']))
+        if st.form_submit_button('Save career profile', type='primary'):
+            st.session_state.profile_answers = new
             st.session_state.pop('career_matches', None)
             st.session_state.pop('search_results', None)
             st.session_state.pop('search_stats', None)
-            st.success('Verified responsibilities updated. Search again to refresh job matching.')
-    st.caption('Confirmed experience is based on your approval, not inferred from keywords. '
-               'It is not automatically added to your resume.')
+            st.success('Profile saved for this session. Search again to refresh job matches.')
+    st.caption('Nothing here is added to your resume automatically. Saved for this browser session only.')
+
+
+GRADE_NOTES = {
+    'Proven': 'work experience with numbers',
+    'Described': 'work experience, no numbers',
+    'Volunteer': 'board or volunteer work only',
+    'Summary': 'summary or skills list only',
+    'Confirmed': 'you confirmed it; resume does not show it',
+    'Overruled': 'you said No; matcher ignores the resume wording',
+    'Not shown': 'not in resume or profile',
+}
+
+
+def render_resume_interpretation(text):
+    """Graded reading of the resume: what is proven, implied, missing or overstated."""
+    report = interpret_resume(text, st.session_state.get('profile_answers'))
+    st.subheader('How your resume reads')
+    counts = Counter(row['grade'] for row in report['areas'])
+    a, b, c = st.columns(3)
+    a.metric('Proven with numbers', counts['Proven'])
+    b.metric('Described, no numbers', counts['Described'])
+    c.metric('Bullets with a number', f"{report['numbered_bullets']} of {report['work_bullets']}")
+    st.caption('Each skill area is graded by where it appears and whether a number backs it up. '
+               'Proven claims count fully in matching; summary-only claims count least.')
+    table = pd.DataFrame([{'Skill area': row['area'], 'Grade': row['grade'],
+                           'What that means': GRADE_NOTES[row['grade']],
+                           'Resume line': row['evidence']} for row in report['areas']])
+    st.dataframe(table, use_container_width=True, hide_index=True)
+    if report['prompts']:
+        with st.expander(f"What your resume leaves out ({len(report['prompts'])})", expanded=True):
+            for prompt in report['prompts']:
+                st.write('• ' + prompt)
+    if report['vague']:
+        with st.expander(f"Phrases that read as filler ({len(report['vague'])})"):
+            st.caption('Recruiters and keyword filters skip these. Replace them with what you did and how much.')
+            for item in report['vague']:
+                st.write(f"**{item['phrase']}** — {item['line']}")
 
 
 def get_career_matches(resume):
@@ -540,6 +609,12 @@ def role_classification(title):
     for pattern, category, score in ROLE_PATTERNS:
         if re.search(pattern, title or '', re.I):
             return category, score
+    # Adjacent roles where publisher experience transfers (sales, advertising,
+    # PIO, development, chamber/tourism, production...). Base score below the
+    # preset leadership titles; resume evidence decides the final order.
+    family = family_for_title(title)
+    if family:
+        return family['label'], 10
     return None
 
 
@@ -1286,11 +1361,13 @@ def score_job(job, resume, words='', qualification_profile=None):
 def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
                          max_per_employer=None, preferences=None,
                          listing_scope='Direct employers only (recommended)',
-                         confirmed=None, scoring_cache=None):
+                         confirmed=None, scoring_cache=None, excluded=()):
     from source_http import check_cancelled
     import hashlib,json
-    qualification_profile = compile_resume_profile(
-        resume, tuple(sorted(verified_competencies() if confirmed is None else confirmed)))
+    confirmed_areas = tuple(sorted(verified_competencies() if confirmed is None else confirmed))
+    exclusions = tuple(sorted(excluded or ()))
+    qualification_profile = (compile_resume_profile(resume, confirmed_areas, exclusions)
+                             if exclusions else compile_resume_profile(resume, confirmed_areas))
     unique={}
     excluded={'old':0,'undated':0,'eligibility':0,'irrelevant':0,
               'location':0,'employer_limit':0,'preferences':0,
@@ -1472,7 +1549,7 @@ def unlock_tracker_workspace(password):
 
 def search_fingerprint():
     return hashlib.sha256(json.dumps([MATCHING_ENGINE_VERSION,st.session_state.resume_text,
-        sorted(verified_competencies())]).encode()).hexdigest()
+        sorted(verified_competencies()),sorted(excluded_competencies())]).encode()).hexdigest()
 
 
 def run_search_task(task,settings):
@@ -1485,7 +1562,8 @@ def run_search_task(task,settings):
     def rank(raw):
         return filter_and_rank_jobs(raw,settings['code'],settings['work'],settings['query'],
             settings['resume'],settings['employer_cap'],settings['preferences'],
-            settings['listing_scope'],confirmed=settings['confirmed'],scoring_cache=cache)
+            settings['listing_scope'],confirmed=settings['confirmed'],scoring_cache=cache,
+            excluded=settings.get('excluded',()))
     def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None):
         matches,excluded=rank(raw)
         bulletin=dict(bulletin or {})
@@ -1663,6 +1741,8 @@ elif page == 'My Resume':
             undoc = sorted(evidence_profile['confirmed'] - set(evidence_profile['evidence']))
             if undoc:
                 st.write('**Confirmed separately, but not identified in resume:** ' + ', '.join(undoc))
+        render_resume_interpretation(text)
+        verification_editor()
         st.info('Next: go to Find Jobs and search again to see a qualification review for each opening.')
         st.subheader('Confirm your actual job titles')
         found = keyword_matches(text, TITLES)
@@ -1682,7 +1762,7 @@ elif page == 'Career Analysis':
     st.markdown(hero('Career Analysis','Publisher experience and transferable skills'),unsafe_allow_html=True)
     actual_title = st.text_input('Your actual position', value='Group Newspaper Publisher')
     st.caption('Your real job title stays separate from transferable job categories.')
-    verification_editor()
+    st.caption('Your career profile (on My Resume) decides which experience is confirmed or overruled.')
     with st.expander('Confirm additional qualifications not shown in your resume'):
         st.caption('These are optional self-confirmations, kept separate from the uploaded resume. Select only experience you can substantiate; they do not establish licenses, degrees or years of experience.')
         with st.form('additional_qualification_form'):
@@ -1716,10 +1796,9 @@ elif page == 'Career Analysis':
                     st.write('**Transferable area:**', item['transferable'])
             st.subheader('Confirmed experience not necessarily documented in the resume')
             documented_skills = {item['skill'] for item in analysis['documented']}
-            for duty in st.session_state.verified_duties:
-                area = VERIFICATION_AREAS[duty]
+            for area in sorted(verified_competencies()):
                 if area not in documented_skills:
-                    st.write('✓ ' + duty + ' — **confirmed by you; add supporting details to your resume**')
+                    st.write('✓ ' + area + ' — **confirmed in your profile; add supporting details to your resume**')
             st.subheader('Other publisher competencies to investigate')
             missing = [area for area in analysis['verify'] if area not in verified_competencies()]
             if missing:
@@ -1734,7 +1813,7 @@ elif page == 'Career Analysis':
             st.subheader('Draft wording for confirmed experience')
             st.caption('These are responsibility statements, not achievement claims. Add real scale, outcomes, and numbers only when accurate.')
             verified_drafts = []
-            for i, duty in enumerate(st.session_state.verified_duties):
+            for i, duty in enumerate(sorted(verified_competencies())):
                 proposed = st.text_area('Draft for: ' + duty,
                     value=duty.rstrip('.') + '.', key='verified_draft_' + str(i))
                 if st.checkbox('Approve verified responsibility ' + str(i + 1), key='verified_approve_' + str(i)) and proposed.strip():
@@ -1763,8 +1842,25 @@ elif page == 'Career Matches':
     else:
         st.write('**Actual career background:** ' + (', '.join(st.session_state.confirmed_titles) or 'Group Newspaper Publisher'))
         st.caption('Your real title is not changed to match another industry.')
-        st.write('**Confirmed responsibilities used in matching:**', len(st.session_state.verified_duties))
-        st.caption('Edit these on Career Analysis → Experience Verification.')
+        st.write('**Confirmed areas used in matching:**', len(verified_competencies()))
+        st.caption('Edit these in your career profile on My Resume.')
+        st.subheader('Where your experience transfers')
+        st.caption('Readiness = the share of each field\'s key skills you can show. Proven skills count fully, '
+                   'described or confirmed skills partly. Not a hiring probability.')
+        for fam in rank_families(resume_grades()):
+            with st.expander(f"{fam['label']} — {fam['score']}% ready", expanded=fam['score'] >= 75):
+                st.progress(fam['score'] / 100)
+                st.write(fam['why'])
+                if fam['strengths']:
+                    st.write('**You show:** ' + ', '.join(
+                        f"{x['area']} ({x['grade'].lower()})" for x in fam['strengths']))
+                weak = [x['area'] for x in fam['strengths'] if x['grade'] not in ('Proven',)]
+                if fam['gaps']:
+                    st.write('**Gaps for this field:** ' + ', '.join(x['area'] for x in fam['gaps']))
+                if weak:
+                    st.caption('Add numbers to: ' + ', '.join(weak[:3]) + ' to raise this score.')
+        st.caption('Use the Role family filter on Find Jobs to focus on any of these.')
+        st.divider()
         if st.button('Compare My Career Skills', type='primary'):
             st.session_state.career_matches = get_career_matches(st.session_state.resume_text)
         if 'career_matches' in st.session_state:
@@ -1784,7 +1880,7 @@ elif page == 'Career Matches':
                             if skill in r['evidence']:
                                 st.caption('Resume phrase: ' + ' | '.join(r['evidence'][skill][:2]))
                             if skill in r['verified']:
-                                st.caption('Confirmed by you: ' + '; '.join(d for d in st.session_state.verified_duties if VERIFICATION_AREAS[d] == skill))
+                                st.caption('Confirmed in your career profile')
                     else:
                         st.write('None from this starter competency list.')
                     st.write('**Responsibilities to confirm or document:**')
@@ -1870,6 +1966,7 @@ elif page == 'Find Jobs':
             }
             settings={'code':code,'work':chosen_work,'query':search_text,
                 'resume':st.session_state.resume_text,'confirmed':tuple(sorted(verified_competencies())),
+                'excluded':tuple(sorted(excluded_competencies())),
                 'employer_cap':3 if chosen_employer_scope.startswith('Compact') else None,
                 'preferences':preferences,'listing_scope':chosen_listing_scope,
                 'scope':chosen_state,'employer_scope':chosen_employer_scope,
@@ -1969,6 +2066,10 @@ elif page == 'Find Jobs':
                     'All career levels','Director / executive / publisher',
                     'Management / related roles','Other roles'
                 ],key='career_review_filter')
+            OTHER_FAMILY='Other matching roles'
+            family_view=st.multiselect('Role family',[*ROLE_FAMILY_LABELS,OTHER_FAMILY],
+                default=[*ROLE_FAMILY_LABELS,OTHER_FAMILY],key='role_family_filter',
+                help='Fields where publisher experience transfers. See Career Matches for your readiness in each.')
             description_view=st.checkbox('Show detailed descriptions only',
                 value=False,key='full_description_filter',
                 help='Shows provider posting details and official full bulletins. Excludes summaries, unverified RSS text and unknown provenance.')
@@ -1986,6 +2087,9 @@ elif page == 'Find Jobs':
                 if career_view!='All career levels' and career_review_category(job.get('title'))!=career_view:
                     return False
                 if description_view and not has_detailed_description(job):
+                    return False
+                family=family_for_title(job.get('title'))
+                if (family['label'] if family else OTHER_FAMILY) not in family_view:
                     return False
                 return True
             display_results=[job for job in all_results
@@ -2036,6 +2140,18 @@ elif page == 'Find Jobs':
                         qualification = job.get('qualification_match')
                         if qualification and qualification['resume_present']:
                             st.caption('**Resume alignment:** ' + qualification['label'])
+                            transfer=explain_job(job['title'],qualification,True)
+                            parts=[]
+                            if transfer['family']:
+                                parts.append(transfer['family'])
+                            if transfer['transfers']:
+                                parts.append('you show '+', '.join(a.lower() for a in transfer['transfers']))
+                            if transfer['confirmed']:
+                                parts.append('confirmed by you: '+', '.join(a.lower() for a in transfer['confirmed']))
+                            if transfer['gaps']:
+                                parts.append('gaps: '+', '.join(a.lower() for a in transfer['gaps']))
+                            if parts:
+                                st.caption('**Why it transfers:** '+' · '.join(parts))
                             with st.expander('Match details'):
                                 if qualification.get('ranking_overlap_relief',0):
                                     st.caption('Overlapping experience cautions counted once · '
