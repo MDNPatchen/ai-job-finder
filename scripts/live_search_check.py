@@ -53,4 +53,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:  # report the reason as an annotation, then fail
+        import traceback
+        tail = traceback.format_exc().strip().splitlines()[-8:]
+        print('::error title=live search crashed::' + '%0A'.join(x.replace('%', '%25') for x in tail)[:3500])
+        sys.exit(1)
