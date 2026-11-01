@@ -1,0 +1,469 @@
+{
+  "about": "Employers to look for on Workday. scripts/discover_workday.py reads this list; boards already in job_sources.json are skipped.",
+  "candidates": [
+    {
+      "name": "Aspirus Health",
+      "pages": [
+        "https://www.aspirus.org/careers"
+      ],
+      "tenants": [
+        "aspirus"
+      ]
+    },
+    {
+      "name": "UnityPoint Health",
+      "pages": [
+        "https://www.unitypoint.org/careers"
+      ],
+      "tenants": [
+        "unitypoint"
+      ]
+    },
+    {
+      "name": "Intermountain Health",
+      "pages": [
+        "https://intermountainhealthcare.org/careers"
+      ],
+      "tenants": [
+        "imh",
+        "intermountain"
+      ]
+    },
+    {
+      "name": "Logan Health",
+      "pages": [
+        "https://www.logan.org/careers"
+      ],
+      "tenants": [
+        "loganhealth"
+      ]
+    },
+    {
+      "name": "Benefis Health System",
+      "pages": [
+        "https://www.benefis.org/careers"
+      ],
+      "tenants": [
+        "benefis"
+      ]
+    },
+    {
+      "name": "North Memorial Health",
+      "pages": [
+        "https://northmemorial.com/careers/"
+      ],
+      "tenants": [
+        "northmemorial"
+      ]
+    },
+    {
+      "name": "Hennepin Healthcare",
+      "pages": [
+        "https://www.hennepinhealthcare.org/careers/"
+      ],
+      "tenants": [
+        "hennepinhealthcare"
+      ]
+    },
+    {
+      "name": "Children's Minnesota",
+      "pages": [
+        "https://www.childrensmn.org/careers/"
+      ],
+      "tenants": [
+        "childrensmn"
+      ]
+    },
+    {
+      "name": "Gundersen / Emplify Health",
+      "pages": [
+        "https://www.gundersenhealth.org/careers"
+      ],
+      "tenants": [
+        "gundersenhealth",
+        "emplifyhealth"
+      ]
+    },
+    {
+      "name": "Froedtert ThedaCare Health",
+      "pages": [
+        "https://www.froedtert.com/careers"
+      ],
+      "tenants": [
+        "froedtert"
+      ]
+    },
+    {
+      "name": "Advocate Health",
+      "pages": [
+        "https://www.advocatehealth.com/careers"
+      ],
+      "tenants": [
+        "advocatehealth",
+        "aah"
+      ]
+    },
+    {
+      "name": "CommonSpirit Health (CHI St. Alexius)",
+      "pages": [
+        "https://www.commonspirit.careers/"
+      ],
+      "tenants": [
+        "commonspirit",
+        "chi"
+      ]
+    },
+    {
+      "name": "Trinity Health (MercyOne)",
+      "pages": [
+        "https://jobs.trinity-health.org/"
+      ],
+      "tenants": [
+        "trinityhealth"
+      ]
+    },
+    {
+      "name": "Iowa State University",
+      "pages": [
+        "https://www.hr.iastate.edu/careers"
+      ],
+      "tenants": [
+        "iastate"
+      ]
+    },
+    {
+      "name": "University of Iowa",
+      "pages": [
+        "https://jobs.uiowa.edu/"
+      ],
+      "tenants": [
+        "uiowa"
+      ]
+    },
+    {
+      "name": "Minnesota State",
+      "pages": [
+        "https://www.minnstate.edu/system/working/"
+      ],
+      "tenants": [
+        "minnstate"
+      ]
+    },
+    {
+      "name": "University of St. Thomas",
+      "pages": [
+        "https://www.stthomas.edu/hr/careers/"
+      ],
+      "tenants": [
+        "stthomas"
+      ]
+    },
+    {
+      "name": "NorthWestern Energy",
+      "pages": [
+        "https://www.northwesternenergy.com/about-us/careers"
+      ],
+      "tenants": [
+        "northwesternenergy",
+        "nwe"
+      ]
+    },
+    {
+      "name": "Black Hills Energy",
+      "pages": [
+        "https://www.blackhillsenergy.com/careers"
+      ],
+      "tenants": [
+        "blackhillscorp",
+        "blackhills"
+      ]
+    },
+    {
+      "name": "Alliant Energy",
+      "pages": [
+        "https://www.alliantenergy.com/careers"
+      ],
+      "tenants": [
+        "alliantenergy"
+      ]
+    },
+    {
+      "name": "ALLETE / Minnesota Power",
+      "pages": [
+        "https://www.allete.com/Careers"
+      ],
+      "tenants": [
+        "allete"
+      ]
+    },
+    {
+      "name": "MidAmerican Energy",
+      "pages": [
+        "https://www.midamericanenergy.com/careers"
+      ],
+      "tenants": [
+        "bhe",
+        "midamerican"
+      ]
+    },
+    {
+      "name": "Marathon Petroleum",
+      "pages": [
+        "https://www.marathonpetroleum.com/Careers/"
+      ],
+      "tenants": [
+        "mpc"
+      ]
+    },
+    {
+      "name": "Enbridge",
+      "pages": [
+        "https://www.enbridge.com/careers"
+      ],
+      "tenants": [
+        "enbridge"
+      ]
+    },
+    {
+      "name": "ONEOK",
+      "pages": [
+        "https://www.oneok.com/careers"
+      ],
+      "tenants": [
+        "oneok"
+      ]
+    },
+    {
+      "name": "American Crystal Sugar",
+      "pages": [
+        "https://www.crystalsugar.com/careers/"
+      ],
+      "tenants": [
+        "crystalsugar"
+      ]
+    },
+    {
+      "name": "Bobcat Company",
+      "pages": [
+        "https://www.bobcat.com/na/en/company/careers"
+      ],
+      "tenants": [
+        "bobcat",
+        "doosanbobcat"
+      ]
+    },
+    {
+      "name": "John Deere",
+      "pages": [
+        "https://www.deere.com/en/our-company/john-deere-careers/"
+      ],
+      "tenants": [
+        "johndeere"
+      ]
+    },
+    {
+      "name": "Pella Corporation",
+      "pages": [
+        "https://www.pella.com/careers/"
+      ],
+      "tenants": [
+        "pella"
+      ]
+    },
+    {
+      "name": "Vermeer",
+      "pages": [
+        "https://www.vermeer.com/na/company/careers"
+      ],
+      "tenants": [
+        "vermeer"
+      ]
+    },
+    {
+      "name": "Hy-Vee",
+      "pages": [
+        "https://www.hy-vee.com/corporate/careers/"
+      ],
+      "tenants": [
+        "hyvee"
+      ]
+    },
+    {
+      "name": "Casey's",
+      "pages": [
+        "https://www.caseys.com/careers"
+      ],
+      "tenants": [
+        "caseys"
+      ]
+    },
+    {
+      "name": "Principal Financial Group",
+      "pages": [
+        "https://www.principal.com/about-us/careers"
+      ],
+      "tenants": [
+        "principal"
+      ]
+    },
+    {
+      "name": "Wellmark Blue Cross Blue Shield",
+      "pages": [
+        "https://www.wellmark.com/about/careers"
+      ],
+      "tenants": [
+        "wellmark"
+      ]
+    },
+    {
+      "name": "Blue Cross Blue Shield of North Dakota",
+      "pages": [
+        "https://www.bcbsnd.com/about-us/careers"
+      ],
+      "tenants": [
+        "bcbsnd"
+      ]
+    },
+    {
+      "name": "Medica",
+      "pages": [
+        "https://www.medica.com/careers"
+      ],
+      "tenants": [
+        "medica"
+      ]
+    },
+    {
+      "name": "Securian Financial",
+      "pages": [
+        "https://www.securian.com/about-us/careers.html"
+      ],
+      "tenants": [
+        "securian"
+      ]
+    },
+    {
+      "name": "Mutual of Omaha",
+      "pages": [
+        "https://www.mutualofomaha.com/careers"
+      ],
+      "tenants": [
+        "mutualofomaha"
+      ]
+    },
+    {
+      "name": "First Interstate Bank",
+      "pages": [
+        "https://www.firstinterstatebank.com/company/careers/"
+      ],
+      "tenants": [
+        "fibk",
+        "firstinterstate"
+      ]
+    },
+    {
+      "name": "Alerus",
+      "pages": [
+        "https://www.alerus.com/about/careers/"
+      ],
+      "tenants": [
+        "alerus"
+      ]
+    },
+    {
+      "name": "Farm Credit Services of America",
+      "pages": [
+        "https://www.fcsamerica.com/about/careers"
+      ],
+      "tenants": [
+        "fcsamerica"
+      ]
+    },
+    {
+      "name": "Compeer Financial",
+      "pages": [
+        "https://www.compeer.com/careers"
+      ],
+      "tenants": [
+        "compeer"
+      ]
+    },
+    {
+      "name": "AgCountry Farm Credit",
+      "pages": [
+        "https://www.agcountry.com/careers"
+      ],
+      "tenants": [
+        "agcountry"
+      ]
+    },
+    {
+      "name": "E.W. Scripps",
+      "pages": [
+        "https://scripps.com/careers/"
+      ],
+      "tenants": [
+        "scripps"
+      ]
+    },
+    {
+      "name": "TEGNA",
+      "pages": [
+        "https://www.tegna.com/careers/"
+      ],
+      "tenants": [
+        "tegna"
+      ]
+    },
+    {
+      "name": "iHeartMedia",
+      "pages": [
+        "https://www.iheartmedia.com/careers"
+      ],
+      "tenants": [
+        "iheartmedia"
+      ]
+    },
+    {
+      "name": "Cumulus Media",
+      "pages": [
+        "https://www.cumulusmedia.com/careers/"
+      ],
+      "tenants": [
+        "cumulus"
+      ]
+    },
+    {
+      "name": "Lutheran Social Services of North Dakota",
+      "pages": [
+        "https://www.lssnd.org/careers"
+      ],
+      "tenants": [
+        "lssnd"
+      ]
+    },
+    {
+      "name": "Habitat for Humanity International",
+      "pages": [
+        "https://www.habitat.org/about/careers"
+      ],
+      "tenants": [
+        "habitat"
+      ]
+    },
+    {
+      "name": "Easterseals",
+      "pages": [
+        "https://www.easterseals.com/about-us/careers/"
+      ],
+      "tenants": [
+        "easterseals"
+      ]
+    }
+  ],
+  "checked_not_found": [
+    "Children's Minnesota (careers link pointed to Ensemble Health Partners)",
+    "E.W. Scripps (only a 4-job ongoing-opportunities board found)",
+    "Hy-Vee (only a D&D Foods subsidiary board found)"
+  ]
+}

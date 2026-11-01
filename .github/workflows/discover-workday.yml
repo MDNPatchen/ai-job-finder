@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "scripts/discover_workday.py"
+      - "scripts/workday_candidates.json"
 permissions:
   contents: read
 jobs:

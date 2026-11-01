@@ -8,6 +8,7 @@ employer and as compact GitHub notices.
 import json
 import re
 import sys
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -15,59 +16,19 @@ from urllib.request import Request, urlopen
 UA = {'User-Agent': 'Mozilla/5.0 (AIJobFinder source discovery; personal career research)'}
 LINK = re.compile(r'https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([A-Za-z0-9_-]+)', re.I)
 
-CANDIDATES = [
-    # name, careers pages to scan, tenant guesses
-    ('Avera Health', [], ['avera']),
-    ('Sanford Health', ['https://www.sanfordhealth.org/careers', 'https://careers.sanfordhealth.org/'], ['sanfordhealth', 'sanford']),
-    ('Essentia Health', ['https://www.essentiacareers.org/'], ['essentiahealth', 'essentia']),
-    ('Trinity Health (Minot)', ['https://www.trinityhealth.org/careers/'], ['trinityhealthnd']),
-    ('Altru Health System', ['https://www.altru.org/careers'], ['altru']),
-    ('Monument Health', ['https://monument.health/careers/'], ['monumenthealth', 'monument']),
-    ('Billings Clinic', ['https://www.billingsclinic.com/careers/'], ['billingsclinic']),
-    ('Bozeman Health', ['https://bozemanhealth.org/careers'], ['bozemanhealth']),
-    ('CentraCare', ['https://www.centracare.com/careers/'], ['centracare']),
-    ('Allina Health', ['https://www.allinahealth.org/careers'], ['allina', 'allinahealth']),
-    ('Fairview Health Services', ['https://www.fairview.org/careers'], ['fairview']),
-    ('HealthPartners', ['https://www.healthpartners.com/careers/'], ['healthpartners']),
-    ('Marshfield Clinic Health System', ['https://www.marshfieldclinic.org/careers'], ['marshfieldclinic']),
-    ('Xcel Energy', ['https://careers.xcelenergy.com/'], ['xcelenergy']),
-    ('Otter Tail Corporation', ['https://www.ottertail.com/careers'], ['ottertail']),
-    ('Great River Energy', ['https://greatriverenergy.com/careers/'], ['greatriverenergy']),
-    ('Minnkota Power Cooperative', ['https://www.minnkota.com/careers/'], ['minnkota']),
-    ('Bell Bank', ['https://www.bell.bank/careers'], ['bellbank']),
-    ('Gate City Bank', ['https://www.gatecity.bank/careers/'], ['gatecitybank']),
-    ('Bremer Bank', ['https://www.bremer.com/careers'], ['bremer']),
-    ('Thrivent', ['https://www.thrivent.com/about-us/careers'], ['thrivent']),
-    ('U.S. Bank', [], ['usbank']),
-    ('Wells Fargo', [], ['wf']),
-    ('3M', [], ['3m']),
-    ('Target', [], ['target']),
-    ('General Mills', ['https://careers.generalmills.com/'], ['generalmills']),
-    ('Hormel Foods', ['https://www.hormelfoods.com/careers/'], ['hormel', 'hormelfoods']),
-    ('CHS Inc.', ['https://www.chsinc.com/careers'], ['chsinc', 'chs']),
-    ("Land O'Lakes", ['https://careers.landolakesinc.com/'], ['landolakes']),
-    ('Polaris', ['https://www.polaris.com/en-us/careers/'], ['polaris']),
-    ('Ecolab', [], ['ecolab']),
-    ('Ameriprise Financial', [], ['ameriprise']),
-    ('Gannett', ['https://www.gannett.com/careers/'], ['gannett']),
-    ('Lee Enterprises', ['https://lee.net/careers/'], ['lee', 'leeenterprises']),
-    ('Gray Media', ['https://gray.tv/careers'], ['gray', 'graytv', 'graymedia']),
-    ('Nexstar Media Group', ['https://www.nexstar.tv/careers/'], ['nexstar']),
-    ('Sinclair', ['https://sbgi.net/careers/'], ['sbgi', 'sinclair']),
-    ('Hearst', ['https://www.hearst.com/careers'], ['hearst']),
-    ('Forum Communications', ['https://www.forumcomm.com/careers'], ['forumcomm']),
-    ('Townsquare Media', ['https://www.townsquaremedia.com/careers'], ['townsquaremedia']),
-    ('Graham Media Group', ['https://www.grahammedia.com/careers/'], ['grahammedia']),
-    ('University of Wyoming', ['https://www.uwyo.edu/hr/prospective/'], ['uwyo']),
-    ('University of Montana', ['https://www.umt.edu/jobs/'], ['umt']),
-    ('Montana State University', ['https://www.montana.edu/jobs/'], ['montanastate']),
-    ('South Dakota State University', ['https://www.sdstate.edu/human-resources/jobs'], ['sdstate']),
-    ('University of Minnesota', ['https://hr.umn.edu/Jobs'], ['umn']),
-    ('American Red Cross', ['https://www.redcross.org/about-us/careers.html'], ['redcross']),
-    ('Boys & Girls Clubs of America', ['https://www.bgca.org/about-us/careers'], ['bgca']),
-    ('YMCA of the North', ['https://www.ymcanorth.org/careers'], ['ymcanorth']),
-    ('Goodwill-Easter Seals Minnesota', ['https://www.goodwilleasterseals.org/careers'], ['goodwilleasterseals']),
-]
+def load_candidates():
+    """Candidates from scripts/workday_candidates.json, minus tenants already cataloged."""
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / 'scripts' / 'workday_candidates.json').read_text(encoding='utf-8'))
+    known = {e['id'].lower() for e in json.loads((root / 'job_sources.json').read_text(encoding='utf-8')).get('workday', [])}
+    out = []
+    for c in data['candidates']:
+        if any(t.lower() in known for t in c['tenants']):
+            continue
+        out.append((c['name'], c.get('pages', []), c['tenants']))
+    return out
+
+
 WD = ('wd1', 'wd5', 'wd3', 'wd12', 'wd501', 'wd503', 'wd108', 'wd10')
 
 
@@ -127,7 +88,7 @@ def discover(candidate):
 
 def main():
     with ThreadPoolExecutor(max_workers=8) as pool:
-        results = list(pool.map(discover, CANDIDATES))
+        results = list(pool.map(discover, load_candidates()))
     lines = []
     for name, hits, how, links in results:
         if hits:

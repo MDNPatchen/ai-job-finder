@@ -1356,6 +1356,94 @@
       "site": "American_Red_Cross_Careers",
       "career_page": "https://americanredcross.wd1.myworkdayjobs.com/American_Red_Cross_Careers",
       "verified": "2026-11-01"
+    },
+    {
+      "id": "imh",
+      "name": "Intermountain Health",
+      "wd": "wd108",
+      "site": "IntermountainCareers",
+      "career_page": "https://imh.wd108.myworkdayjobs.com/IntermountainCareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "loganhealth",
+      "name": "Logan Health",
+      "wd": "wd1",
+      "site": "Logan_Careers",
+      "career_page": "https://loganhealth.wd1.myworkdayjobs.com/Logan_Careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "aah",
+      "name": "Advocate Health",
+      "wd": "wd5",
+      "site": "External",
+      "career_page": "https://aah.wd5.myworkdayjobs.com/External",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "trinityhealth",
+      "name": "Trinity Health (MercyOne)",
+      "wd": "wd1",
+      "site": "jobs",
+      "career_page": "https://trinityhealth.wd1.myworkdayjobs.com/jobs",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "minnstate",
+      "name": "Minnesota State Colleges and Universities",
+      "wd": "wd115",
+      "site": "Minnesota_State_Careers",
+      "career_page": "https://minnstate.wd115.myworkdayjobs.com/Minnesota_State_Careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "mpc",
+      "name": "Marathon Petroleum",
+      "wd": "wd1",
+      "site": "mpccareers",
+      "career_page": "https://mpc.wd1.myworkdayjobs.com/mpccareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "enbridge",
+      "name": "Enbridge",
+      "wd": "wd3",
+      "site": "Enbridge_Careers",
+      "career_page": "https://enbridge.wd3.myworkdayjobs.com/Enbridge_Careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "oneok",
+      "name": "ONEOK",
+      "wd": "wd1",
+      "site": "ONEOK",
+      "career_page": "https://oneok.wd1.myworkdayjobs.com/ONEOK",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "crystalsugar",
+      "name": "American Crystal Sugar",
+      "wd": "wd501",
+      "site": "crystalcareers",
+      "career_page": "https://crystalsugar.wd501.myworkdayjobs.com/crystalcareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "iheartmedia",
+      "name": "iHeartMedia",
+      "wd": "wd5",
+      "site": "External_iHM",
+      "career_page": "https://iheartmedia.wd5.myworkdayjobs.com/External_iHM",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "habitat",
+      "name": "Habitat for Humanity International",
+      "wd": "wd12",
+      "site": "External",
+      "career_page": "https://habitat.wd12.myworkdayjobs.com/External",
+      "verified": "2026-11-01"
     }
   ]
 }
