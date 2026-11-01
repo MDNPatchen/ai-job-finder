@@ -130,5 +130,35 @@ class PaginationTests(unittest.TestCase):
         self.assertNotIn('search_page', ast.unparse(func))
 
 
+class DefaultSortTests(unittest.TestCase):
+    def test_default_sort_is_highest_fit_first(self):
+        tree = ast.parse(APP)
+        options = None
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == 'selectbox'
+                    and any(k.arg == 'key' and getattr(k.value, 'value', None) == 'review_order'
+                            for k in node.keywords)):
+                options = ast.literal_eval(node.args[1])
+        self.assertIsNotNone(options)
+        self.assertEqual(options[0], 'Highest fit index')
+
+    def test_highest_fit_order_is_descending_by_displayed_score(self):
+        from career_priority import order_for_review
+
+        def job(title, fit, detailed=True):
+            return {'title': title, 'company': 'X', 'date': '2026-10-20', 'rank': 10,
+                    'description': ('Lead teams, budgets and operations. ' * 40) if detailed else 'Short.',
+                    'description_source': 'Employer posting' if detailed else 'RSS summary',
+                    'qualification_match': {'resume_present': True, 'fit_index': fit,
+                                            'resume_matches': [], 'confirmed_only': []}}
+
+        jobs = [job('Program Coordinator', 70), job('Regional Director', 80, detailed=False),
+                job('Operations Manager', 88), job('Director of Operations', 74)]
+        shown = [evidence_index(j['qualification_match'])
+                 for j in order_for_review(jobs, 'Highest fit index')]
+        self.assertEqual(shown, [88, 80, 74, 70])
+
+
 if __name__ == '__main__':
     unittest.main()
