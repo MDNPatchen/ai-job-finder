@@ -1671,6 +1671,12 @@ elif page == 'Find Jobs':
                     'f_exclude':state_names,'f_seniority':SENIORITY_OPTIONS}
     st.markdown('<div class="job-module-heading">Search filters</div>',unsafe_allow_html=True)
     saved_list=st.session_state.get('saved_searches') or []
+    notice=st.session_state.pop('saved_search_notice',None)
+    if notice:
+        st.success(notice)
+    if 'saved_search_select' in st.session_state:
+        # Select the search just saved; set before the picker is drawn.
+        st.session_state.saved_search_pick=st.session_state.pop('saved_search_select')
     if saved_list:
         pick_col,run_col,del_col=st.columns([3,1,1],vertical_alignment='bottom')
         with pick_col:
@@ -1732,8 +1738,11 @@ elif page == 'Find Jobs':
                 st.session_state.get('saved_searches') or [],save_name,
                 saved_searches.capture(st.session_state))
             stored=persist_tracker_if_unlocked()
-            st.success(f'Saved "{save_name.strip()}"'+(' to your cloud tracker.' if stored else
-                       ' for this session. Unlock the Job Tracker to keep it.'))
+            st.session_state.saved_search_notice=(f'Saved "{save_name.strip()}"'+(
+                ' to your cloud tracker.' if stored else
+                ' for this session. Unlock the Job Tracker to keep it.'))
+            st.session_state.saved_search_select=st.session_state.saved_searches[0]['name']
+            st.rerun()  # redraw so the new search appears in the Saved searches menu
         except ValueError as exc:
             st.warning(str(exc))
     if st.session_state.pop('run_saved_search',False):
