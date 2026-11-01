@@ -1227,5 +1227,135 @@
       "career_page": "https://jobs.mayoclinic.org/search-jobs",
       "note": "Public listings and detail-page reader, not an official unrestricted jobs API."
     }
+  ],
+  "workday": [
+    {
+      "id": "avera",
+      "name": "Avera Health",
+      "wd": "wd5",
+      "site": "avera-careers",
+      "career_page": "https://avera.wd5.myworkdayjobs.com/avera-careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "sanford",
+      "name": "Sanford Health",
+      "wd": "wd5",
+      "site": "SanfordHealth",
+      "career_page": "https://sanford.wd5.myworkdayjobs.com/SanfordHealth",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "essentiahealth",
+      "name": "Essentia Health",
+      "wd": "wd1",
+      "site": "Essentia_Health",
+      "career_page": "https://essentiahealth.wd1.myworkdayjobs.com/Essentia_Health",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "altru",
+      "name": "Altru Health System",
+      "wd": "wd503",
+      "site": "careers",
+      "career_page": "https://altru.wd503.myworkdayjobs.com/careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "monumenthealth",
+      "name": "Monument Health",
+      "wd": "wd1",
+      "site": "Goldcareers",
+      "career_page": "https://monumenthealth.wd1.myworkdayjobs.com/Goldcareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "allina",
+      "name": "Allina Health",
+      "wd": "wd5",
+      "site": "External",
+      "career_page": "https://allina.wd5.myworkdayjobs.com/External",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "xcelenergy",
+      "name": "Xcel Energy",
+      "wd": "wd1",
+      "site": "External",
+      "career_page": "https://xcelenergy.wd1.myworkdayjobs.com/External",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "gatecitybank",
+      "name": "Gate City Bank",
+      "wd": "wd5",
+      "site": "gatecitybankcareers",
+      "career_page": "https://gatecitybank.wd5.myworkdayjobs.com/gatecitybankcareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "thrivent",
+      "name": "Thrivent",
+      "wd": "wd5",
+      "site": "External",
+      "career_page": "https://thrivent.wd5.myworkdayjobs.com/External",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "3m",
+      "name": "3M",
+      "wd": "wd1",
+      "site": "Search",
+      "career_page": "https://3m.wd1.myworkdayjobs.com/Search",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "target",
+      "name": "Target",
+      "wd": "wd5",
+      "site": "targetcareers",
+      "career_page": "https://target.wd5.myworkdayjobs.com/targetcareers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "genmills",
+      "name": "General Mills",
+      "wd": "wd1",
+      "site": "GMI_External_Careers",
+      "career_page": "https://genmills.wd1.myworkdayjobs.com/GMI_External_Careers",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "landolakes",
+      "name": "Land O'Lakes",
+      "wd": "wd1",
+      "site": "LandOLakes",
+      "career_page": "https://landolakes.wd1.myworkdayjobs.com/LandOLakes",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "ameriprise",
+      "name": "Ameriprise Financial",
+      "wd": "wd5",
+      "site": "ameriprise",
+      "career_page": "https://ameriprise.wd5.myworkdayjobs.com/ameriprise",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "nexstar",
+      "name": "Nexstar Media Group",
+      "wd": "wd5",
+      "site": "nexstar",
+      "career_page": "https://nexstar.wd5.myworkdayjobs.com/nexstar",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "americanredcross",
+      "name": "American Red Cross",
+      "wd": "wd1",
+      "site": "American_Red_Cross_Careers",
+      "career_page": "https://americanredcross.wd1.myworkdayjobs.com/American_Red_Cross_Careers",
+      "verified": "2026-11-01"
+    }
   ]
 }
