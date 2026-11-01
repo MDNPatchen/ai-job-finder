@@ -2,6 +2,7 @@
 
 Synthetic resume only: no real person's data belongs in this public repo.
 """
+from app_sources import app_source
 import ast
 import re
 import unittest
@@ -174,7 +175,7 @@ class RoleClassificationTests(unittest.TestCase):
     """The app admits adjacent family titles but still excludes specialists."""
     @classmethod
     def setUpClass(cls):
-        tree = ast.parse(Path(__file__).with_name('app.py').read_text(encoding='utf-8'))
+        tree = ast.parse(app_source())
         wanted = {'role_classification', 'ROLE_PATTERNS', 'SPECIALIST_EXCLUSIONS'}
         body = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted) or
                 (isinstance(n, ast.Assign) and any(getattr(t, 'id', None) in wanted for t in n.targets))]

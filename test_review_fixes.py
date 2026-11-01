@@ -1,4 +1,5 @@
 """Regressions for the October 2026 code review fixes."""
+from app_sources import app_source
 import ast
 import io
 import json
@@ -14,7 +15,7 @@ from source_http import fetch_json
 from tracker_store import UnlockThrottle, make_workspace
 from workspace_merge import merge_workspaces
 
-APP = Path(__file__).with_name('app.py').read_text(encoding='utf-8')
+APP = app_source()
 
 
 def app_function(name, env):

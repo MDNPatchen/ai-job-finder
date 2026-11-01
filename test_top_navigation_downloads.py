@@ -2,6 +2,7 @@
 
 Matching logic must not change as a side effect of the redesign.
 """
+from app_sources import app_source
 import ast
 import csv
 import io
@@ -17,7 +18,7 @@ from ui_theme import APP_CSS,brand,listing_head
 class NavigationAndDownloadsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source=Path(__file__).with_name("app.py").read_text()
+        cls.source=app_source()
         cls.tree=ast.parse(cls.source)
         cls.functions={n.name:n for n in cls.tree.body
                        if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}

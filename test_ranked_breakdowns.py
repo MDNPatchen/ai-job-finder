@@ -1,4 +1,5 @@
 """Offline tests for ranked resume evidence and full downloadable breakdowns."""
+from app_sources import app_source
 import ast
 import copy
 from collections import Counter
@@ -43,7 +44,7 @@ def make_job(title="Operations Director", documented=0, confirmed=0, total=5,
 
 
 def extracted_filter():
-    code=Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+    code=app_source()
     tree=ast.parse(code)
     target=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
                 and n.name=="filter_and_rank_jobs")

@@ -7,8 +7,9 @@ import unittest
 from career_priority import career_sort_key
 
 
-APP_PATH = Path(__file__).with_name("app.py")
-TREE = ast.parse(APP_PATH.read_text(encoding="utf-8"))
+from app_sources import app_source
+APP_PATH = Path(__file__).with_name("app_core.py")
+TREE = ast.parse(app_source())
 
 
 def isolated_function(name, globals_):
