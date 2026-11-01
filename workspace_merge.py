@@ -29,12 +29,16 @@ def merge_profile(base, local, remote):
     """
     from career_profile import LEGACY_DEFAULT_ANSWERS
     out = {}
-    for field, untouched in (('answers', ({}, LEGACY_DEFAULT_ANSWERS)), ('resume_text', ('',))):
-        b, l, r = ((p or {}).get(field) or ({} if field == 'answers' else '') for p in (base, local, remote))
+    empty = {'answers': {}, 'resume_text': '', 'saved_searches': []}
+    for field, untouched in (('answers', ({}, LEGACY_DEFAULT_ANSWERS)), ('resume_text', ('',)),
+                             ('saved_searches', ([],))):
+        b, l, r = ((p or {}).get(field) or empty[field] for p in (base, local, remote))
         if l == b or l in untouched:
-            out[field] = deepcopy(r or l)
+            value = r or l
         else:
-            out[field] = deepcopy(l)
+            value = l
+        if value or field != 'saved_searches':
+            out[field] = deepcopy(value)
     return out
 
 

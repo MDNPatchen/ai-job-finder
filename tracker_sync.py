@@ -10,7 +10,8 @@ def snapshot(state):
     return store.make_workspace(state.get('jobs',[]),state.get('seen_jobs',[]),
         state.get('search_baseline',False),state.get('employer_checks',{}),
         {'answers':state.get('profile_answers') or {},
-         'resume_text':(state.get('resume_text') or '') if state.get('save_resume_with_tracker') else ''})
+         'resume_text':(state.get('resume_text') or '') if state.get('save_resume_with_tracker') else '',
+         'saved_searches':state.get('saved_searches') or []})
 
 
 def apply_workspace(state,data):
@@ -28,6 +29,8 @@ def apply_workspace(state,data):
     profile=data.get('profile') or {}
     if profile.get('answers'):
         state['profile_answers']=dict(profile['answers'])
+    if profile.get('saved_searches'):
+        state['saved_searches']=deepcopy(profile['saved_searches'])
     if profile.get('resume_text'):
         state['save_resume_with_tracker']=True  # it was saved because they opted in
     if profile.get('resume_text') and profile['resume_text']!=state.get('resume_text'):
