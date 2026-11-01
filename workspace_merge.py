@@ -20,6 +20,24 @@ def keyed_rows(rows):
     return keyed
 
 
+def merge_profile(base, local, remote):
+    """Career profile and resume: take whichever side changed.
+
+    A session that still holds the pre-filled default answers (or no resume)
+    has not changed anything, so the saved copy wins; if both sides changed,
+    this session's latest edit wins.
+    """
+    from career_profile import LEGACY_DEFAULT_ANSWERS
+    out = {}
+    for field, untouched in (('answers', ({}, LEGACY_DEFAULT_ANSWERS)), ('resume_text', ('',))):
+        b, l, r = ((p or {}).get(field) or ({} if field == 'answers' else '') for p in (base, local, remote))
+        if l == b or l in untouched:
+            out[field] = deepcopy(r or l)
+        else:
+            out[field] = deepcopy(l)
+    return out
+
+
 def merge_workspaces(base, local, remote):
     """Conflicts are explicit; never choose silently between competing edits."""
     conflicts=[]
@@ -40,4 +58,5 @@ def merge_workspaces(base, local, remote):
     return {'jobs':list(jobs.values()),'job_keys':list(jobs),
             'seen':list(dict.fromkeys(remote.get('seen',[])+local.get('seen',[])))[-25000:],
             'has_baseline':bool(local.get('has_baseline') or remote.get('has_baseline')),
-            'employer_evidence':evidence}, conflicts
+            'employer_evidence':evidence,
+            'profile':merge_profile(base.get('profile'), local.get('profile'), remote.get('profile'))}, conflicts

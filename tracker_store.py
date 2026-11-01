@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from io import StringIO
 import hmac
 import json
+import re
 from threading import Lock
 from time import monotonic
 from urllib.parse import urlsplit
@@ -106,15 +107,50 @@ def clean_evidence(evidence):
     return evidence
 
 
-def make_workspace(jobs=None,seen=None,has_baseline=False,employer_evidence=None):
+MAX_RESUME_CHARS=60000
+
+
+def clean_profile(profile):
+    """Career profile answers (and, if opted in, resume text) saved with the tracker.
+
+    Answers are short strings (Yes/Partly/No/Not sure) or whole numbers.
+    Unknown or malformed answers are dropped rather than failing a restore.
+    """
+    profile=profile or {}
+    if not isinstance(profile,dict):
+        raise ValueError('Career profile must be an object')
+    answers=profile.get('answers') or {}
+    if not isinstance(answers,dict) or len(answers)>60:
+        raise ValueError('Invalid career profile answers')
+    clean={}
+    for key,value in answers.items():
+        if not isinstance(key,str) or not re.fullmatch(r'[a-z_]{1,40}',key) or isinstance(value,bool):
+            continue
+        if isinstance(value,(int,float)) and 0<=value<=10**12:
+            clean[key]=int(value)
+        elif isinstance(value,str) and 0<len(value)<=20:
+            clean[key]=value
+    resume=profile.get('resume_text') or ''
+    if not isinstance(resume,str):
+        raise ValueError('Resume text must be text')
+    out={'answers':clean}
+    # Resume text is saved only when the person opts in; otherwise the key is
+    # absent so backups contain no resume at all.
+    if resume.strip():
+        out['resume_text']=resume[:MAX_RESUME_CHARS]
+    return out
+
+
+def make_workspace(jobs=None,seen=None,has_baseline=False,employer_evidence=None,profile=None):
     return {'schema_version':2,'jobs':_normalize_jobs(list(jobs or [])),
             'seen':clean_seen(list(seen or [])),
             'has_baseline':bool(has_baseline),
-            'employer_evidence':clean_evidence(employer_evidence or {})}
+            'employer_evidence':clean_evidence(employer_evidence or {}),
+            'profile':clean_profile(profile)}
 
 
-def export_workspace_json(jobs,seen,has_baseline,employer_evidence=None):
-    payload=make_workspace(jobs,seen,has_baseline,employer_evidence)
+def export_workspace_json(jobs,seen,has_baseline,employer_evidence=None,profile=None):
+    payload=make_workspace(jobs,seen,has_baseline,employer_evidence,profile)
     payload['integrity_sha256']=workspace_digest(payload)
     payload['exported_utc']=datetime.now(timezone.utc).isoformat()
     text=json.dumps(payload,indent=2,ensure_ascii=False)
@@ -124,7 +160,10 @@ def export_workspace_json(jobs,seen,has_baseline,employer_evidence=None):
 
 
 def workspace_digest(payload):
-    fields={key:payload.get(key) for key in ('schema_version','jobs','seen','has_baseline','employer_evidence')}
+    keys=['schema_version','jobs','seen','has_baseline','employer_evidence']
+    if 'profile' in payload:  # older backups have no profile and keep their original digest
+        keys.append('profile')
+    fields={key:payload.get(key) for key in keys}
     return hashlib.sha256(json.dumps(fields,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
 
@@ -141,7 +180,7 @@ def import_workspace_json(raw):
     if 'integrity_sha256' in obj and obj['integrity_sha256']!=workspace_digest(obj):
         raise ValueError('Backup integrity check failed; file may be incomplete or modified')
     return make_workspace(obj.get('jobs'),obj.get('seen'),obj.get('has_baseline',False),
-                          obj.get('employer_evidence'))
+                          obj.get('employer_evidence'),obj.get('profile'))
 
 
 def authenticate(password,expected):
@@ -221,16 +260,16 @@ def load_remote_workspace(database_url,workspace_id):
             row=cur.fetchone()
     data=row[0] if row else make_workspace()
     result=make_workspace(data.get('jobs'),data.get('seen'),data.get('has_baseline',False),
-                          data.get('employer_evidence'))
+                          data.get('employer_evidence'),data.get('profile'))
     result['revision']=row[1] if row else 0
     result['updated_at']=row[2].isoformat() if row else None
     return result
 
 
 def save_remote_workspace(database_url,workspace_id,jobs,seen,has_baseline,
-                          *,expected_revision,employer_evidence=None):
+                          *,expected_revision,employer_evidence=None,profile=None):
     """Atomic compare-and-swap. Stale clients never overwrite a newer payload."""
-    payload=make_workspace(jobs,seen,has_baseline,employer_evidence)
+    payload=make_workspace(jobs,seen,has_baseline,employer_evidence,profile)
     encoded=json.dumps(payload)
     with _connect(database_url) as conn:
         with conn.cursor() as cur:

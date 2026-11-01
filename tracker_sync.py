@@ -8,7 +8,9 @@ from workspace_merge import merge_workspaces
 
 def snapshot(state):
     return store.make_workspace(state.get('jobs',[]),state.get('seen_jobs',[]),
-        state.get('search_baseline',False),state.get('employer_checks',{}))
+        state.get('search_baseline',False),state.get('employer_checks',{}),
+        {'answers':state.get('profile_answers') or {},
+         'resume_text':(state.get('resume_text') or '') if state.get('save_resume_with_tracker') else ''})
 
 
 def apply_workspace(state,data):
@@ -16,10 +18,22 @@ def apply_workspace(state,data):
     state['seen_jobs']=list(data['seen'])
     state['search_baseline']=data['has_baseline']
     state['employer_checks']=deepcopy(data.get('employer_evidence',{}))
-    # Restored rows must not inherit stale editor values.
+    # Restored rows and profile answers must not inherit stale editor values.
     for key in list(state):
-        if str(key).startswith(('notes_','follow_','status_')):
+        if str(key).startswith(('notes_','follow_','status_')) or (
+                str(key).startswith('profile_') and key!='profile_answers'):
             del state[key]
+    # A saved profile/resume replaces the session's; an empty one (older
+    # backups) leaves the session's untouched.
+    profile=data.get('profile') or {}
+    if profile.get('answers'):
+        state['profile_answers']=dict(profile['answers'])
+    if profile.get('resume_text'):
+        state['save_resume_with_tracker']=True  # it was saved because they opted in
+    if profile.get('resume_text') and profile['resume_text']!=state.get('resume_text'):
+        state['resume_text']=profile['resume_text']
+        state.pop('search_results',None)  # ranked with a different resume
+        state.pop('search_stats',None)
 
 
 def persist(state,database_url,workspace_id,enabled):
@@ -33,7 +47,7 @@ def persist(state,database_url,workspace_id,enabled):
         local=snapshot(state)
         revision=store.save_remote_workspace(database_url,workspace_id,local['jobs'],
             local['seen'],local['has_baseline'],expected_revision=state.get('tracker_revision',0),
-            employer_evidence=local['employer_evidence'])
+            employer_evidence=local['employer_evidence'],profile=local['profile'])
         state['tracker_revision']=revision
         state['tracker_base']=deepcopy(local)
         state['tracker_dirty']=False
@@ -104,7 +118,8 @@ def render_sync_status(database_url,workspace_id,enabled):
     elif status in ('failed','conflict'):
         st.error('Cloud save incomplete. Your changes are still in this session. '+state.get('tracker_storage_error',''))
         st.download_button('Download recovery backup',store.export_workspace_json(
-            state.jobs,state.seen_jobs,state.search_baseline,state.get('employer_checks',{})),
+            state.jobs,state.seen_jobs,state.search_baseline,state.get('employer_checks',{}),
+            snapshot(state)['profile']),
             'job_tracker_recovery.json','application/json',key='recovery_download')
         if status=='failed':
             if st.button('Retry cloud save',key='retry_cloud_save'):
@@ -142,9 +157,9 @@ def render_history(database_url,workspace_id):
                 if st.button('Restore saved version'):
                     current=snapshot(st.session_state)
                     st.session_state.before_restore_backup=store.export_workspace_json(current['jobs'],current['seen'],
-                        current['has_baseline'],current['employer_evidence'])
+                        current['has_baseline'],current['employer_evidence'],current['profile'])
                     data=versions[idx]['payload']
                     apply_workspace(st.session_state,store.make_workspace(data.get('jobs'),data.get('seen'),
-                        data.get('has_baseline'),data.get('employer_evidence')))
+                        data.get('has_baseline'),data.get('employer_evidence'),data.get('profile')))
                     persist(st.session_state,database_url,workspace_id,True)
                     st.rerun()
