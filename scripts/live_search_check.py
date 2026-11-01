@@ -65,8 +65,8 @@ def main():
             ((stats.get('timing') or {}).get('source_done') or {}).items(), key=lambda kv: kv[1])
             if not k.startswith('Government ')),
     ]
-    lines += [f"  {h.get('status')}: {h.get('provider')} / {h.get('board')} - {str(h.get('error', ''))[:70]}"
-              for h in bad[:40]]
+    failed_lines = [f"  {h.get('status')}: {h.get('provider')} / {h.get('board')} - {str(h.get('error', ''))[:70]}"
+                    for h in bad[:10]]
     lines += ['top results: ' + ' | '.join(f"{r['title'][:40]} ({r['company'][:25]})" for r in results[:8])]
     # A second search right away shows what cached sources save (e.g. running
     # a saved search after another search).
@@ -81,6 +81,7 @@ def main():
                      f"first_results={rsnap.get('first_results_seconds')}s")
     except Exception as exc:  # the first search's results still stand
         lines.append(f'repeat search not measured: {type(exc).__name__}: {exc}'[:200])
+    lines += failed_lines  # last, so a long failure list cannot push out the timings
     for line in lines:
         print(line)
     body = '%0A'.join(x.replace('%', '%25') for x in lines)[:3900]

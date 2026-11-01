@@ -108,6 +108,19 @@ def compile_resume_profile(resume_text, confirmed_areas=(), excluded_areas=()):
             'excluded': frozenset(excluded_areas)}
 
 
+def documented_duty_count(job, profile):
+    """How many resume-backed skill areas the posting's description mentions.
+
+    The same count assess_job_qualifications reports as description-origin
+    resume matches, without the costly requirement checks; used to skip full
+    assessment for unclassified titles that could never qualify.
+    """
+    description = str(job.get('description') or '')[:26000]
+    evidence = profile.get('evidence') or {}
+    return sum(1 for area, patterns in _COMPILED
+               if area in evidence and any(p.search(description) for p in patterns))
+
+
 def _qualification_screeners(description, resume):
     """Check only requirements visible in the supplied job text."""
     return extract_requirements(description, resume)

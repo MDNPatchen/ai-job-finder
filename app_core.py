@@ -46,7 +46,7 @@ from employer_ui import render_employer_checker
 from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
 from government_feed_identity import belongs_to_configured_agency, dedupe_vacancy_urls
-from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
+from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications, documented_duty_count
 from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
 from career_profile import (PROFILE_QUESTIONS, YN_CHOICES, LEGACY_DEFAULT_ANSWERS,
@@ -1269,6 +1269,10 @@ def score_job(job, resume, words='', qualification_profile=None):
         query_rank_bonus+=4 if in_title else 1
     profile = qualification_profile or compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
+    # Unclassified titles need 3+ resume-backed duties in the description to
+    # qualify (checked below); count them cheaply before the full assessment.
+    if classified is None and documented_duty_count(job, profile) < 3:
+        return None
     qualification = assess_job_qualifications(job, profile, resume)
     if classified is None:
         # A strong actual-duty match can qualify unconventional job titles.
@@ -1541,7 +1545,10 @@ def run_search_task(task,settings):
         task.publish(message='Checking full government descriptions; current results remain available')
         preview,_=rank(raw)
         t=_time.monotonic()
-        raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
+        # Bulletins come from the slow government host: give them at most 15 s;
+        # postings not reached keep their summary text, as before on failure.
+        with request_budget(15):
+            raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
         timing['bulletin_seconds']=round(_time.monotonic()-t,1)
     else: bulletin={}
     publish(raw,errors,counts,health,bulletin=bulletin,final=True)
