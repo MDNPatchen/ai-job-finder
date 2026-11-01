@@ -66,8 +66,10 @@ class RecoveryUITests(unittest.TestCase):
         self.assertTrue(app.session_state['tracker_dirty'])
         self.assertTrue(any('Cloud save incomplete' in x.value for x in app.error))
 
-    def test_six_pages_and_dark_theme(self):
+    def test_four_pages_and_dark_theme(self):
         app=AppTest.from_file('app.py').run()
-        for page in ['Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches','Dashboard']:
+        self.assertEqual(list(app.radio(key='top_navigation').options),
+                         ['Dashboard','Find Jobs','Job Tracker','My Resume'])
+        for page in ['Find Jobs','Job Tracker','My Resume','Dashboard']:
             app.radio(key='top_navigation').set_value(page).run()
             self.assertFalse(app.exception,page)

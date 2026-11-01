@@ -37,7 +37,7 @@ const fs=require('node:fs');
   for(const size of [360,390,768,1024,1440,1920].map(width=>({width,height:1000}))){
     await page.setViewportSize(size);
     await page.waitForTimeout(500); // Streamlit may collapse or expand the sidebar on resize
-    for(const name of ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches']){
+    for(const name of ['Dashboard','Find Jobs','Job Tracker','My Resume']){
       await navigate(name);
       await surface.getByRole('heading',{name:name==='My Resume'?'Resume':name,exact:true}).waitFor({timeout:15000});
       await page.waitForTimeout(350);
@@ -89,7 +89,7 @@ const fs=require('node:fs');
     await page.screenshot({path:output+'/dashboard-'+size.width+'.png',fullPage:true});
   }
   await browser.close();
-  console.log('PASS six pages at six widths; actual content gutters, sidebar wordmark, charcoal grey background, no horizontal overflow');
+  console.log('PASS four pages at six widths; actual content gutters, sidebar wordmark, charcoal grey background, no horizontal overflow');
 })().catch(error=>{
   console.error(error);
   // Also surface the reason as a GitHub annotation, readable without the raw log.
