@@ -150,6 +150,23 @@ def seniority_label(title):
     return 'Other'
 
 
+MINIMUM_LEVELS=('Manager and above','Director and above','All levels')
+
+
+def meets_minimum_level(title, minimum):
+    """Hide roles below the chosen level (e.g. coordinator, specialist, assistant).
+
+    Uses the same leadership tiers as review ordering: 0 = below management,
+    1 = manager, 2 = deputy/assistant director or unclear title, 3 = director,
+    4 = executive. Unclear titles are kept at the manager level.
+    """
+    if minimum not in ('Manager and above','Director and above'):
+        return True
+    from career_priority import leadership_tier
+    tier=leadership_tier(title)
+    return tier>=(3 if minimum=='Director and above' else 1)
+
+
 def preferences_allow(job, states, preferences):
     """A salary minimum applies only to verifiable annual amounts.
 
@@ -167,6 +184,8 @@ def preferences_allow(job, states, preferences):
         return False
     allowed_roles=set(pref.get('seniority') or [])
     if allowed_roles and seniority_label(job.get('title')) not in allowed_roles:
+        return False
+    if not meets_minimum_level(job.get('title'), pref.get('minimum_level')):
         return False
     minimum=int(pref.get('minimum_salary') or 0)
     if minimum:

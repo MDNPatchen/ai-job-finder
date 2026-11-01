@@ -12,6 +12,7 @@ FILTER_FIELDS = {
     'f_search': 'text', 'f_state': 'choice', 'f_work': 'choice', 'f_scope': 'choice',
     'f_employer_scope': 'choice', 'f_include': 'multi', 'f_exclude': 'multi',
     'f_seniority': 'multi', 'f_minsal': 'int', 'f_unknownpay': 'bool', 'f_verified': 'bool',
+    'f_min_level': 'choice',
 }
 
 

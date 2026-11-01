@@ -17,9 +17,10 @@ def render():
     EMPLOYER_SCOPE_OPTIONS=['All matching jobs (recommended)',
                             'Compact results: up to 3 per employer (10 Mayo Clinic)']
     SENIORITY_OPTIONS=['Executive / VP','Publisher','Director','Manager','Other']
+    LEVEL_OPTIONS=list(MINIMUM_LEVELS)
     FILTER_OPTIONS={'f_state':state_choices,'f_work':WORK_OPTIONS,'f_scope':SCOPE_OPTIONS,
                     'f_employer_scope':EMPLOYER_SCOPE_OPTIONS,'f_include':state_names,
-                    'f_exclude':state_names,'f_seniority':SENIORITY_OPTIONS}
+                    'f_exclude':state_names,'f_seniority':SENIORITY_OPTIONS,'f_min_level':LEVEL_OPTIONS}
     st.markdown('<div class="job-module-heading">Search filters</div>',unsafe_allow_html=True)
     saved_list=st.session_state.get('saved_searches') or []
     notice=st.session_state.pop('saved_search_notice',None)
@@ -55,6 +56,9 @@ def render():
         chosen_listing_scope=st.selectbox(
             'Employer type', SCOPE_OPTIONS, key='f_scope',
             help='Recommended: employer-specific career boards and public agencies, with a link to an individual vacancy. Recruiting intermediaries, aggregators and general career directories are hidden. This does not prove the vacancy remains open; check the original employer listing.')
+        min_level=st.selectbox('Minimum role level',LEVEL_OPTIONS,key='f_min_level',
+            help='Manager and above hides coordinator, specialist, analyst and assistant roles. '
+                 'Director and above also hides manager roles. Titles that do not state a level are kept.')
         chosen_employer_scope=st.selectbox(
             'Results per employer', EMPLOYER_SCOPE_OPTIONS, key='f_employer_scope',
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
@@ -109,6 +113,7 @@ def render():
                 'included_states':[x.split(' ',1)[0] for x in include_states],
                 'excluded_states':[x.split(' ',1)[0] for x in exclude_states],
                 'seniority':desired_seniority,
+                'minimum_level':min_level,
                 'minimum_salary':minimum_salary,
                 'include_unlisted_salary':include_unknown_pay,
                 'verified_workplace_only':verified_work,
@@ -135,10 +140,16 @@ def render():
         stats=st.session_state.search_stats
         if stats.get('search_status') in ('running','cancelled','failed'):
             st.caption('Partial search results · coverage and rankings may change as more sources finish.')
-        for severity,message in coverage_messages(stats.get('board_health',[])):
-            getattr(st,severity)(message)
+        # Source problems are useful detail, not a headline: keep them in one
+        # collapsed line the person can open, instead of banners above results.
+        source_notes=[message for _severity,message in coverage_messages(stats.get('board_health',[]))]
         if stats.get('errors') and not stats.get('board_health'):
-            st.warning('Source errors were recorded. See source coverage for details.')
+            source_notes.append('Source errors were recorded. See source coverage for details.')
+        if source_notes:
+            with st.expander(f"Source status · {len(source_notes)} note{'s' if len(source_notes)!=1 else ''}",
+                             expanded=False):
+                for message in source_notes:
+                    st.caption(message)
         st.caption('Results are a snapshot. Provider JSON may be cached for up to 15 minutes; confirm availability on the original posting.')
         # Use the same deduplicated, filtered jobs for all three metrics.
         government_total=sum(1 for job in all_results if job['government'])
@@ -163,6 +174,10 @@ def render():
         bulletin=stats.get('bulletin_diagnostics') or {}
         if bulletin.get('attempted'):
             st.caption(f"Official government bulletin lookup: {bulletin.get('full_bulletins',0)} full descriptions retrieved from {bulletin['attempted']} attempts. {bulletin.get('summary_only',0)} government listings still have summary-only job text and conservative confidence caps.")
+        level=(stats.get('preferences') or {}).get('minimum_level')
+        if level and level!='All levels' and stats['excluded'].get('preferences',0):
+            st.caption(f"{stats['excluded']['preferences']} jobs hidden by your role level and other filters "
+                       f"({level}). Choose All levels to see them.")
         if stats['excluded'].get('employer_limit',0):
             st.caption(f"{stats['excluded']['employer_limit']} more jobs hidden by employer limit.")
         if not st.session_state.resume_text.strip():
