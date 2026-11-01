@@ -108,6 +108,14 @@ class WorkdayTests(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs.diagnostics['failed_details'], 1)
 
+    def test_workday_jobs_count_as_direct_employer_postings(self):
+        from employer_postings import posting_quality
+        job = {'source': 'Workday', 'company': 'Avera McKennan',
+               'url': 'https://avera.wd5.myworkdayjobs.com/en-US/avera-careers/job/Sioux-Falls-SD/Director-of-Operations_R12345'}
+        quality = posting_quality(job)
+        self.assertTrue(quality['direct_source'])
+        self.assertTrue(quality['individual_url'])
+
     def test_urls_and_cache_keys(self):
         self.assertEqual(ROOT, 'https://avera.wd5.myworkdayjobs.com/wday/cxs/avera/avera-careers')
         self.assertEqual(public_url('avera', 'wd5', 'avera-careers', '/job/x/1'),
