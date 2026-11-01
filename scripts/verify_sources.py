@@ -12,6 +12,7 @@ the check run. Network access is required; this is not part of the unit tests.
 """
 import json
 import sys
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -102,25 +103,38 @@ def run(path):
 
     def one(task):
         provider, entry = task
-        try:
-            count, detail = CHECKS[provider](entry)
-            status = 'PASS' if count > 0 else 'EMPTY'
-        except HTTPError as exc:
-            count, detail, status = 0, f'HTTP {exc.code}', 'FAIL'
-        except (URLError, OSError, ValueError, ET.ParseError) as exc:
-            count, detail, status = 0, type(exc).__name__ + ': ' + str(exc)[:80], 'FAIL'
+        for attempt in range(3):
+            try:
+                count, detail = CHECKS[provider](entry)
+                status = 'PASS' if count > 0 else 'EMPTY'
+                break
+            except HTTPError as exc:
+                count, detail, status = 0, f'HTTP {exc.code}', 'FAIL'
+                if exc.code not in (429, 500, 502, 503, 504):
+                    break
+            except (URLError, OSError, ValueError, ET.ParseError) as exc:
+                count, detail, status = 0, type(exc).__name__ + ': ' + str(exc)[:80], 'FAIL'
+                if not isinstance(exc, (URLError, TimeoutError, OSError)):
+                    break
+            time.sleep(3 * (attempt + 1))  # timeouts are usually rate limits; back off
         return {'provider': provider, 'id': entry['id'], 'name': entry['name'],
                 'state': entry.get('state', ''), 'status': status, 'postings': count, 'detail': detail}
 
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        results = list(pool.map(one, tasks))
+    # Government feeds share one host, so query it gently; other APIs in parallel.
+    rss = [t for t in tasks if t[0] in ('neogov', 'neoed')]
+    api = [t for t in tasks if t[0] not in ('neogov', 'neoed')]
+    with ThreadPoolExecutor(max_workers=2) as slow, ThreadPoolExecutor(max_workers=8) as fast:
+        rss_results = slow.map(one, rss)
+        api_results = fast.map(one, api)
+        results = list(rss_results) + list(api_results)
     return results
 
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else 'scripts/source_candidates.json'
+    label = Path(path).stem  # tags every line so mixed annotations stay readable
     results = run(path)
-    lines = [f"{r['status']}|{r['provider']}|{r['id']}|{r['name']}|{r['state']}|{r['postings']}|{r['detail']}"
+    lines = [f"{label}|{r['status']}|{r['provider']}|{r['id']}|{r['name']}|{r['state']}|{r['postings']}|{r['detail']}"
              for r in results]
     for line in lines:
         print(line)
@@ -139,8 +153,8 @@ def main():
         chunks.append(chunk)
     for n, part in enumerate(chunks, 1):
         body = '%0A'.join(x.replace('%', '%25').replace('\r', '').replace('\n', ' ') for x in part)
-        print(f'::notice title=source check {n}/{len(chunks)}::{body}')
-    print(f'::notice title=source check summary::{passed}/{len(results)} passed')
+        print(f'::notice title={label} {n}/{len(chunks)}::{body}')
+    print(f'::notice title={label} summary::{passed}/{len(results)} passed')
 
 
 if __name__ == '__main__':

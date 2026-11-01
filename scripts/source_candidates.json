@@ -1,216 +1,854 @@
 {
   "about": "Candidate public career boards to verify live before adding to job_sources.json. Run scripts/verify_sources.py; only passing entries are added.",
   "neogov": [
-    {"id": "northdakota", "name": "State of North Dakota", "state": "ND"},
-    {"id": "bismarcknd", "name": "City of Bismarck", "state": "ND"},
-    {"id": "grandforksnd", "name": "City of Grand Forks", "state": "ND"},
-    {"id": "minotnd", "name": "City of Minot", "state": "ND"},
-    {"id": "burleighcounty", "name": "Burleigh County", "state": "ND"},
-    {"id": "cassnd", "name": "Cass County", "state": "ND"},
-    {"id": "southdakota", "name": "State of South Dakota", "state": "SD"},
-    {"id": "rapidcity", "name": "City of Rapid City", "state": "SD"},
-    {"id": "minnehahacounty", "name": "Minnehaha County", "state": "SD"},
-    {"id": "pennington", "name": "Pennington County", "state": "SD"},
-    {"id": "rochestermn", "name": "City of Rochester", "state": "MN"},
-    {"id": "stcloud", "name": "City of St. Cloud", "state": "MN"},
-    {"id": "ramseycounty", "name": "Ramsey County", "state": "MN"},
-    {"id": "stlouiscountymn", "name": "St. Louis County", "state": "MN"},
-    {"id": "anokacounty", "name": "Anoka County", "state": "MN"},
-    {"id": "montana", "name": "State of Montana", "state": "MT"},
-    {"id": "billingsmt", "name": "City of Billings", "state": "MT"},
-    {"id": "missoula", "name": "City of Missoula", "state": "MT"},
-    {"id": "bozeman", "name": "City of Bozeman", "state": "MT"},
-    {"id": "gallatin", "name": "Gallatin County", "state": "MT"},
-    {"id": "yellowstonecounty", "name": "Yellowstone County", "state": "MT"},
-    {"id": "casperwy", "name": "City of Casper", "state": "WY"},
-    {"id": "cheyennewy", "name": "City of Cheyenne", "state": "WY"},
-    {"id": "laramiecounty", "name": "Laramie County", "state": "WY"},
-    {"id": "omaha", "name": "City of Omaha", "state": "NE"},
-    {"id": "douglascountyne", "name": "Douglas County", "state": "NE"},
-    {"id": "nebraska", "name": "State of Nebraska", "state": "NE"},
-    {"id": "cedarrapids", "name": "City of Cedar Rapids", "state": "IA"},
-    {"id": "iowacity", "name": "City of Iowa City", "state": "IA"},
-    {"id": "milwaukee", "name": "City of Milwaukee", "state": "WI"},
-    {"id": "milwaukeecounty", "name": "Milwaukee County", "state": "WI"},
-    {"id": "greenbaywi", "name": "City of Green Bay", "state": "WI"},
-    {"id": "washington", "name": "State of Washington", "state": "WA"},
-    {"id": "seattle", "name": "City of Seattle", "state": "WA"},
-    {"id": "spokanecity", "name": "City of Spokane", "state": "WA"},
-    {"id": "tacoma", "name": "City of Tacoma", "state": "WA"},
-    {"id": "portlandor", "name": "City of Portland", "state": "OR"},
-    {"id": "eugene", "name": "City of Eugene", "state": "OR"},
-    {"id": "colorado", "name": "State of Colorado", "state": "CO"},
-    {"id": "coloradosprings", "name": "City of Colorado Springs", "state": "CO"},
-    {"id": "fortcollins", "name": "City of Fort Collins", "state": "CO"},
-    {"id": "utah", "name": "State of Utah", "state": "UT"},
-    {"id": "slcgov", "name": "Salt Lake City", "state": "UT"},
-    {"id": "alaska", "name": "State of Alaska", "state": "AK"},
-    {"id": "anchorage", "name": "Municipality of Anchorage", "state": "AK"},
-    {"id": "hawaii", "name": "State of Hawaii", "state": "HI"},
-    {"id": "michigan", "name": "State of Michigan", "state": "MI"},
-    {"id": "grandrapidsmi", "name": "City of Grand Rapids", "state": "MI"},
-    {"id": "annarbor", "name": "City of Ann Arbor", "state": "MI"},
-    {"id": "louisiana", "name": "State of Louisiana", "state": "LA"},
-    {"id": "batonrouge", "name": "City of Baton Rouge", "state": "LA"},
-    {"id": "mississippi", "name": "State of Mississippi", "state": "MS"},
-    {"id": "northcarolina", "name": "State of North Carolina", "state": "NC"},
-    {"id": "raleighnc", "name": "City of Raleigh", "state": "NC"},
-    {"id": "durhamnc", "name": "City of Durham", "state": "NC"},
-    {"id": "sc", "name": "State of South Carolina", "state": "SC"},
-    {"id": "charlestonsc", "name": "City of Charleston", "state": "SC"},
-    {"id": "columbiasc", "name": "City of Columbia", "state": "SC"},
-    {"id": "delaware", "name": "State of Delaware", "state": "DE"},
-    {"id": "kcmo", "name": "City of Kansas City", "state": "MO"},
-    {"id": "springfieldmo", "name": "City of Springfield", "state": "MO"},
-    {"id": "stlouiscountymo", "name": "St. Louis County", "state": "MO"},
-    {"id": "nashville", "name": "Metro Nashville", "state": "TN"},
-    {"id": "knoxvilletn", "name": "City of Knoxville", "state": "TN"},
-    {"id": "chattanooga", "name": "City of Chattanooga", "state": "TN"},
-    {"id": "louisvilleky", "name": "Louisville Metro", "state": "KY"},
-    {"id": "lexingtonky", "name": "Lexington-Fayette Urban County", "state": "KY"},
-    {"id": "okc", "name": "City of Oklahoma City", "state": "OK"},
-    {"id": "tulsaok", "name": "City of Tulsa", "state": "OK"},
-    {"id": "wichita", "name": "City of Wichita", "state": "KS"},
-    {"id": "jocogov", "name": "Johnson County", "state": "KS"},
-    {"id": "lasvegas", "name": "City of Las Vegas", "state": "NV"},
-    {"id": "clarkcounty", "name": "Clark County", "state": "NV"},
-    {"id": "reno", "name": "City of Reno", "state": "NV"},
-    {"id": "tucson", "name": "City of Tucson", "state": "AZ"},
-    {"id": "mesaaz", "name": "City of Mesa", "state": "AZ"},
-    {"id": "austintexas", "name": "City of Austin", "state": "TX"},
-    {"id": "sanantonio", "name": "City of San Antonio", "state": "TX"},
-    {"id": "elpasotx", "name": "City of El Paso", "state": "TX"},
-    {"id": "sanjoseca", "name": "City of San Jose", "state": "CA"},
-    {"id": "sacramento", "name": "City of Sacramento", "state": "CA"},
-    {"id": "fresno", "name": "City of Fresno", "state": "CA"},
-    {"id": "columbus", "name": "City of Columbus", "state": "OH"},
-    {"id": "cincinnati", "name": "City of Cincinnati", "state": "OH"},
-    {"id": "indianapolis", "name": "City of Indianapolis", "state": "IN"},
-    {"id": "fortwayne", "name": "City of Fort Wayne", "state": "IN"},
-    {"id": "pittsburghpa", "name": "City of Pittsburgh", "state": "PA"},
-    {"id": "allegheny", "name": "Allegheny County", "state": "PA"},
-    {"id": "baltimorecity", "name": "Baltimore City", "state": "MD"},
-    {"id": "montgomerycountymd", "name": "Montgomery County", "state": "MD"},
-    {"id": "richmondva", "name": "City of Richmond", "state": "VA"},
-    {"id": "fairfaxcounty", "name": "Fairfax County", "state": "VA"},
-    {"id": "atlantaga", "name": "City of Atlanta", "state": "GA"},
-    {"id": "savannahga", "name": "City of Savannah", "state": "GA"},
-    {"id": "birminghamal", "name": "City of Birmingham", "state": "AL"},
-    {"id": "huntsvilleal", "name": "City of Huntsville", "state": "AL"},
-    {"id": "littlerock", "name": "City of Little Rock", "state": "AR"},
-    {"id": "jacksonms", "name": "City of Jackson", "state": "MS"},
-    {"id": "orlando", "name": "City of Orlando", "state": "FL"},
-    {"id": "tampa", "name": "City of Tampa", "state": "FL"},
-    {"id": "providenceri", "name": "City of Providence", "state": "RI"},
-    {"id": "hartford", "name": "City of Hartford", "state": "CT"},
-    {"id": "portlandme", "name": "City of Portland", "state": "ME"},
-    {"id": "maine", "name": "State of Maine", "state": "ME"},
-    {"id": "manchesternh", "name": "City of Manchester", "state": "NH"},
-    {"id": "burlingtonvt", "name": "City of Burlington", "state": "VT"},
-    {"id": "boston", "name": "City of Boston", "state": "MA"},
-    {"id": "worcesterma", "name": "City of Worcester", "state": "MA"},
-    {"id": "albanyny", "name": "City of Albany", "state": "NY"},
-    {"id": "jerseycity", "name": "City of Jersey City", "state": "NJ"},
-    {"id": "charlestonwv", "name": "City of Charleston", "state": "WV"},
-    {"id": "idaho", "name": "State of Idaho", "state": "ID"},
-    {"id": "albuquerquenm", "name": "City of Albuquerque", "state": "NM"},
-    {"id": "santafenm", "name": "City of Santa Fe", "state": "NM"}
+    {
+      "id": "northdakota",
+      "name": "State of North Dakota",
+      "state": "ND"
+    },
+    {
+      "id": "bismarcknd",
+      "name": "City of Bismarck",
+      "state": "ND"
+    },
+    {
+      "id": "grandforksnd",
+      "name": "City of Grand Forks",
+      "state": "ND"
+    },
+    {
+      "id": "minotnd",
+      "name": "City of Minot",
+      "state": "ND"
+    },
+    {
+      "id": "burleighcounty",
+      "name": "Burleigh County",
+      "state": "ND"
+    },
+    {
+      "id": "cassnd",
+      "name": "Cass County",
+      "state": "ND"
+    },
+    {
+      "id": "southdakota",
+      "name": "State of South Dakota",
+      "state": "SD"
+    },
+    {
+      "id": "rapidcity",
+      "name": "City of Rapid City",
+      "state": "SD"
+    },
+    {
+      "id": "minnehahacounty",
+      "name": "Minnehaha County",
+      "state": "SD"
+    },
+    {
+      "id": "pennington",
+      "name": "Pennington County",
+      "state": "SD"
+    },
+    {
+      "id": "rochestermn",
+      "name": "City of Rochester",
+      "state": "MN"
+    },
+    {
+      "id": "stcloud",
+      "name": "City of St. Cloud",
+      "state": "MN"
+    },
+    {
+      "id": "ramseycounty",
+      "name": "Ramsey County",
+      "state": "MN"
+    },
+    {
+      "id": "stlouiscountymn",
+      "name": "St. Louis County",
+      "state": "MN"
+    },
+    {
+      "id": "anokacounty",
+      "name": "Anoka County",
+      "state": "MN"
+    },
+    {
+      "id": "montana",
+      "name": "State of Montana",
+      "state": "MT"
+    },
+    {
+      "id": "billingsmt",
+      "name": "City of Billings",
+      "state": "MT"
+    },
+    {
+      "id": "missoula",
+      "name": "City of Missoula",
+      "state": "MT"
+    },
+    {
+      "id": "bozeman",
+      "name": "City of Bozeman",
+      "state": "MT"
+    },
+    {
+      "id": "gallatin",
+      "name": "Gallatin County",
+      "state": "MT"
+    },
+    {
+      "id": "yellowstonecounty",
+      "name": "Yellowstone County",
+      "state": "MT"
+    },
+    {
+      "id": "casperwy",
+      "name": "City of Casper",
+      "state": "WY"
+    },
+    {
+      "id": "cheyennewy",
+      "name": "City of Cheyenne",
+      "state": "WY"
+    },
+    {
+      "id": "laramiecounty",
+      "name": "Laramie County",
+      "state": "WY"
+    },
+    {
+      "id": "omaha",
+      "name": "City of Omaha",
+      "state": "NE"
+    },
+    {
+      "id": "douglascountyne",
+      "name": "Douglas County",
+      "state": "NE"
+    },
+    {
+      "id": "nebraska",
+      "name": "State of Nebraska",
+      "state": "NE"
+    },
+    {
+      "id": "cedarrapids",
+      "name": "City of Cedar Rapids",
+      "state": "IA"
+    },
+    {
+      "id": "iowacity",
+      "name": "City of Iowa City",
+      "state": "IA"
+    },
+    {
+      "id": "milwaukee",
+      "name": "City of Milwaukee",
+      "state": "WI"
+    },
+    {
+      "id": "milwaukeecounty",
+      "name": "Milwaukee County",
+      "state": "WI"
+    },
+    {
+      "id": "greenbaywi",
+      "name": "City of Green Bay",
+      "state": "WI"
+    },
+    {
+      "id": "spokanecity",
+      "name": "City of Spokane",
+      "state": "WA"
+    },
+    {
+      "id": "tacoma",
+      "name": "City of Tacoma",
+      "state": "WA"
+    },
+    {
+      "id": "eugene",
+      "name": "City of Eugene",
+      "state": "OR"
+    },
+    {
+      "id": "coloradosprings",
+      "name": "City of Colorado Springs",
+      "state": "CO"
+    },
+    {
+      "id": "fortcollins",
+      "name": "City of Fort Collins",
+      "state": "CO"
+    },
+    {
+      "id": "slcgov",
+      "name": "Salt Lake City",
+      "state": "UT"
+    },
+    {
+      "id": "anchorage",
+      "name": "Municipality of Anchorage",
+      "state": "AK"
+    },
+    {
+      "id": "hawaii",
+      "name": "State of Hawaii",
+      "state": "HI"
+    },
+    {
+      "id": "michigan",
+      "name": "State of Michigan",
+      "state": "MI"
+    },
+    {
+      "id": "grandrapidsmi",
+      "name": "City of Grand Rapids",
+      "state": "MI"
+    },
+    {
+      "id": "annarbor",
+      "name": "City of Ann Arbor",
+      "state": "MI"
+    },
+    {
+      "id": "batonrouge",
+      "name": "City of Baton Rouge",
+      "state": "LA"
+    },
+    {
+      "id": "northcarolina",
+      "name": "State of North Carolina",
+      "state": "NC"
+    },
+    {
+      "id": "sc",
+      "name": "State of South Carolina",
+      "state": "SC"
+    },
+    {
+      "id": "charlestonsc",
+      "name": "City of Charleston",
+      "state": "SC"
+    },
+    {
+      "id": "columbiasc",
+      "name": "City of Columbia",
+      "state": "SC"
+    },
+    {
+      "id": "delaware",
+      "name": "State of Delaware",
+      "state": "DE"
+    },
+    {
+      "id": "kcmo",
+      "name": "City of Kansas City",
+      "state": "MO"
+    },
+    {
+      "id": "springfieldmo",
+      "name": "City of Springfield",
+      "state": "MO"
+    },
+    {
+      "id": "stlouiscountymo",
+      "name": "St. Louis County",
+      "state": "MO"
+    },
+    {
+      "id": "knoxvilletn",
+      "name": "City of Knoxville",
+      "state": "TN"
+    },
+    {
+      "id": "chattanooga",
+      "name": "City of Chattanooga",
+      "state": "TN"
+    },
+    {
+      "id": "louisvilleky",
+      "name": "Louisville Metro",
+      "state": "KY"
+    },
+    {
+      "id": "lexingtonky",
+      "name": "Lexington-Fayette Urban County",
+      "state": "KY"
+    },
+    {
+      "id": "okc",
+      "name": "City of Oklahoma City",
+      "state": "OK"
+    },
+    {
+      "id": "tulsaok",
+      "name": "City of Tulsa",
+      "state": "OK"
+    },
+    {
+      "id": "jocogov",
+      "name": "Johnson County",
+      "state": "KS"
+    },
+    {
+      "id": "lasvegas",
+      "name": "City of Las Vegas",
+      "state": "NV"
+    },
+    {
+      "id": "reno",
+      "name": "City of Reno",
+      "state": "NV"
+    },
+    {
+      "id": "tucson",
+      "name": "City of Tucson",
+      "state": "AZ"
+    },
+    {
+      "id": "mesaaz",
+      "name": "City of Mesa",
+      "state": "AZ"
+    },
+    {
+      "id": "austintexas",
+      "name": "City of Austin",
+      "state": "TX"
+    },
+    {
+      "id": "sanantonio",
+      "name": "City of San Antonio",
+      "state": "TX"
+    },
+    {
+      "id": "elpasotx",
+      "name": "City of El Paso",
+      "state": "TX"
+    },
+    {
+      "id": "sanjoseca",
+      "name": "City of San Jose",
+      "state": "CA"
+    },
+    {
+      "id": "sacramento",
+      "name": "City of Sacramento",
+      "state": "CA"
+    },
+    {
+      "id": "fresno",
+      "name": "City of Fresno",
+      "state": "CA"
+    },
+    {
+      "id": "columbus",
+      "name": "City of Columbus",
+      "state": "OH"
+    },
+    {
+      "id": "cincinnati",
+      "name": "City of Cincinnati",
+      "state": "OH"
+    },
+    {
+      "id": "fortwayne",
+      "name": "City of Fort Wayne",
+      "state": "IN"
+    },
+    {
+      "id": "pittsburghpa",
+      "name": "City of Pittsburgh",
+      "state": "PA"
+    },
+    {
+      "id": "allegheny",
+      "name": "Allegheny County",
+      "state": "PA"
+    },
+    {
+      "id": "baltimorecity",
+      "name": "Baltimore City",
+      "state": "MD"
+    },
+    {
+      "id": "richmondva",
+      "name": "City of Richmond",
+      "state": "VA"
+    },
+    {
+      "id": "atlantaga",
+      "name": "City of Atlanta",
+      "state": "GA"
+    },
+    {
+      "id": "savannahga",
+      "name": "City of Savannah",
+      "state": "GA"
+    },
+    {
+      "id": "birminghamal",
+      "name": "City of Birmingham",
+      "state": "AL"
+    },
+    {
+      "id": "huntsvilleal",
+      "name": "City of Huntsville",
+      "state": "AL"
+    },
+    {
+      "id": "jacksonms",
+      "name": "City of Jackson",
+      "state": "MS"
+    },
+    {
+      "id": "orlando",
+      "name": "City of Orlando",
+      "state": "FL"
+    },
+    {
+      "id": "tampa",
+      "name": "City of Tampa",
+      "state": "FL"
+    },
+    {
+      "id": "providenceri",
+      "name": "City of Providence",
+      "state": "RI"
+    },
+    {
+      "id": "hartford",
+      "name": "City of Hartford",
+      "state": "CT"
+    },
+    {
+      "id": "portlandme",
+      "name": "City of Portland",
+      "state": "ME"
+    },
+    {
+      "id": "maine",
+      "name": "State of Maine",
+      "state": "ME"
+    },
+    {
+      "id": "manchesternh",
+      "name": "City of Manchester",
+      "state": "NH"
+    },
+    {
+      "id": "worcesterma",
+      "name": "City of Worcester",
+      "state": "MA"
+    },
+    {
+      "id": "albanyny",
+      "name": "City of Albany",
+      "state": "NY"
+    },
+    {
+      "id": "jerseycity",
+      "name": "City of Jersey City",
+      "state": "NJ"
+    },
+    {
+      "id": "charlestonwv",
+      "name": "City of Charleston",
+      "state": "WV"
+    },
+    {
+      "id": "idaho",
+      "name": "State of Idaho",
+      "state": "ID"
+    },
+    {
+      "id": "albuquerquenm",
+      "name": "City of Albuquerque",
+      "state": "NM"
+    },
+    {
+      "id": "santafenm",
+      "name": "City of Santa Fe",
+      "state": "NM"
+    }
   ],
   "greenhouse": [
-    {"id": "theatlantic", "name": "The Atlantic"},
-    {"id": "politico", "name": "Politico"},
-    {"id": "texastribune", "name": "The Texas Tribune"},
-    {"id": "calmatters", "name": "CalMatters"},
-    {"id": "businessinsider", "name": "Business Insider"},
-    {"id": "buzzfeed", "name": "BuzzFeed"},
-    {"id": "theguardian", "name": "The Guardian"},
-    {"id": "theathletic", "name": "The Athletic"},
-    {"id": "nytimes", "name": "The New York Times"},
-    {"id": "thenewyorktimes", "name": "The New York Times"},
-    {"id": "dotdashmeredith", "name": "Dotdash Meredith"},
-    {"id": "theskimm", "name": "theSkimm"},
-    {"id": "medium", "name": "Medium"},
-    {"id": "wikimedia", "name": "Wikimedia Foundation"},
-    {"id": "mozilla", "name": "Mozilla"},
-    {"id": "khanacademy", "name": "Khan Academy"},
-    {"id": "kiva", "name": "Kiva"},
-    {"id": "charitywater", "name": "charity: water"},
-    {"id": "codeforamerica", "name": "Code for America"},
-    {"id": "donorschoose", "name": "DonorsChoose"},
-    {"id": "warbyparker", "name": "Warby Parker"},
-    {"id": "sweetgreen", "name": "Sweetgreen"},
-    {"id": "glossier", "name": "Glossier"},
-    {"id": "allbirds", "name": "Allbirds"},
-    {"id": "equinox", "name": "Equinox"},
-    {"id": "oscar", "name": "Oscar Health"},
-    {"id": "onemedical", "name": "One Medical"},
-    {"id": "cityblock", "name": "Cityblock Health"},
-    {"id": "carbonhealth", "name": "Carbon Health"},
-    {"id": "flexport", "name": "Flexport"},
-    {"id": "gopuff", "name": "Gopuff"},
-    {"id": "instacart", "name": "Instacart"},
-    {"id": "stitchfix", "name": "Stitch Fix"},
-    {"id": "peloton", "name": "Peloton"},
-    {"id": "squarespace", "name": "Squarespace"},
-    {"id": "nerdwallet", "name": "NerdWallet"},
-    {"id": "duolingo", "name": "Duolingo"},
-    {"id": "everlane", "name": "Everlane"},
-    {"id": "outdoorvoices", "name": "Outdoor Voices"},
-    {"id": "bombas", "name": "Bombas"}
+    {
+      "id": "theatlantic",
+      "name": "The Atlantic"
+    },
+    {
+      "id": "politico",
+      "name": "Politico"
+    },
+    {
+      "id": "texastribune",
+      "name": "The Texas Tribune"
+    },
+    {
+      "id": "calmatters",
+      "name": "CalMatters"
+    },
+    {
+      "id": "businessinsider",
+      "name": "Business Insider"
+    },
+    {
+      "id": "buzzfeed",
+      "name": "BuzzFeed"
+    },
+    {
+      "id": "theguardian",
+      "name": "The Guardian"
+    },
+    {
+      "id": "theathletic",
+      "name": "The Athletic"
+    },
+    {
+      "id": "nytimes",
+      "name": "The New York Times"
+    },
+    {
+      "id": "thenewyorktimes",
+      "name": "The New York Times"
+    },
+    {
+      "id": "dotdashmeredith",
+      "name": "Dotdash Meredith"
+    },
+    {
+      "id": "theskimm",
+      "name": "theSkimm"
+    },
+    {
+      "id": "medium",
+      "name": "Medium"
+    },
+    {
+      "id": "wikimedia",
+      "name": "Wikimedia Foundation"
+    },
+    {
+      "id": "mozilla",
+      "name": "Mozilla"
+    },
+    {
+      "id": "khanacademy",
+      "name": "Khan Academy"
+    },
+    {
+      "id": "kiva",
+      "name": "Kiva"
+    },
+    {
+      "id": "charitywater",
+      "name": "charity: water"
+    },
+    {
+      "id": "codeforamerica",
+      "name": "Code for America"
+    },
+    {
+      "id": "donorschoose",
+      "name": "DonorsChoose"
+    },
+    {
+      "id": "warbyparker",
+      "name": "Warby Parker"
+    },
+    {
+      "id": "sweetgreen",
+      "name": "Sweetgreen"
+    },
+    {
+      "id": "glossier",
+      "name": "Glossier"
+    },
+    {
+      "id": "allbirds",
+      "name": "Allbirds"
+    },
+    {
+      "id": "equinox",
+      "name": "Equinox"
+    },
+    {
+      "id": "oscar",
+      "name": "Oscar Health"
+    },
+    {
+      "id": "onemedical",
+      "name": "One Medical"
+    },
+    {
+      "id": "cityblock",
+      "name": "Cityblock Health"
+    },
+    {
+      "id": "carbonhealth",
+      "name": "Carbon Health"
+    },
+    {
+      "id": "flexport",
+      "name": "Flexport"
+    },
+    {
+      "id": "gopuff",
+      "name": "Gopuff"
+    },
+    {
+      "id": "instacart",
+      "name": "Instacart"
+    },
+    {
+      "id": "stitchfix",
+      "name": "Stitch Fix"
+    },
+    {
+      "id": "peloton",
+      "name": "Peloton"
+    },
+    {
+      "id": "squarespace",
+      "name": "Squarespace"
+    },
+    {
+      "id": "nerdwallet",
+      "name": "NerdWallet"
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo"
+    },
+    {
+      "id": "everlane",
+      "name": "Everlane"
+    },
+    {
+      "id": "outdoorvoices",
+      "name": "Outdoor Voices"
+    },
+    {
+      "id": "bombas",
+      "name": "Bombas"
+    }
   ],
   "lever": [
-    {"id": "theinformation", "name": "The Information"},
-    {"id": "atlanticmedia", "name": "Atlantic Media"},
-    {"id": "aclu", "name": "ACLU"},
-    {"id": "spotify", "name": "Spotify"},
-    {"id": "palantir", "name": "Palantir"},
-    {"id": "patreon", "name": "Patreon"},
-    {"id": "eventbrite", "name": "Eventbrite"},
-    {"id": "teachforamerica", "name": "Teach For America"},
-    {"id": "goodwill", "name": "Goodwill"},
-    {"id": "outschool", "name": "Outschool"},
-    {"id": "wealthfront", "name": "Wealthfront"},
-    {"id": "nationalgeographic", "name": "National Geographic Society"},
-    {"id": "civisanalytics", "name": "Civis Analytics"},
-    {"id": "hims", "name": "Hims & Hers"},
-    {"id": "zoox", "name": "Zoox"}
+    {
+      "id": "theinformation",
+      "name": "The Information"
+    },
+    {
+      "id": "atlanticmedia",
+      "name": "Atlantic Media"
+    },
+    {
+      "id": "aclu",
+      "name": "ACLU"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify"
+    },
+    {
+      "id": "palantir",
+      "name": "Palantir"
+    },
+    {
+      "id": "patreon",
+      "name": "Patreon"
+    },
+    {
+      "id": "eventbrite",
+      "name": "Eventbrite"
+    },
+    {
+      "id": "teachforamerica",
+      "name": "Teach For America"
+    },
+    {
+      "id": "goodwill",
+      "name": "Goodwill"
+    },
+    {
+      "id": "outschool",
+      "name": "Outschool"
+    },
+    {
+      "id": "wealthfront",
+      "name": "Wealthfront"
+    },
+    {
+      "id": "nationalgeographic",
+      "name": "National Geographic Society"
+    },
+    {
+      "id": "civisanalytics",
+      "name": "Civis Analytics"
+    },
+    {
+      "id": "hims",
+      "name": "Hims & Hers"
+    },
+    {
+      "id": "zoox",
+      "name": "Zoox"
+    }
   ],
   "ashby": [
-    {"id": "substack", "name": "Substack"},
-    {"id": "semafor", "name": "Semafor"},
-    {"id": "puck", "name": "Puck"},
-    {"id": "the-browser-company", "name": "The Browser Company"},
-    {"id": "ramp", "name": "Ramp"},
-    {"id": "notion", "name": "Notion"},
-    {"id": "linear", "name": "Linear"},
-    {"id": "deel", "name": "Deel"},
-    {"id": "zocdoc", "name": "Zocdoc"},
-    {"id": "ro", "name": "Ro"}
+    {
+      "id": "substack",
+      "name": "Substack"
+    },
+    {
+      "id": "semafor",
+      "name": "Semafor"
+    },
+    {
+      "id": "puck",
+      "name": "Puck"
+    },
+    {
+      "id": "the-browser-company",
+      "name": "The Browser Company"
+    },
+    {
+      "id": "ramp",
+      "name": "Ramp"
+    },
+    {
+      "id": "notion",
+      "name": "Notion"
+    },
+    {
+      "id": "linear",
+      "name": "Linear"
+    },
+    {
+      "id": "deel",
+      "name": "Deel"
+    },
+    {
+      "id": "zocdoc",
+      "name": "Zocdoc"
+    },
+    {
+      "id": "ro",
+      "name": "Ro"
+    }
   ],
   "smartrecruiters": [
-    {"id": "Visa", "name": "Visa", "government": false},
-    {"id": "BoschGroup", "name": "Bosch", "government": false},
-    {"id": "IKEA", "name": "IKEA", "government": false},
-    {"id": "Equinox", "name": "Equinox", "government": false},
-    {"id": "Sodexo", "name": "Sodexo", "government": false},
-    {"id": "Ubisoft2", "name": "Ubisoft", "government": false},
-    {"id": "LinkedIn3", "name": "LinkedIn", "government": false},
-    {"id": "WesternDigital", "name": "Western Digital", "government": false},
-    {"id": "Skechers", "name": "Skechers", "government": false},
-    {"id": "McDonaldsCorporation", "name": "McDonald's", "government": false},
-    {"id": "CityOfAlbuquerque", "name": "City of Albuquerque", "government": true},
-    {"id": "CityofLongBeach", "name": "City of Long Beach", "government": true},
-    {"id": "AbbVie", "name": "AbbVie", "government": false},
-    {"id": "Avis", "name": "Avis Budget Group", "government": false},
-    {"id": "Gannett", "name": "Gannett", "government": false},
-    {"id": "HearstMagazines", "name": "Hearst", "government": false}
+    {
+      "id": "Visa",
+      "name": "Visa",
+      "government": false
+    },
+    {
+      "id": "BoschGroup",
+      "name": "Bosch",
+      "government": false
+    },
+    {
+      "id": "IKEA",
+      "name": "IKEA",
+      "government": false
+    },
+    {
+      "id": "Equinox",
+      "name": "Equinox",
+      "government": false
+    },
+    {
+      "id": "Sodexo",
+      "name": "Sodexo",
+      "government": false
+    },
+    {
+      "id": "Ubisoft2",
+      "name": "Ubisoft",
+      "government": false
+    },
+    {
+      "id": "LinkedIn3",
+      "name": "LinkedIn",
+      "government": false
+    },
+    {
+      "id": "WesternDigital",
+      "name": "Western Digital",
+      "government": false
+    },
+    {
+      "id": "Skechers",
+      "name": "Skechers",
+      "government": false
+    },
+    {
+      "id": "McDonaldsCorporation",
+      "name": "McDonald's",
+      "government": false
+    },
+    {
+      "id": "CityOfAlbuquerque",
+      "name": "City of Albuquerque",
+      "government": true
+    },
+    {
+      "id": "CityofLongBeach",
+      "name": "City of Long Beach",
+      "government": true
+    },
+    {
+      "id": "AbbVie",
+      "name": "AbbVie",
+      "government": false
+    },
+    {
+      "id": "Avis",
+      "name": "Avis Budget Group",
+      "government": false
+    },
+    {
+      "id": "Gannett",
+      "name": "Gannett",
+      "government": false
+    },
+    {
+      "id": "HearstMagazines",
+      "name": "Hearst",
+      "government": false
+    }
   ],
   "workable": [
-    {"id": "theguardian", "name": "The Guardian"},
-    {"id": "huckberry", "name": "Huckberry"},
-    {"id": "blueapron", "name": "Blue Apron"},
-    {"id": "givedirectly", "name": "GiveDirectly"},
-    {"id": "nrdc", "name": "NRDC"},
-    {"id": "techsoup", "name": "TechSoup"}
+    {
+      "id": "theguardian",
+      "name": "The Guardian"
+    },
+    {
+      "id": "huckberry",
+      "name": "Huckberry"
+    },
+    {
+      "id": "blueapron",
+      "name": "Blue Apron"
+    },
+    {
+      "id": "givedirectly",
+      "name": "GiveDirectly"
+    },
+    {
+      "id": "nrdc",
+      "name": "NRDC"
+    },
+    {
+      "id": "techsoup",
+      "name": "TechSoup"
+    }
   ]
 }
