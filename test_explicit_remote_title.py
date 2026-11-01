@@ -1,4 +1,5 @@
 """Production-export regression: (Remote) title cannot bypass Mayo-only filter."""
+from app_sources import app_source
 import ast
 import unittest
 from pathlib import Path
@@ -24,7 +25,7 @@ class EmployerRemoteTitleTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertFalse(explicitly_remote_title(title))
     def test_both_ingest_and_filter_apply_title_rule(self):
-        app=ast.parse(Path(__file__).with_name("app.py").read_text())
+        app=ast.parse(app_source())
         functions={n.name:n for n in app.body if isinstance(n,ast.FunctionDef)}
         importer=ast.unparse(functions['standard_job'])
         filterer=ast.unparse(functions['filter_and_rank_jobs'])

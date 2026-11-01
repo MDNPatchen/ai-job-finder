@@ -3,6 +3,7 @@
 The actual employer-board identities are externally verified; this test does
 not pretend a currently published job or working API has been confirmed.
 """
+from app_sources import app_source
 import ast
 import json
 from datetime import date, timedelta
@@ -110,7 +111,7 @@ class CareerCatalogTests(unittest.TestCase):
                              f"https://{record['id']}.{record['wd']}.myworkdayjobs.com/{record['site']}")
 
     def test_app_loader_accepts_catalog(self):
-        tree=ast.parse(Path(__file__).with_name('app.py').read_text(encoding='utf-8'))
+        tree=ast.parse(app_source())
         wanted={'read_job_sources','VALID_SOURCE_GROUPS','US_STATES'}
         body=[n for n in tree.body if (isinstance(n,ast.FunctionDef) and n.name in wanted) or
               (isinstance(n,ast.Assign) and any(getattr(t,'id',None) in wanted for t in n.targets))]
@@ -127,7 +128,7 @@ class CareerCatalogTests(unittest.TestCase):
 
 class SmartRecruitersDetailTests(unittest.TestCase):
     def test_bounded_details_skip_old_and_remote_and_keep_real_urls(self):
-        source=Path(__file__).with_name('app.py').read_text(encoding='utf-8')
+        source=app_source()
         tree=ast.parse(source)
         func=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
                   and n.name=='load_smartrecruiters_boards')

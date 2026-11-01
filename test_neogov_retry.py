@@ -1,4 +1,5 @@
 """Government feeds that time out get one more try; real errors do not."""
+from app_sources import app_source
 import ast
 import unittest
 import xml.etree.ElementTree as ET
@@ -10,7 +11,7 @@ from urllib.request import Request
 
 
 def load_function(calls, failures_by_slug):
-    tree = ast.parse(Path(__file__).with_name('app.py').read_text(encoding='utf-8'))
+    tree = ast.parse(app_source())
     fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'load_neogov_feeds')
 
     def iter_public_rss(req, timeout=12):

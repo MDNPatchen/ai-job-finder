@@ -1,4 +1,5 @@
 """Ensure stale Streamlit matches and old downloads are clearly identified."""
+from app_sources import app_source
 import ast
 import unittest
 from pathlib import Path
@@ -45,7 +46,7 @@ class ExportVersionTests(unittest.TestCase):
                          data[0]['comparative_fit_index'])
 
     def test_streamlit_app_uses_versioned_ranking_and_files(self):
-        src=Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        src=app_source()
         ast.parse(src)
         self.assertIn("st.session_state.pop('search_results', None)",src)
         self.assertIn("needs_search_refresh(st.session_state.get('matching_engine_version'))",src)

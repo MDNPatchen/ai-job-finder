@@ -1,4 +1,5 @@
 """Offline NYC Open Data integration checks; public rows are mocked, no HTTP."""
+from app_sources import app_source
 import ast
 import copy
 from datetime import date, datetime, timezone, timedelta
@@ -9,7 +10,7 @@ from urllib.parse import urlencode
 
 
 def load_nyc_from_rows(rows):
-    text=Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+    text=app_source()
     tree=ast.parse(text)
     node=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
               and n.name=='load_nyc_jobs')

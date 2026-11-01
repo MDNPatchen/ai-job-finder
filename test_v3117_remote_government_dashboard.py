@@ -3,6 +3,7 @@
 Tests exercise the actual extracted production filter without network access.
 Government RSS company+agency URL validation is applied before remote exception.
 """
+from app_sources import app_source
 import unittest
 from pathlib import Path
 from job_workflow import permitted_remote_source
@@ -95,7 +96,7 @@ class RemotePublicSectorTests(unittest.TestCase):
 
 class DashboardInsetTests(unittest.TestCase):
     def test_native_dashboard_container_used(self):
-        src=Path(__file__).with_name('app.py').read_text()
+        src=app_source()
         self.assertIn("st.container(border=False, key='dashboard_content')",src)
         self.assertEqual(src.count("st.columns(3, gap='large')"),3)
 

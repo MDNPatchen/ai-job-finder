@@ -1,4 +1,5 @@
 """No-network v3.1.10 regressions for degree fields, sector years, Lever health."""
+from app_sources import app_source
 import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -122,7 +123,7 @@ class SpecialistExperienceTests(unittest.TestCase):
 
 
 def extract_lever_loader():
-    tree=ast.parse(Path(__file__).with_name('app.py').read_text())
+    tree=ast.parse(app_source())
     fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
             and n.name=='load_lever_employers')
     fn.decorator_list=[]

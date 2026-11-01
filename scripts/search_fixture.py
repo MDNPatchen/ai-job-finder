@@ -21,6 +21,8 @@ def fixture_fetch(terms,state_filter=None,progress=None,credentials=None):
         if progress:progress(jobs,[],counts,health,i+1,2)
     return jobs,[],counts,health
 
-path=Path(__file__).resolve().parents[1]/'app.py'
-source=path.read_text().replace('def fetch_all_free_jobs(', 'def unused_real_fetch(')
-exec(compile(source,str(path),'exec'),{'__file__':str(path),'__name__':'__main__','fetch_all_free_jobs':fixture_fetch})
+# Swap the real network search for the fixture, then run the real app.
+import runpy
+import app_core
+app_core.fetch_all_free_jobs=fixture_fetch
+runpy.run_path(str(Path(__file__).resolve().parents[1]/'app.py'),run_name='__main__')

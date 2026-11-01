@@ -2,6 +2,7 @@
 
 Do not require Streamlit, provider credentials or outside HTTP.
 """
+from app_sources import app_source
 import ast
 from pathlib import Path
 import re
@@ -18,7 +19,7 @@ from job_workflow import explicitly_remote_title
 
 
 def extract_current_functions():
-    text=Path(__file__).with_name('app.py').read_text(encoding='utf-8')
+    text=app_source()
     tree=ast.parse(text)
     fn_names=('classify_work_arrangement','standard_job')
     nodes=[x for x in tree.body if isinstance(x,ast.FunctionDef) and x.name in fn_names]

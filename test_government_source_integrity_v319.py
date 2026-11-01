@@ -3,6 +3,7 @@
 Examples based on duplicate URL / wrong-employer records in the v3.1.8
 ranked export, with fictitious employer data used only for negative cases.
 """
+from app_sources import app_source
 import ast
 import unittest
 from pathlib import Path
@@ -81,7 +82,7 @@ class GovernmentAgencyAttributionTests(unittest.TestCase):
         self.assertEqual(len(dedupe_vacancy_urls(rows)),2)
 
     def test_loader_and_cached_ranker_both_enforce_agency(self):
-        app=ast.parse(Path(__file__).with_name("app.py").read_text())
+        app=ast.parse(app_source())
         functions={x.name:x for x in app.body if isinstance(x,ast.FunctionDef)}
         gov=ast.unparse(functions["load_neogov_feeds"])
         school=ast.unparse(functions["load_schooljobs_feeds"]) if "load_schooljobs_feeds" in functions else ""

@@ -1,4 +1,5 @@
 """No-network status reporting tests for working, empty and unavailable boards."""
+from app_sources import app_source
 import ast
 from concurrent.futures import Future
 from pathlib import Path
@@ -7,7 +8,7 @@ import unittest
 
 
 def load_retrieve_boards():
-    source=Path(__file__).with_name('app.py').read_text(encoding='utf-8')
+    source=app_source()
     module=ast.parse(source)
     fn=next(x for x in module.body if isinstance(x,ast.FunctionDef)
             and x.name=='retrieve_boards')

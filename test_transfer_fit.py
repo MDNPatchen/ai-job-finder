@@ -3,6 +3,7 @@
 All resumes/jobs below are synthetic; no private resume or application data
 is included in the public repository.
 """
+from app_sources import app_source
 import ast
 import re
 import unittest
@@ -101,7 +102,7 @@ class TransferabilityTests(unittest.TestCase):
                              for i in supported_transfer_areas(q)))
 
     def test_nontraditional_job_title_can_qualify_by_actual_duties(self):
-        source=Path(__file__).with_name('app.py').read_text(encoding='utf-8')
+        source=app_source()
         tree=ast.parse(source)
         func=next(x for x in tree.body if isinstance(x,ast.FunctionDef)
                   and x.name=='score_job')

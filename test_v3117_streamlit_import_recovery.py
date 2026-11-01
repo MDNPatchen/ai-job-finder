@@ -3,6 +3,7 @@
 Verify the exact missing helper symptom without relying on a live network or
 an installed Streamlit instance. Validate both shared function and fallback.
 """
+from app_sources import app_source
 import ast
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ import job_workflow
 
 
 def app_local_remote_policy(namespace):
-    source=Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+    source=app_source()
     tree=ast.parse(source)
     assert any(isinstance(n,ast.Import) and
                any(x.name=="job_workflow" and x.asname=="_job_workflow"
