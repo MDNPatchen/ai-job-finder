@@ -57,7 +57,7 @@ from tailoring import build_sheet, sheet_text
 import job_workflow as _job_workflow
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
-    preferences_allow, explicitly_remote_title
+    preferences_allow, explicitly_remote_title, MINIMUM_LEVELS
 )
 
 
