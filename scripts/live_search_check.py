@@ -8,6 +8,7 @@ finish, then prints elapsed time, jobs fetched, ranked results, per-source
 counts and any failed or partial boards. Results are also emitted as GitHub
 notice annotations. Needs network access; not part of the unit tests.
 """
+import os
 import sys
 import time
 from pathlib import Path
@@ -18,6 +19,9 @@ from streamlit.testing.v1 import AppTest
 def main():
     label = sys.argv[1] if len(sys.argv) > 1 else 'search'
     app_path = Path(sys.argv[2] if len(sys.argv) > 2 else 'app.py').resolve()
+    # The app imports its sibling modules and reads job_sources.json beside it.
+    sys.path.insert(0, str(app_path.parent))
+    os.chdir(app_path.parent)
     at = AppTest.from_file(str(app_path), default_timeout=120).run()
     assert not at.exception, [e.message for e in at.exception]
     at.radio(key='top_navigation').set_value('Find Jobs').run()
