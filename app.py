@@ -573,17 +573,30 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
                 jobs.append(job)
         return jobs, len(jobs)
     jobs, failures, counts = [], [], {}
-    with ThreadPoolExecutor(max_workers=12) as pool:
-        tasks = {pool.submit(one_agency, a): a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter}
-        for task in as_completed(tasks):
-            token, employer, state = tasks[task]
-            try:
-                records, count = task.result()
-                jobs.extend(records)
-                counts[f'{employer} ({state})'] = count
-            except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
-                failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
-                counts[f'{employer} ({state})'] = 0
+    # All agency feeds live on one host, which slows down and times out when
+    # hit with many parallel requests. Query it gently, then give feeds that
+    # timed out one more try while the search still has time left.
+    agencies = [a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter]
+    retry = []
+    for attempt, (batch, workers) in enumerate(((agencies, 6), (retry, 3))):
+        if not batch:
+            continue
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            tasks = {pool.submit(one_agency, a): a for a in batch}
+            for task in as_completed(tasks):
+                agency = tasks[task]
+                token, employer, state = agency
+                try:
+                    records, count = task.result()
+                    jobs.extend(records)
+                    counts[f'{employer} ({state})'] = count
+                except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
+                    timed_out = isinstance(exc, (URLError, TimeoutError, OSError)) and 'timed out' in str(exc).lower()
+                    if attempt == 0 and timed_out:
+                        retry.append(agency)
+                        continue
+                    failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
+                    counts[f'{employer} ({state})'] = 0
     return jobs, failures, counts
 
 

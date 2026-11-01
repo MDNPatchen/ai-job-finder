@@ -482,7 +482,9 @@
       "id": "rhodeisland",
       "name": "State of Rhode Island",
       "state": "RI",
-      "career_page": "https://www.governmentjobs.com/careers/rhodeisland"
+      "career_page": "https://www.governmentjobs.com/careers/rhodeisland",
+      "enabled": false,
+      "note": "Feed returns an error page (live checks and searches 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "utah",
