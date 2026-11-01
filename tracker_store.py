@@ -134,6 +134,10 @@ def clean_profile(profile):
     if not isinstance(resume,str):
         raise ValueError('Resume text must be text')
     out={'answers':clean}
+    from saved_searches import clean_saved_searches
+    searches=clean_saved_searches(profile.get('saved_searches') or [])
+    if searches:
+        out['saved_searches']=searches
     # Resume text is saved only when the person opts in; otherwise the key is
     # absent so backups contain no resume at all.
     if resume.strip():

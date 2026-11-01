@@ -33,7 +33,16 @@ jobs:
           cache-dependency-path: requirements.lock
       - run: python -m pip install -r requirements.txt
       - run: python -m pip check
-      - run: python -m unittest discover -v
+      - name: Unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -v 2>&1 | tee unittest.log || {
+            # Surface the failing tests' tracebacks as an annotation.
+            body=$(grep -A30 -E '^(FAIL|ERROR):' unittest.log | head -120 | sed 's/%/%25/g' | tr '\n' '\r' | sed 's/\r/%0A/g')
+            echo "::error title=unit test failures::${body:0:3800}"
+            exit 1
+          }
       - run: python -m unittest discover -s tests -v
       - run: python scripts/evaluate_evidence.py
       - uses: actions/setup-node@v4

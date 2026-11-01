@@ -47,6 +47,8 @@ from ui_theme import APP_CSS, brand, hero, listing_head
 from career_profile import (PROFILE_QUESTIONS, YN_CHOICES, LEGACY_DEFAULT_ANSWERS,
                             profile_areas, interpret_resume)
 from role_families import LABELS as ROLE_FAMILY_LABELS, family_for_title, rank_families, explain_job
+import saved_searches
+from tailoring import build_sheet, sheet_text
 import job_workflow as _job_workflow
 from job_workflow import (
     distinct_posting_key, canonical_job_url, posting_id, annotate_new_results,
@@ -87,6 +89,7 @@ for key, default in {'jobs': [], 'resume_text': '',
                      'search_baseline': False, 'tracker_unlocked': False,
                      'profile_answers': dict(LEGACY_DEFAULT_ANSWERS),
                      'save_resume_with_tracker': False,
+                     'saved_searches': [],
                      'tracker_loaded': False}.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1676,48 +1679,95 @@ elif page == 'Find Jobs':
         st.caption('Search again for updated rankings.')
 
     state_choices = ['All states'] + [f'{name} ({code})' for code,name in sorted(US_STATES.items(),key=lambda kv:kv[1])]
+    state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
+    WORK_OPTIONS=['On-site + Hybrid','On-site only','Hybrid only']
+    SCOPE_OPTIONS=['Direct employers only (recommended)',
+                   'Include recruiter listings with direct job links',
+                   'All sources (including directory links)']
+    EMPLOYER_SCOPE_OPTIONS=['All matching jobs (recommended)',
+                            'Compact results: up to 3 per employer (10 Mayo Clinic)']
+    SENIORITY_OPTIONS=['Executive / VP','Publisher','Director','Manager','Other']
+    FILTER_OPTIONS={'f_state':state_choices,'f_work':WORK_OPTIONS,'f_scope':SCOPE_OPTIONS,
+                    'f_employer_scope':EMPLOYER_SCOPE_OPTIONS,'f_include':state_names,
+                    'f_exclude':state_names,'f_seniority':SENIORITY_OPTIONS}
     st.markdown('<div class="job-module-heading">Search filters</div>',unsafe_allow_html=True)
+    saved_list=st.session_state.get('saved_searches') or []
+    notice=st.session_state.pop('saved_search_notice',None)
+    if notice:
+        st.success(notice)
+    if 'saved_search_select' in st.session_state:
+        # Select the search just saved; set before the picker is drawn.
+        st.session_state.saved_search_pick=st.session_state.pop('saved_search_select')
+    if saved_list:
+        pick_col,run_col,del_col=st.columns([3,1,1],vertical_alignment='bottom')
+        with pick_col:
+            picked=st.selectbox('Saved searches',[x['name'] for x in saved_list],key='saved_search_pick')
+        chosen_saved=next(x for x in saved_list if x['name']==picked)
+        with run_col:
+            if st.button('Run',key='run_saved_search_button',type='primary',use_container_width=True):
+                saved_searches.apply(st.session_state,chosen_saved['filters'],FILTER_OPTIONS)
+                st.session_state.run_saved_search=True
+                st.rerun()
+        with del_col:
+            if st.button('Delete',key='delete_saved_search_button',use_container_width=True):
+                st.session_state.saved_searches=saved_searches.remove(saved_list,picked)
+                persist_tracker_if_unlocked()
+                st.rerun()
     with st.form('clean_search'):
         search_text = st.text_input('Search',placeholder='Job title, keyword or agency',
-            help='Leave blank for transferable career matches.')
+            help='Leave blank for transferable career matches.',key='f_search')
         col_state, col_type = st.columns([2,1])
         with col_state:
-            chosen_state=st.selectbox('State',state_choices)
+            chosen_state=st.selectbox('State',state_choices,key='f_state')
         with col_type:
-            chosen_work=st.selectbox('Work style',
-                ['On-site + Hybrid','On-site only','Hybrid only'],
+            chosen_work=st.selectbox('Work style',WORK_OPTIONS,key='f_work',
                 help='On-site + Hybrid includes fully remote Mayo Clinic and verified government jobs; fully remote private-sector positions remain excluded. On-site only and Hybrid only are strict. Unknown arrangements require verification.')
         chosen_listing_scope=st.selectbox(
-            'Employer type', [
-                'Direct employers only (recommended)',
-                'Include recruiter listings with direct job links',
-                'All sources (including directory links)',
-            ],
+            'Employer type', SCOPE_OPTIONS, key='f_scope',
             help='Recommended: employer-specific career boards and public agencies, with a link to an individual vacancy. Recruiting intermediaries, aggregators and general career directories are hidden. This does not prove the vacancy remains open; check the original employer listing.')
         chosen_employer_scope=st.selectbox(
-            'Results per employer',
-            ['All matching jobs (recommended)',
-             'Compact results: up to 3 per employer (10 Mayo Clinic)'],
+            'Results per employer', EMPLOYER_SCOPE_OPTIONS, key='f_employer_scope',
             help='The full view keeps all qualifying jobs in resume-match order. The compact view hides additional jobs from employers with many postings; the count hidden is shown in diagnostics.')
         with st.expander('More filters'):
-            state_names=[f'{code} — {name}' for code,name in sorted(US_STATES.items())]
             include_states=st.multiselect(
-                'Only these states (leave blank for nationwide)',state_names,
+                'Only these states (leave blank for nationwide)',state_names,key='f_include',
                 help='You can pick several states instead of filtering down to one.')
-            exclude_states=st.multiselect('Exclude states',state_names)
-            desired_seniority=st.multiselect('Role level',[
-                'Executive / VP','Publisher','Director','Manager','Other'],
+            exclude_states=st.multiselect('Exclude states',state_names,key='f_exclude')
+            desired_seniority=st.multiselect('Role level',SENIORITY_OPTIONS,key='f_seniority',
                 help='Leave empty to include all role levels.')
             minimum_salary=st.number_input('Minimum listed annual salary ($)',
-                min_value=0,max_value=500000,step=10000,value=0,
+                min_value=0,max_value=500000,step=10000,key='f_minsal',
+                **({} if 'f_minsal' in st.session_state else {'value':0}),
                 help='Only explicitly annual salary figures are compared. This is not a salary estimate.')
             include_unknown_pay=st.checkbox(
-                'Include jobs that do not disclose annual compensation',value=True)
+                'Include jobs that do not disclose annual compensation',key='f_unknownpay',
+                **({} if 'f_unknownpay' in st.session_state else {'value':True}))
             verified_work=st.checkbox(
-                'Exclude listings with unspecified on-site/hybrid arrangements',
-                value=False,
+                'Exclude listings with unspecified on-site/hybrid arrangements',key='f_verified',
                 help='This excludes unknown arrangements but allows explicitly remote Mayo Clinic and verified government jobs.')
         submitted=st.form_submit_button('Search',type='primary',use_container_width=True)
+        save_col,save_btn_col=st.columns([3,1],vertical_alignment='bottom')
+        with save_col:
+            save_name=st.text_input('Save these filters as',placeholder='e.g. Communications · ND, MN, SD',
+                                    key='f_save_name')
+        with save_btn_col:
+            save_clicked=st.form_submit_button('Save this search',use_container_width=True)
+
+    if save_clicked:
+        try:
+            st.session_state.saved_searches=saved_searches.upsert(
+                st.session_state.get('saved_searches') or [],save_name,
+                saved_searches.capture(st.session_state))
+            stored=persist_tracker_if_unlocked()
+            st.session_state.saved_search_notice=(f'Saved "{save_name.strip()}"'+(
+                ' to your cloud tracker.' if stored else
+                ' for this session. Unlock the Job Tracker to keep it.'))
+            st.session_state.saved_search_select=st.session_state.saved_searches[0]['name']
+            st.rerun()  # redraw so the new search appears in the Saved searches menu
+        except ValueError as exc:
+            st.warning(str(exc))
+    if st.session_state.pop('run_saved_search',False):
+        submitted=True
 
     if submitted:
         running=st.session_state.get('active_search')
@@ -1977,6 +2027,26 @@ elif page == 'Find Jobs':
                                 if not qualification['total_areas'] and not qualification['screeners']:
                                     st.info('The public feed has limited job requirements. Read the full employer posting before deciding.')
                                 st.write('**Resume focus:** ' + qualification['resume_focus'])
+                            with st.expander('Tailoring sheet'):
+                                sheet=build_sheet(job,st.session_state.resume_text)
+                                if sheet['lead_with']:
+                                    st.write('**Lead with**')
+                                    for item in sheet['lead_with']:
+                                        st.write('• '+item['area'])
+                                        if item['resume']:
+                                            st.caption('Your resume: '+item['resume'])
+                                if sheet['add_to_resume']:
+                                    st.write('**You confirmed these, but the resume does not say so:** '
+                                             +', '.join(sheet['add_to_resume']))
+                                if sheet['missing_terms']:
+                                    st.write('**Words they repeat that your resume never uses:** '
+                                             +', '.join(sheet['missing_terms']))
+                                    st.caption('Use them only where they are true for you.')
+                                if sheet['gaps']:
+                                    st.write('**Gaps to address:** '+', '.join(sheet['gaps']))
+                                download_file_widget('Download tailoring sheet',sheet_text(sheet),
+                                    'tailoring_'+re.sub(r'[^A-Za-z0-9]+','_',job['title'])[:50]+'.txt',
+                                    'text/plain','tailoring_sheet_'+str(n))
 
                     with right:
                         st.link_button('View job',job['url'],use_container_width=True)
