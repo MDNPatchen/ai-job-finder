@@ -1468,17 +1468,29 @@ def search_fingerprint():
 
 def run_search_task(task,settings):
     """All inputs are captured on the UI thread; no session state in workers."""
+    import time as _time
     cache={}
+    started=_time.monotonic()
+    timing={'source_done':{},'rank_seconds':0.0,'rank_calls':0}
     base={'preferences':settings['preferences'],'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
           'matching_version':MATCHING_ENGINE_VERSION,'scope':settings['scope'],
           'work':settings['work'],'listing_scope':settings['listing_scope'],
           'employer_scope':settings['employer_scope'],'searched':datetime.now().strftime('%b %d, %Y %I:%M %p')}
     def rank(raw):
+        t=_time.monotonic()
+        try:
+            return _rank(raw)
+        finally:
+            timing['rank_seconds']+=_time.monotonic()-t
+            timing['rank_calls']+=1
+    def _rank(raw):
         return filter_and_rank_jobs(raw,settings['code'],settings['work'],settings['query'],
             settings['resume'],settings['employer_cap'],settings['preferences'],
             settings['listing_scope'],confirmed=settings['confirmed'],scoring_cache=cache,
             excluded=settings.get('excluded',()))
     def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None):
+        for label in counts:
+            timing['source_done'].setdefault(label,round(_time.monotonic()-started,1))
         matches,excluded=rank(raw)
         readiness=settings.get('family_readiness') or {}
         for job in matches:
@@ -1492,15 +1504,20 @@ def run_search_task(task,settings):
         stats={**base,'fetched':len(raw),'sources':dict(counts),'errors':list(errors),
             'board_health':with_recovery_links(health),'excluded':excluded,'new_count':0,'had_baseline':False,
             'government':sum(bool(x['government']) for x in matches),
-            'bulletin_diagnostics':bulletin or {},'search_status':'running'}
+            'bulletin_diagnostics':bulletin or {},'search_status':'running',
+            'timing':{**timing,'rank_seconds':round(timing['rank_seconds'],1),
+                      'elapsed':round(_time.monotonic()-started,1)}}
         task.publish({'matches':matches,'stats':stats},
             f'{len(health)} sources reported · {len(matches)} matches so far')
     raw,errors,counts,health=fetch_all_free_jobs((settings['query'],),settings['code'],
         progress=publish,credentials=settings['credentials'])
+    timing['fetch_done']=round(_time.monotonic()-started,1)
     if settings['resume'].strip():
         task.publish(message='Checking full government descriptions; current results remain available')
         preview,_=rank(raw)
+        t=_time.monotonic()
         raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
+        timing['bulletin_seconds']=round(_time.monotonic()-t,1)
     else: bulletin={}
     publish(raw,errors,counts,health,bulletin=bulletin)
 

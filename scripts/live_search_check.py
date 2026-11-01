@@ -15,6 +15,20 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+SAMPLE_RESUME = '''PROFESSIONAL EXPERIENCE
+Regional Publisher, Example Media Group  2015 - Present
+- Lead 9 newspapers and 120 employees with full P&L responsibility for $12 million in revenue.
+- Grew digital subscriptions 40% and advertising revenue 8% in two years.
+- Serve as spokesperson; manage media relations and crisis communications.
+- Negotiated printing and distribution contracts, cutting costs $1.5 million.
+- Hire, mentor and evaluate department managers; reorganized circulation and production.
+Circulation Director, Example Daily  2008 - 2015
+- Managed distribution and delivery routes across 4 counties.
+COMMUNITY LEADERSHIP
+- Board member, regional chamber of commerce; led fundraising of $250,000 for a community center.
+EDUCATION
+Bachelor of Business Administration'''
+
 
 def main():
     label = sys.argv[1] if len(sys.argv) > 1 else 'search'
@@ -24,6 +38,9 @@ def main():
     os.chdir(app_path.parent)
     at = AppTest.from_file(str(app_path), default_timeout=120).run()
     assert not at.exception, [e.message for e in at.exception]
+    # A synthetic leadership resume (never a real person's) so the search
+    # scores jobs the way it does for someone who uploaded a resume.
+    at.session_state['resume_text'] = SAMPLE_RESUME
     at.radio(key='top_navigation').set_value('Find Jobs').run()
     search = next(b for b in at.button if b.label == 'Search')
     started = time.monotonic()
@@ -43,6 +60,10 @@ def main():
         f"sources reporting={len(health)} active={sum(h.get('status') == 'Active' for h in health)} "
         f"empty={sum(h.get('status') == 'Empty' for h in health)} failed/partial={len(bad)}",
         'by provider: ' + ', '.join(f'{k}={v}' for k, v in sorted((stats.get('sources') or {}).items())),
+        'timing: ' + ', '.join(f'{k}={v}' for k, v in (stats.get('timing') or {}).items() if k != 'source_done'),
+        'sources finished at (s): ' + ', '.join(f'{k}={v}' for k, v in sorted(
+            ((stats.get('timing') or {}).get('source_done') or {}).items(), key=lambda kv: kv[1])
+            if not k.startswith('Government ')),
     ]
     lines += [f"  {h.get('status')}: {h.get('provider')} / {h.get('board')} - {str(h.get('error', ''))[:70]}"
               for h in bad[:40]]
