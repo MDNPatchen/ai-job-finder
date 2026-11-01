@@ -10,7 +10,7 @@ from urllib.parse import urlsplit, parse_qsl
 DIRECT_EMPLOYER_SOURCES = frozenset({
     'NEOGOV', 'NEOED Schooljobs', 'NYC Open Data', 'Greenhouse',
     'Ashby', 'SmartRecruiters', 'Lever employer', 'Workable employer',
-    'Mayo Clinic', 'USAJOBS',
+    'Mayo Clinic', 'USAJOBS', 'Workday',
 })
 
 KNOWN_RECRUITERS = frozenset({

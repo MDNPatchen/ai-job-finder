@@ -86,6 +86,17 @@ def check_workable(entry):
     return len(data.get('jobs') or []), 'account name: ' + str(data.get('name', ''))[:80]
 
 
+def check_workday(entry):
+    tenant, wd, site = entry['id'].lower(), entry['wd'], entry['site']
+    url = f'https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs'
+    body = json.dumps({'appliedFacets': {}, 'limit': 5, 'offset': 0, 'searchText': 'director'}).encode()
+    with urlopen(Request(url, data=body, headers={**UA, 'Accept': 'application/json',
+                                                  'Content-Type': 'application/json'}), timeout=20) as r:
+        data = json.loads(r.read(5_000_000))
+    rows = data.get('jobPostings') or []
+    return int(data.get('total') or 0), 'first: ' + str(rows[0].get('title', ''))[:80] if rows else ''
+
+
 CHECKS = {
     'neogov': lambda e: check_rss('neogov', e),
     'neoed': lambda e: check_rss('neoed', e),
@@ -94,6 +105,7 @@ CHECKS = {
     'ashby': check_ashby,
     'smartrecruiters': check_smartrecruiters,
     'workable': check_workable,
+    'workday': check_workday,
 }
 
 
