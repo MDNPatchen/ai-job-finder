@@ -129,6 +129,16 @@ class InAppTests(unittest.TestCase):
         self.assertEqual(app.selectbox(key='saved_search_pick').value, 'Comms nationwide')
         self.assertFalse(app.warning)
 
+    def test_source_problems_are_collapsed_not_banners(self):
+        app = self.find_jobs()
+        app.session_state['search_stats'] = {**app.session_state['search_stats'], 'board_health': [
+            {'board': 'City of Mesa (AZ)', 'provider': 'NEOGOV', 'status': 'Failed', 'records': 0}]}
+        app.run()
+        self.assertFalse(app.exception)
+        self.assertFalse(any('unavailable' in w.value for w in app.warning))
+        note = next(e for e in app.expander if e.label.startswith('Source status'))
+        self.assertTrue(any('City of Mesa' in c.value for c in note.caption))
+
     def test_tailoring_sheet_on_cards(self):
         app = self.find_jobs()
         self.assertTrue(any(e.label == 'Tailoring sheet' for e in app.expander))

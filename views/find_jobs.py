@@ -140,10 +140,16 @@ def render():
         stats=st.session_state.search_stats
         if stats.get('search_status') in ('running','cancelled','failed'):
             st.caption('Partial search results · coverage and rankings may change as more sources finish.')
-        for severity,message in coverage_messages(stats.get('board_health',[])):
-            getattr(st,severity)(message)
+        # Source problems are useful detail, not a headline: keep them in one
+        # collapsed line the person can open, instead of banners above results.
+        source_notes=[message for _severity,message in coverage_messages(stats.get('board_health',[]))]
         if stats.get('errors') and not stats.get('board_health'):
-            st.warning('Source errors were recorded. See source coverage for details.')
+            source_notes.append('Source errors were recorded. See source coverage for details.')
+        if source_notes:
+            with st.expander(f"Source status · {len(source_notes)} note{'s' if len(source_notes)!=1 else ''}",
+                             expanded=False):
+                for message in source_notes:
+                    st.caption(message)
         st.caption('Results are a snapshot. Provider JSON may be cached for up to 15 minutes; confirm availability on the original posting.')
         # Use the same deduplicated, filtered jobs for all three metrics.
         government_total=sum(1 for job in all_results if job['government'])
