@@ -100,6 +100,15 @@ class CareerCatalogTests(unittest.TestCase):
                     self.assertIs(type(record['government']),bool)
         self.assertGreaterEqual(added,53)
 
+    def test_workday_entries_are_live_verified_and_well_formed(self):
+        import re as _re
+        for record in self.catalog.get('workday', []):
+            self.assertRegex(record['wd'], r'^wd\d{1,3}$')
+            self.assertRegex(record['site'], r'^[A-Za-z0-9_-]+$')
+            self.assertRegex(record.get('verified', ''), r'^\d{4}-\d{2}-\d{2}$')
+            self.assertEqual(record['career_page'],
+                             f"https://{record['id']}.{record['wd']}.myworkdayjobs.com/{record['site']}")
+
     def test_app_loader_accepts_catalog(self):
         tree=ast.parse(Path(__file__).with_name('app.py').read_text(encoding='utf-8'))
         wanted={'read_job_sources','VALID_SOURCE_GROUPS','US_STATES'}
@@ -112,6 +121,8 @@ class CareerCatalogTests(unittest.TestCase):
         enabled=sum(record.get('enabled',True) is not False for record in self.catalog['neogov'])
         self.assertEqual(len(loaded['neogov']),enabled)
         self.assertNotIn('boldbusiness',{token for token,_ in loaded['greenhouse']})
+        for token,name in loaded.get('workday',()):
+            self.assertEqual(token.count('|'),2,name)
 
 
 class SmartRecruitersDetailTests(unittest.TestCase):

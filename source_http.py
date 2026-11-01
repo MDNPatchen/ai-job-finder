@@ -75,10 +75,13 @@ def open_response(request,timeout=10):
     return urlopen(request,timeout=remaining(timeout),context=trusted_context())
 
 
-def fetch_json(url,timeout=12,opener=None,sleep=time.sleep,headers=None):
+def fetch_json(url,timeout=12,opener=None,sleep=time.sleep,headers=None,body=None):
+    """GET (or POST a JSON body) with retries; returns parsed JSON."""
     opener=opener or open_response
-    request=Request(url,headers={'User-Agent':'AIJobFinder/3.2 personal career research',
-                                 'Accept':'application/json',**(headers or {})})
+    extra={'Content-Type':'application/json'} if body is not None else {}
+    request=Request(url,data=None if body is None else json.dumps(body).encode(),
+                    headers={'User-Agent':'AIJobFinder/3.2 personal career research',
+                             'Accept':'application/json',**extra,**(headers or {})})
     for attempt in range(3):
         try:
             with opener(request,timeout=remaining(timeout)) as response:

@@ -305,7 +305,7 @@ US_STATES = {
 from pathlib import Path
 
 SOURCE_CATALOG_FILE = Path(__file__).resolve().parent / 'job_sources.json'
-VALID_SOURCE_GROUPS = ('neogov', 'neoed', 'lever', 'greenhouse', 'ashby', 'smartrecruiters', 'workable', 'mayo')
+VALID_SOURCE_GROUPS = ('neogov', 'neoed', 'lever', 'greenhouse', 'ashby', 'smartrecruiters', 'workable', 'mayo', 'workday')
 
 
 def read_job_sources(path=SOURCE_CATALOG_FILE):
@@ -339,6 +339,11 @@ def read_job_sources(path=SOURCE_CATALOG_FILE):
                 entries.append((token, name, state))
             elif provider == 'smartrecruiters':
                 entries.append((token, name, bool(record.get('government', False))))
+            elif provider == 'workday':
+                wd, site = str(record.get('wd', '')).strip(), str(record.get('site', '')).strip()
+                if not re.fullmatch(r'wd\d{1,3}', wd) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', site):
+                    raise ValueError(f'workday item {number}: expected wd (e.g. wd5) and site')
+                entries.append((f'{token.lower()}|{wd}|{site}', name))
             else:
                 entries.append((token, name))
         cleaned[provider] = tuple(entries)
@@ -359,6 +364,7 @@ ASHBY_BOARDS = JOB_SOURCE_CATALOG['ashby']
 SMARTRECRUITERS_BOARDS = JOB_SOURCE_CATALOG['smartrecruiters']
 WORKABLE_BOARDS = JOB_SOURCE_CATALOG['workable']
 MAYO_BOARDS = JOB_SOURCE_CATALOG['mayo']
+WORKDAY_BOARDS = JOB_SOURCE_CATALOG.get('workday', ())
 # JSON edits must invalidate cached employer feeds as well as displayed counts.
 SOURCE_CATALOG_VERSION = hashlib.sha256(SOURCE_CATALOG_FILE.read_bytes()).hexdigest()[:16]
 
@@ -998,6 +1004,19 @@ def load_smartrecruiters_boards(catalog_version=None):
 
 
 
+def load_workday_boards(catalog_version=None):
+    """Public Workday boards, searched for leadership titles (see workday_source)."""
+    from workday_source import fetch_board, cache_key
+    from source_http import fetch_json as request_json
+    from public_cache import public_json
+    def post_json(url, body):
+        return public_json.get(cache_key(url, body), lambda: request_json(url, 12, body=body))
+    def fetch(board):
+        return fetch_board(board, post_json, fetch_json, standard_job, role_classification,
+                           parse_posted_date, MAX_POSTING_AGE_DAYS, date.today())
+    return retrieve_boards(WORKDAY_BOARDS, fetch, max_workers=4)
+
+
 def load_schooljobs_feeds(state_filter=None, catalog_version=None):
     """NEOED schooljobs RSS, per official 2025 NEOGOV feed documentation."""
     def fetch(board):
@@ -1145,6 +1164,7 @@ def fetch_all_free_jobs(query_terms, state_filter=None, progress=None, credentia
         'SmartRecruiters public boards': lambda: load_smartrecruiters_boards(SOURCE_CATALOG_VERSION),
         'NEOED education RSS': lambda: load_schooljobs_feeds(state_filter, SOURCE_CATALOG_VERSION),
         'Workable public boards': lambda: load_workable_boards(SOURCE_CATALOG_VERSION),
+        'Workday employer boards': lambda: load_workday_boards(SOURCE_CATALOG_VERSION),
         'Mayo Clinic careers': lambda: load_mayo_clinic(SOURCE_CATALOG_VERSION),
     }
     usa_key, usa_email=credentials if credentials is not None else (_secret('USAJOBS_API_KEY'),_secret('USAJOBS_EMAIL'))
@@ -1180,7 +1200,8 @@ def fetch_all_free_jobs(query_terms, state_filter=None, progress=None, credentia
                                            'error':next((err.split(':',1)[1].strip() for err in failures if err.split(':',1)[0].strip()==board),'')})
                     elif label in ('Greenhouse public boards','Ashby public boards',
                                    'SmartRecruiters public boards','NEOED education RSS',
-                                   'Workable public boards','Lever employer boards'):
+                                   'Workable public boards','Lever employer boards',
+                                   'Workday employer boards'):
                         records,failures,board_health=result
                         jobs.extend(records)
                         counts[label]=len(records)
