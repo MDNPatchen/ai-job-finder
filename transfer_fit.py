@@ -26,6 +26,8 @@ TRANSFER_WEIGHTS = {
     'Project & program management': 1.15,
     'Reporting & data analysis': 1.05,
     'Compliance & regulated operations': 1.05,
+    'Communications & public relations': 1.10,
+    'Fundraising & development': 1.05,
     'Healthcare administration': 1.00,
     'Government administration': 1.00,
 }

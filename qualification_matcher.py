@@ -12,11 +12,11 @@ CAPABILITIES = (
     ('Financial & P&L leadership', (r'\bp\s*&\s*l\b', r'profit and loss', r'profitability', r'\bbudgets?\b', r'\bbudgeting\b', r'financial (?:management|planning|performance|oversight)', r'\bforecast(?:ing|s)?\b', r'cash flow')),
     ('Multi-site business leadership', (r'multi[- ](?:site|location|unit)', r'multiple (?:sites|locations|facilities|publications|branches|businesses)', r'regional (?:leadership|management|operations)', r'\bgroup publisher\b', r'\bdistrict (?:director|manager)\b')),
     ('Operations leadership', (r'\boperations? (?:management|leadership|director|manager|oversight|strategy|improvement)\b', r'operational (?:excellence|efficien\w*|performance|management|leadership)', r'process improvement', r'\bworkflow\b', r'\bcontinuous improvement\b', r'\boperational planning\b')),
-    ('Talent & organizational change', (r'\b(?:supervis\w*|manag\w*|lead\w*|led) (?:staff|employees|teams|managers|people|personnel)\b', r'\b(?:hiring|recruitment|onboarding|training|mentoring|coaching)\b', r'\borganizational (?:change|development|transformation)\b', r'\bchange management\b', r'\bworkforce\b', r'\bemployee relations\b')),
+    ('Talent & organizational change', (r'\b(?:supervis\w*|manag\w*|lead\w*|led) (?:staff|employees|teams|managers|people|personnel)\b', r'\b(?:hiring|recruitment|onboarding|training|mentoring|coaching)\b', r'\borganizational (?:change|development|transformation)\b', r'\bchange management\b', r'\bworkforce\b', r'\bemployee relations\b', r'\bmentor(?:s|ed)?\b', r'\bperformance (?:evaluations?|reviews?|appraisals?)\b', r'\breorganiz\w*\b', r'\b(?:high[- ]performing|cross[- ]functional) teams?\b')),
     ('Revenue growth & transformation', (r'\brevenue\b', r'\bsales (?:growth|strategy|management|leadership|teams?)\b', r'\bbusiness development\b', r'\bcommercial strategy\b', r'\bturnaround\b', r'\bmarket (?:growth|expansion)\b')),
     ('Advertising & sales leadership', (r'\badvertis\w*\b', r'\b(?:sales|account) (?:team|leadership|executives?|management|strategy)\b', r'\bclient acquisition\b', r'\baccounts? management\b')),
     ('Editorial & cross-functional leadership', (r'\beditorial\b', r'\bnewsroom\b', r'\bmanaging editor\b', r'\bpublisher\b', r'\bcross[- ]functional (?:teams?|leadership|management)\b')),
-    ('Digital transformation', (r'\bdigital (?:revenue|marketing|strategy|transformation|products?|subscriptions?|platforms?)\b', r'\bonline advertising\b', r'\btechnology adoption\b', r'\be-?commerce\b')),
+    ('Digital transformation', (r'\bdigital (?:revenue|marketing|strategy|transformation|products?|subscriptions?|platforms?|media)\b', r'\bonline advertising\b', r'\btechnology adoption\b', r'\be-?commerce\b', r'\bweb (?:traffic|analytics)\b', r'\bsocial media (?:strategy|growth|engagement|followers?)\b')),
     ('Audience & marketing development', (r'\bmarketing\b', r'\baudience (?:growth|development|engagement)\b', r'\bcustomer (?:acquisition|retention|growth)\b', r'\bcirculation\b', r'\bsubscription\w*\b', r'\bbrand strategy\b')),
     ('Distribution & logistics', (r'\bdistribution\b', r'\blogistics\b', r'\bsupply chain\b', r'\bdelivery (?:network|operations|routes?)\b', r'\broute (?:optimization|planning|management)\b', r'\binventory management\b', r'\bfulfillment\b')),
     ('Negotiation & vendor management', (r'\bnegotiat\w*\b', r'\b(?:vendor|supplier|contract|procurement|purchasing) (?:management|negotiation|oversight|administration|relations)\b', r'\b(?:vendor|supplier|contract)\b')),
@@ -25,6 +25,8 @@ CAPABILITIES = (
     ('Project & program management', (r'\bproject (?:management|manager|delivery|planning|execution)\b', r'\bprogram (?:management|manager|administration|delivery)\b', r'\bportfolio management\b')),
     ('Reporting & data analysis', (r'\b(?:data|financial|business) analys\w*\b', r'\b(?:kpi|kpis|dashboards?|analytics|reporting|metrics)\b', r'\bperformance measurement\b')),
     ('Compliance & regulated operations', (r'\b(?:regulatory|legal|policy|industry) compliance\b', r'\brisk management\b', r'\bregulat\w*\b', r'\baudit\w*\b')),
+    ('Communications & public relations', (r'\bspokes(?:person|man|woman)\b', r'\bpublic relations\b', r'\bmedia (?:relations|contact|inquiries|positioning)\b', r'\bcrisis communications?\b', r'\bcommunications? (?:plans?|planning|strategy|strategies|campaigns?|programs?)\b', r'\bpress releases?\b', r'\bpublic information\b', r'\breputation management\b')),
+    ('Fundraising & development', (r'\bfundrais\w*\b', r'\bdonors?\b', r'\bphilanthrop\w*\b', r'\bmajor gifts?\b', r'\bcapital campaigns?\b', r'\bgrant (?:writing|seeking|management|proposals?)\b', r'\b(?:annual|planned) giving\b', r'\bsponsorships?\b')),
     ('Healthcare administration', (r'\b(?:healthcare|clinical|hospital|patient|medical) (?:administration|operations|management|services|experience)\b', r'\bhealth system\b', r'\bpatient care\b')),
     ('Government administration', (r'\b(?:city|county|municipal|public sector|government) (?:administration|management|operations|leadership)\b', r'\bpublic administration\b', r'\bmunicipal services\b')),
 )
@@ -51,11 +53,43 @@ def _excerpt(text, found, radius=95):
     return ('…' if left > 0 else '') + excerpt + ('…' if right < len(text) else '')
 
 
+_DATE_RANGE = re.compile(
+    r'\b(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(?:19|20)\d{2}\s*'
+    r'(?:[-–—]|to)\s*(?:present|current|now|(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(?:19|20)\d{2})\b',
+    re.I)
+_ACTION = re.compile(r'\b\w+(?:ed|ing|ize|ise|s)\b', re.I)
+
+
+def is_heading_line(line):
+    """Job-title, employer and date lines name a role; they are not evidence
+    that a duty was performed (e.g. "Group Publisher, Midwest Region  2025 – Present")."""
+    text = _one_line(line, 500)
+    words = text.split()
+    if not words:
+        return True
+    if _DATE_RANGE.search(text) and len(words) <= 12:
+        return True
+    # Short "Employer — Place" or all-caps section headings carry no duties.
+    is_sentence = bool(re.search(r'[.;]\s*$', text) or re.match(r'^[•\-\*▪●◦]', text))
+    if len(words) <= 8 and not is_sentence and ('—' in text or text.isupper()):
+        return True
+    # "Employer — Paper (City, ST) & Paper (City, ST)" names places, not duties.
+    if '—' in text and len(words) <= 16 and not is_sentence and \
+            re.search(r'\([A-Z][\w .]+,\s*[A-Z]{2}\)', text):
+        return True
+    return False
+
+
 @lru_cache(maxsize=8)
-def compile_resume_profile(resume_text, confirmed_areas=()):
-    """Use literal resume excerpts and keep user confirmations separate."""
+def compile_resume_profile(resume_text, confirmed_areas=(), excluded_areas=()):
+    """Use literal resume excerpts and keep user confirmations separate.
+
+    excluded_areas: areas the person says the resume overstates; they are
+    dropped from evidence so matching does not credit them.
+    """
     text = str(resume_text or '')[:55000]
-    lines = [_one_line(line, 500) for line in text.splitlines() if line.strip()]
+    lines = [_one_line(line, 500) for line in text.splitlines()
+             if line.strip() and not is_heading_line(line)]
     evidence = {}
     for area, patterns in _COMPILED:
         matches = []
@@ -67,10 +101,11 @@ def compile_resume_profile(resume_text, confirmed_areas=()):
                     matches.append(excerpt[:280])
             if len(matches) == 2:
                 break
-        if matches:
+        if matches and area not in excluded_areas:
             evidence[area] = matches
     return {'resume_present': bool(text.strip()), 'evidence': evidence,
-            'confirmed': frozenset(confirmed_areas)}
+            'confirmed': frozenset(confirmed_areas) - frozenset(excluded_areas),
+            'excluded': frozenset(excluded_areas)}
 
 
 def _qualification_screeners(description, resume):
