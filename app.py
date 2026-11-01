@@ -86,6 +86,7 @@ for key, default in {'jobs': [], 'resume_text': '',
                      'confirmed_qualifications': [], 'seen_jobs': [],
                      'search_baseline': False, 'tracker_unlocked': False,
                      'profile_answers': dict(LEGACY_DEFAULT_ANSWERS),
+                     'save_resume_with_tracker': False,
                      'tracker_loaded': False}.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -216,8 +217,11 @@ def verification_editor():
             st.session_state.profile_answers = new
             st.session_state.pop('search_results', None)
             st.session_state.pop('search_stats', None)
-            st.success('Profile saved for this session. Search again to refresh job matches.')
-    st.caption('Nothing here is added to your resume automatically. Saved for this browser session only.')
+            saved = persist_tracker_if_unlocked()
+            st.success('Profile saved' + (' to your private cloud tracker.' if saved else ' for this session.')
+                       + ' Search again to refresh job matches.')
+    st.caption('Nothing here is added to your resume automatically. Your answers are saved with your '
+               'Job Tracker: in your private cloud database when unlocked, and in tracker backups.')
 
 
 GRADE_NOTES = {
@@ -1610,6 +1614,13 @@ if page == 'Dashboard':
 elif page == 'My Resume':
     st.markdown(hero('Resume','Upload and review your experience'),unsafe_allow_html=True)
     file = st.file_uploader('Upload PDF, Word, or TXT resume', type=['pdf','docx','txt'])
+    keep = st.checkbox('Save my resume with my Job Tracker so the analysis is ready next time',
+        value=st.session_state.save_resume_with_tracker,
+        help='Off by default. When on, the resume text is stored in your private cloud tracker '
+             '(when unlocked) and in tracker backup files. It is never stored in GitHub.')
+    if keep != st.session_state.save_resume_with_tracker:
+        st.session_state.save_resume_with_tracker = keep
+        persist_tracker_if_unlocked()  # adds or removes the saved copy
     if file:
         try:
             extracted = extract_resume_text(file)
@@ -1619,6 +1630,7 @@ elif page == 'My Resume':
                     # Old search results were ranked with an earlier resume.
                     st.session_state.pop('search_results', None)
                     st.session_state.pop('search_stats', None)
+                    persist_tracker_if_unlocked()
                 st.success('Resume uploaded successfully!')
             else:
                 st.warning('No readable text was found. Scanned PDFs may need OCR.')
@@ -2084,7 +2096,8 @@ elif page == 'Job Tracker':
         download_file_widget(
             'Download tracker backup JSON',
             export_workspace_json(st.session_state.jobs,st.session_state.seen_jobs,
-                                  st.session_state.search_baseline,st.session_state.get('employer_checks',{})),
+                                  st.session_state.search_baseline,st.session_state.get('employer_checks',{}),
+                                  tracker_sync.snapshot(st.session_state)['profile']),
             'job_tracker_full_backup.json','application/json',
             'tracker_full_backup')
     with backup_right:
@@ -2117,7 +2130,7 @@ elif page == 'Job Tracker':
                 staged,conflicts=prepare_restore(current,incoming if incoming is not None else make_workspace(restored_jobs),
                     replace=restore_mode.startswith('Replace'),applications_only=incoming is None)
                 st.session_state.before_restore_backup=export_workspace_json(current['jobs'],current['seen'],
-                    current['has_baseline'],current['employer_evidence'])
+                    current['has_baseline'],current['employer_evidence'],current['profile'])
                 tracker_sync.apply_workspace(st.session_state,staged)
                 st.session_state.restore_notice=f"Restored {len(restored_jobs)} applications. {conflicts} competing records kept from this session."
                 synced=persist_tracker_if_unlocked()

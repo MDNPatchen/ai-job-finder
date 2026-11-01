@@ -1,12 +1,14 @@
 """Validate and stage a restore before changing session or cloud state."""
 from copy import deepcopy
 from tracker_store import make_workspace
-from workspace_merge import row_id
+from workspace_merge import merge_profile, row_id
 
 
 def prepare_restore(current,incoming,replace=False,applications_only=False):
-    current=make_workspace(current['jobs'],current['seen'],current['has_baseline'],current['employer_evidence'])
-    incoming=make_workspace(incoming['jobs'],incoming['seen'],incoming['has_baseline'],incoming['employer_evidence'])
+    current=make_workspace(current['jobs'],current['seen'],current['has_baseline'],current['employer_evidence'],
+                           current.get('profile'))
+    incoming=make_workspace(incoming['jobs'],incoming['seen'],incoming['has_baseline'],incoming['employer_evidence'],
+                            incoming.get('profile'))
     if replace:
         result=deepcopy(current if applications_only else incoming)
         result['jobs']=deepcopy(incoming['jobs'])
@@ -19,5 +21,6 @@ def prepare_restore(current,incoming,replace=False,applications_only=False):
         conflicts+=sum(k in current['employer_evidence'] and current['employer_evidence'][k]!=v
                        for k,v in incoming['employer_evidence'].items())
         result=make_workspace(list(rows.values()),current['seen']+incoming['seen'],
-            current['has_baseline'] or incoming['has_baseline'],evidence)
+            current['has_baseline'] or incoming['has_baseline'],evidence,
+            merge_profile({},current['profile'],incoming['profile']))
     return result,conflicts
