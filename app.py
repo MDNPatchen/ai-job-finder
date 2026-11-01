@@ -80,27 +80,9 @@ from tracker_store import (
 st.set_page_config(page_title='AI Job Finder', layout='wide', initial_sidebar_state='auto')
 st.markdown(APP_CSS, unsafe_allow_html=True)
 
-SKILLS = ['Leadership','Strategic Planning','Marketing','Data Analysis','Logistics','Compliance','Project Management','Operations Management','Budget Management','P&L Management','Advertising Sales','Digital Strategy','Audience Development','Community Relations','Business Development','Team Management','Revenue Growth','Financial Planning','Change Management','Circulation','Editorial Leadership','Sales Management','Vendor Management']
-TITLES = ['Group Newspaper Publisher','Group Publisher','Newspaper Publisher','Publisher','Operations Director','Director of Operations','General Manager','Regional Manager','Operations Manager','Project Manager','Sales Director','Vice President']
 STATUSES = ['Saved','Applied','Interviewing','Offer','Rejected','Skipped','Withdrawn']
-PUBLISHER_AREAS = ['Multi-publication or multi-site leadership','Revenue, profitability, and P&L oversight','Advertising and sales leadership','Digital publishing and subscriptions','Editorial and cross-functional leadership','Budgeting, forecasting, and financial planning','Audience growth and marketing','Community and advertiser partnerships','Circulation, distribution, and logistics','Talent development and organizational change']
 
-# These eight responsibilities were explicitly confirmed by the user.
-# They remain editable; session state is not permanent storage.
-VERIFICATION_AREAS = {
-    'Full profit-and-loss (P&L) responsibility': 'Financial & P&L leadership',
-    'Managing multiple business locations or publications': 'Multi-site business leadership',
-    'Hiring, supervising, and developing department managers': 'Talent & organizational change',
-    'Negotiating major contracts and vendor agreements': 'Negotiation & vendor management',
-    'Developing annual budgets and financial forecasts': 'Financial & P&L leadership',
-    'Leading revenue growth and business transformation': 'Revenue growth & transformation',
-    'Overseeing distribution and logistics operations': 'Distribution & logistics',
-    'Managing digital products and revenue': 'Digital transformation',
-}
-INITIAL_VERIFIED = list(VERIFICATION_AREAS)
-
-for key, default in {'jobs': [], 'resume_text': '', 'confirmed_titles': [], 'analysis': None,
-                     'approved_suggestions': [], 'verified_duties': INITIAL_VERIFIED.copy(),
+for key, default in {'jobs': [], 'resume_text': '',
                      'confirmed_qualifications': [], 'seen_jobs': [],
                      'search_baseline': False, 'tracker_unlocked': False,
                      'profile_answers': dict(LEGACY_DEFAULT_ANSWERS),
@@ -186,70 +168,6 @@ def extract_resume_text(file):
     return ''
 
 
-def keyword_matches(text, options):
-    return [item for item in options if re.search(r'\b' + re.escape(item) + r'\b', text, re.I)]
-
-
-# A local, transparent reference library. These are examples of common publisher
-# responsibilities, not assertions about the user's actual experience.
-COMPETENCIES = [
-    ('Financial & P&L leadership', ['profitability', 'profit and loss', 'p&l', 'budget', 'forecast', 'cash flow', 'financial performance'], 'Financial leadership', 'Regional General Manager'),
-    ('Multi-site business leadership', ['multiple newspapers', 'multiple publications', 'group publisher', 'group newspaper publisher', 'multi-site', 'multi-location', 'regional operations'], 'Multi-location leadership', 'Regional Operations Director'),
-    ('Revenue growth & transformation', ['revenue growth', 'revenue increase', 'business transformation', 'turnaround', 'restructur', 'growth strategy'], 'Revenue and change leadership', 'General Manager'),
-    ('Advertising & sales leadership', ['advertising', 'ad sales', 'sales team', 'sales director', 'sales revenue', 'account executives'], 'Commercial leadership', 'Director of Sales'),
-    ('Digital transformation', ['digital revenue', 'digital marketing', 'online advertising', 'digital subscription', 'digital strategy', 'website'], 'Digital business growth', 'Digital Strategy Director'),
-    ('Editorial & cross-functional leadership', ['editorial', 'managing editor', 'newsroom', 'editor', 'cross-functional'], 'Cross-functional management', 'General Manager'),
-    ('Audience & marketing development', ['circulation', 'audience', 'subscriber', 'subscription', 'marketing', 'readership'], 'Customer growth', 'Marketing Director'),
-    ('Distribution & logistics', ['distribution', 'delivery', 'route', 'logistics', 'circulation director'], 'Operations optimization', 'Distribution Director'),
-    ('Talent & organizational change', ['recruit', 'hiring', 'training', 'cross-training', 'reorganization', 'staff development', 'employee'], 'People leadership', 'Director of Operations'),
-    ('Community partnerships', ['community', 'chamber', 'partnership', 'advertiser relationships', 'stakeholder'], 'Stakeholder relations', 'Community Relations Director'),
-    ('Negotiation & vendor management', ['negotiat', 'vendor', 'contract', 'supplier', 'insurance premium'], 'Negotiation', 'Procurement Director'),
-]
-
-
-@st.cache_data(show_spinner=False)
-def analyze_locally(resume):
-    lines = [line.strip() for line in resume.splitlines() if line.strip()]
-    documented, verify, roles, suggestions = [], [], {}, []
-    for skill, phrases, transferable, role in COMPETENCIES:
-        evidence = []
-        for line in lines:
-            supported=affirmative_match([re.compile(r'(?<!\w)'+re.escape(term)+r'(?!\w)',re.I) for term in phrases],line)
-            if supported:
-                evidence.append(supported[0][:350])
-            if len(evidence) == 2:
-                break
-        if evidence:
-            documented.append({'skill': skill, 'evidence': evidence, 'transferable': transferable})
-            roles.setdefault(role, []).append(transferable)
-            suggestions.append({'skill': skill, 'source': evidence[0],
-                'wording': f'Experience in {transferable.lower()}: {evidence[0]}',
-                'note': 'Draft based on resume wording; edit for accuracy before using.'})
-        else:
-            verify.append(skill)
-    return {'documented': documented, 'verify': verify, 'roles': roles, 'suggestions': suggestions}
-
-# Career matches use the same publisher competency evidence as Career Analysis.
-# Scores are transparent overlap indicators, not employment eligibility predictions.
-CAREER_PATHS = [
-    {'title': 'Regional Operations Director', 'industry': 'Multi-location businesses', 'core': ['Multi-site business leadership', 'Financial & P&L leadership', 'Talent & organizational change'], 'additional': ['Distribution & logistics', 'Negotiation & vendor management'], 'focus': 'Emphasize locations led, budgets, operational improvements and team size.'},
-    {'title': 'General Manager', 'industry': 'Services, media, retail and local businesses', 'core': ['Financial & P&L leadership', 'Advertising & sales leadership', 'Talent & organizational change'], 'additional': ['Multi-site business leadership', 'Revenue growth & transformation'], 'focus': 'Highlight overall business ownership, revenue, profitability and leadership results.'},
-    {'title': 'Director of Business Development', 'industry': 'Business services and B2B organizations', 'core': ['Advertising & sales leadership', 'Community partnerships', 'Financial & P&L leadership'], 'additional': ['Revenue growth & transformation', 'Negotiation & vendor management'], 'focus': 'Show account growth, partnerships, pricing strategy and measurable sales outcomes.'},
-    {'title': 'Director of Marketing', 'industry': 'Marketing, media and consumer services', 'core': ['Audience & marketing development', 'Digital transformation', 'Advertising & sales leadership'], 'additional': ['Community partnerships', 'Financial & P&L leadership'], 'focus': 'Show audience growth, campaign results, digital revenue and customer acquisition.'},
-    {'title': 'Distribution Operations Director', 'industry': 'Logistics and delivery services', 'core': ['Distribution & logistics', 'Talent & organizational change', 'Financial & P&L leadership'], 'additional': ['Multi-site business leadership', 'Negotiation & vendor management'], 'focus': 'Show delivery efficiencies, route changes, service levels and cost savings.'},
-    {'title': 'Director of Community Partnerships', 'industry': 'Nonprofits, education and civic organizations', 'core': ['Community partnerships', 'Talent & organizational change', 'Audience & marketing development'], 'additional': ['Advertising & sales leadership', 'Financial & P&L leadership'], 'focus': 'Describe stakeholder relationships, public-facing leadership and partnership outcomes.'},
-    {'title': 'Digital Business Director', 'industry': 'Digital media and subscription businesses', 'core': ['Digital transformation', 'Audience & marketing development', 'Financial & P&L leadership'], 'additional': ['Advertising & sales leadership', 'Editorial & cross-functional leadership'], 'focus': 'Show digital product initiatives, subscription or advertising growth, and cross-team execution.'},
-    {'title': 'Chief Operating Officer (smaller organization)', 'industry': 'Small and midsize organizations', 'core': ['Financial & P&L leadership', 'Multi-site business leadership', 'Talent & organizational change'], 'additional': ['Negotiation & vendor management', 'Revenue growth & transformation'], 'focus': 'Document executive decision-making, business scale, direct reports and financial accountability.'},
-    {'title': 'Business Operations Manager', 'industry': 'Business services, healthcare support and regional firms', 'core': ['Operations leadership', 'Financial & P&L leadership', 'Talent & organizational change'], 'additional': ['Strategic planning & execution', 'Negotiation & vendor management'], 'focus': 'Highlight processes improved, managers led, budgets and vendor outcomes.'},
-    {'title': 'Strategic Partnerships Manager', 'industry': 'Nonprofits, business services and technology', 'core': ['Community partnerships', 'Revenue growth & transformation', 'Negotiation & vendor management'], 'additional': ['Audience & marketing development', 'Strategic planning & execution'], 'focus': 'Explain relationship development, contract negotiations and measurable partnership results.'},
-    {'title': 'Vendor Relations / Procurement Manager', 'industry': 'Operations, services and supply businesses', 'core': ['Negotiation & vendor management', 'Financial & P&L leadership', 'Operations leadership'], 'additional': ['Distribution & logistics', 'Strategic planning & execution'], 'focus': 'Document vendor terms, cost savings, negotiations and budgets managed.'},
-    {'title': 'Customer Experience / Success Manager', 'industry': 'Service companies, subscriptions and customer operations', 'core': ['Audience & marketing development', 'Community partnerships', 'Revenue growth & transformation'], 'additional': ['Talent & organizational change', 'Digital transformation'], 'focus': 'Describe customer retention, service delivery, account growth and staff coaching.'},
-    {'title': 'Program / Project Manager', 'industry': 'Government, education, nonprofits and businesses', 'core': ['Strategic planning & execution', 'Talent & organizational change', 'Financial & P&L leadership'], 'additional': ['Multi-site business leadership', 'Community partnerships'], 'focus': 'Show initiatives delivered, coordination, budgets, milestones and measurable results.'},
-    {'title': 'Revenue Operations Manager', 'industry': 'Sales organizations and recurring-revenue businesses', 'core': ['Revenue growth & transformation', 'Financial & P&L leadership', 'Digital transformation'], 'additional': ['Advertising & sales leadership', 'Strategic planning & execution'], 'focus': 'Provide evidence for revenue forecasting, pricing, reporting and process improvements.'},
-    {'title': 'Process Improvement / Change Lead', 'industry': 'Operations, logistics and business transformation', 'core': ['Talent & organizational change', 'Operations leadership', 'Strategic planning & execution'], 'additional': ['Distribution & logistics', 'Financial & P&L leadership'], 'focus': 'Describe restructuring, efficiency, team transitions and measurable operational savings.'},
-]
-
-
 def verified_competencies():
     """Areas confirmed in the career profile plus any extra self-confirmations."""
     confirmed, excluded = profile_areas(st.session_state.get('profile_answers'))
@@ -296,7 +214,6 @@ def verification_editor():
                     value=int(answers.get(q['key']) or 0), key='profile_' + q['key']))
         if st.form_submit_button('Save career profile', type='primary'):
             st.session_state.profile_answers = new
-            st.session_state.pop('career_matches', None)
             st.session_state.pop('search_results', None)
             st.session_state.pop('search_stats', None)
             st.success('Profile saved for this session. Search again to refresh job matches.')
@@ -325,6 +242,12 @@ def render_resume_interpretation(text):
     c.metric('Bullets with a number', f"{report['numbered_bullets']} of {report['work_bullets']}")
     st.caption('Each skill area is graded by where it appears and whether a number backs it up. '
                'Proven claims count fully in matching; summary-only claims count least.')
+    grades = {row['area']: row['grade'] for row in report['areas']}
+    st.markdown('**Fields your experience fits best**')
+    for fam in rank_families(grades)[:5]:
+        gaps = ', '.join(x['area'] for x in fam['gaps'][:2])
+        st.write(f"**{fam['score']}%** {fam['label']}" + (f" — gap: {gaps}" if gaps else ''))
+    st.caption('Readiness is the share of each field\'s key skills you can show; searches cover all of these fields.')
     table = pd.DataFrame([{'Skill area': row['area'], 'Grade': row['grade'],
                            'What that means': GRADE_NOTES[row['grade']],
                            'Resume line': row['evidence']} for row in report['areas']])
@@ -338,25 +261,6 @@ def render_resume_interpretation(text):
             st.caption('Recruiters and keyword filters skip these. Replace them with what you did and how much.')
             for item in report['vague']:
                 st.write(f"**{item['phrase']}** — {item['line']}")
-
-
-def get_career_matches(resume):
-    analysis = analyze_locally(resume)
-    evidence_by_skill = {item['skill']: item['evidence'] for item in analysis['documented']}
-    verified = verified_competencies()
-    results = []
-    for path in CAREER_PATHS:
-        all_skills = path['core'] + path['additional']
-        matched = [skill for skill in all_skills if skill in evidence_by_skill or skill in verified]
-        unconfirmed = [skill for skill in all_skills if skill not in matched]
-        # Core requirements count twice as much as additional competencies.
-        total_weight = 2 * len(path['core']) + len(path['additional'])
-        matched_weight = sum(2 if skill in path['core'] else 1 for skill in matched)
-        score = round(100 * matched_weight / total_weight)
-        results.append({**path, 'score': score, 'matched': matched,
-                        'unconfirmed': unconfirmed, 'evidence': evidence_by_skill,
-                        'verified': [skill for skill in matched if skill in verified]})
-    return sorted(results, key=lambda x: (-x['score'], x['title']))
 
 
 # Free public remote-job feeds. Cache requests to avoid unnecessary provider traffic.
@@ -1507,19 +1411,6 @@ def save_result_to_tracker(job):
         'Interview Date':'','Follow-up Date':'','Notes':f"Source: {job['source']}; review qualifications and original posting before applying."})
     persist_tracker_if_unlocked()
     return True
-def job_competency_hits(job, resume):
-    # Uses verified experience or phrases in the resume; compares to job description.
-    confirmed = verified_competencies()
-    if resume.strip():
-        confirmed |= {item['skill'] for item in analyze_locally(resume)['documented']}
-    job_text = job['title'] + ' ' + job['description']
-    matches = []
-    for area, phrases, *_ in COMPETENCIES:
-        if area in confirmed and any(re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', job_text, re.I) for term in phrases):
-            matches.append(area)
-    return matches[:5]
-
-
 def tracker_cloud_enabled():
     return bool(_secret('TRACKER_DATABASE_URL') and _secret('TRACKER_ACCESS_PASSWORD'))
 
@@ -1566,6 +1457,11 @@ def run_search_task(task,settings):
             excluded=settings.get('excluded',()))
     def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None):
         matches,excluded=rank(raw)
+        readiness=settings.get('family_readiness') or {}
+        for job in matches:
+            family=family_for_title(job.get('title'))
+            job['role_family']=family['label'] if family else ''
+            job['family_readiness']=readiness.get(job['role_family'])
         bulletin=dict(bulletin or {})
         if bulletin:
             bulletin['summary_only_fetched']=bulletin.get('summary_only',0)
@@ -1644,7 +1540,7 @@ with st.sidebar:
     st.markdown(brand(MATCHING_ENGINE_VERSION),unsafe_allow_html=True)
     page = st.radio(
         'Navigation',
-        ['Dashboard','Find Jobs','Job Tracker','My Resume','Career Analysis','Career Matches'],
+        ['Dashboard','Find Jobs','Job Tracker','My Resume'],
         label_visibility='collapsed',key='top_navigation'
     )
     st.divider()
@@ -1707,12 +1603,9 @@ elif page == 'My Resume':
             if extracted.strip():
                 if extracted != st.session_state.resume_text:
                     st.session_state.resume_text = extracted
-                    st.session_state.analysis = None
-                    st.session_state.pop('career_matches', None)
                     # Old search results were ranked with an earlier resume.
                     st.session_state.pop('search_results', None)
                     st.session_state.pop('search_stats', None)
-                    st.session_state.approved_suggestions = []
                 st.success('Resume uploaded successfully!')
             else:
                 st.warning('No readable text was found. Scanned PDFs may need OCR.')
@@ -1720,186 +1613,16 @@ elif page == 'My Resume':
             st.error(f'Unable to read file: {exc}')
     text = st.session_state.resume_text
     if text:
-        with st.expander('View extracted resume text'):
-            st.text_area('Resume text', text, height=280)
-        st.subheader('Skills mentioned in your resume')
-        matches = keyword_matches(text, SKILLS)
-        st.write(', '.join(matches) if matches else 'No matches from the starter list.')
-        st.caption('These are keyword matches, not verified skill assessments.')
-        evidence_profile = compile_resume_profile(
-            text, tuple(sorted(verified_competencies())))
-        st.subheader('Qualification evidence identified in your resume')
-        st.write(f"{len(evidence_profile['evidence'])} transferable qualification areas referenced in your resume.")
-        st.caption('These are quoted resume references, not a claim that an employer would find you qualified. Job-specific minimum requirements are checked separately.')
-        with st.expander('Review the resume evidence used for matching'):
-            for area, snippets in evidence_profile['evidence'].items():
-                st.write('**' + area + '**')
-                for excerpt in snippets:
-                    st.caption('Your resume: ' + excerpt)
-            if not evidence_profile['evidence']:
-                st.write('No matches in the current transferable-skills library. You can still review job requirements individually.')
-            undoc = sorted(evidence_profile['confirmed'] - set(evidence_profile['evidence']))
-            if undoc:
-                st.write('**Confirmed separately, but not identified in resume:** ' + ', '.join(undoc))
+        # Analysis runs automatically from the resume and profile; searches
+        # use it for matching and to explain each listing.
         render_resume_interpretation(text)
         verification_editor()
-        st.info('Next: go to Find Jobs and search again to see a qualification review for each opening.')
-        st.subheader('Confirm your actual job titles')
-        found = keyword_matches(text, TITLES)
-        if not st.session_state.confirmed_titles:
-            st.session_state.confirmed_titles = ['Group Newspaper Publisher']
-        choices = list(dict.fromkeys(found + st.session_state.confirmed_titles))
-        selected = st.multiselect('Recognized or previously confirmed titles', choices, default=[t for t in st.session_state.confirmed_titles if t in choices])
-        additional = st.text_input('Add other actual titles (comma-separated)')
-        confirmed = list(dict.fromkeys(selected + [x.strip() for x in additional.split(',') if x.strip()]))
-        st.session_state.confirmed_titles = confirmed
-        st.write('**Confirmed titles:**', ', '.join(confirmed) if confirmed else 'None yet')
-        st.info('Next, open Career Analysis to compare your experience against publisher responsibilities.')
+        with st.expander('View extracted resume text'):
+            st.text_area('Resume text', text, height=280)
+        st.info('Your resume is analyzed automatically. Search on Find Jobs: every listing shows '
+                'its field, what transfers from your experience, and the gaps.')
     else:
         st.info('Upload a resume to begin.')
-
-elif page == 'Career Analysis':
-    st.markdown(hero('Career Analysis','Publisher experience and transferable skills'),unsafe_allow_html=True)
-    actual_title = st.text_input('Your actual position', value='Group Newspaper Publisher')
-    st.caption('Your real job title stays separate from transferable job categories.')
-    st.caption('Your career profile (on My Resume) decides which experience is confirmed or overruled.')
-    with st.expander('Confirm additional qualifications not shown in your resume'):
-        st.caption('These are optional self-confirmations, kept separate from the uploaded resume. Select only experience you can substantiate; they do not establish licenses, degrees or years of experience.')
-        with st.form('additional_qualification_form'):
-            areas = [name for name, _ in CAPABILITIES]
-            extras = st.multiselect(
-                'Additional transferable experience I can personally confirm',
-                options=areas,
-                default=[x for x in st.session_state.confirmed_qualifications if x in areas])
-            if st.form_submit_button('Save my additional qualifications'):
-                st.session_state.confirmed_qualifications = list(extras)
-                st.session_state.pop('career_matches', None)
-                st.session_state.pop('search_results', None)
-                st.session_state.pop('search_stats', None)
-                st.success('Qualifications saved for this session. Run Find Jobs again to update matches.')
-    if not st.session_state.resume_text:
-        st.warning('First upload your resume on the My Resume page.')
-    else:
-        if st.button('Analyze My Resume', type='primary'):
-            st.session_state.analysis = analyze_locally(st.session_state.resume_text)
-            st.session_state.approved_suggestions = []
-            st.success('Comparison complete. Review each result for accuracy.')
-        analysis = st.session_state.analysis
-        if analysis:
-            st.subheader('Possible documented strengths')
-            st.caption('A matching phrase is a clue, not proof you performed the duty. Review the source text.')
-            for item in analysis['documented']:
-                with st.expander(item['skill'], expanded=False):
-                    st.write('**Resume text that matched:**')
-                    for line in item['evidence']:
-                        st.write(line)
-                    st.write('**Transferable area:**', item['transferable'])
-            st.subheader('Confirmed experience not necessarily documented in the resume')
-            documented_skills = {item['skill'] for item in analysis['documented']}
-            for area in sorted(verified_competencies()):
-                if area not in documented_skills:
-                    st.write('✓ ' + area + ' — **confirmed in your profile; add supporting details to your resume**')
-            st.subheader('Other publisher competencies to investigate')
-            missing = [area for area in analysis['verify'] if area not in verified_competencies()]
-            if missing:
-                for area in missing:
-                    st.write('• ' + area)
-            else:
-                st.write('No additional competencies missing from this starter library.')
-            st.subheader('Potential related career paths')
-            for role, skills in analysis['roles'].items():
-                st.write(f'**{role}** — related experience: {", ".join(skills)}')
-            st.caption('These are ideas for exploration, not eligibility or job-match guarantees.')
-            st.subheader('Draft wording for confirmed experience')
-            st.caption('These are responsibility statements, not achievement claims. Add real scale, outcomes, and numbers only when accurate.')
-            verified_drafts = []
-            for i, duty in enumerate(sorted(verified_competencies())):
-                proposed = st.text_area('Draft for: ' + duty,
-                    value=duty.rstrip('.') + '.', key='verified_draft_' + str(i))
-                if st.checkbox('Approve verified responsibility ' + str(i + 1), key='verified_approve_' + str(i)) and proposed.strip():
-                    verified_drafts.append(proposed.strip())
-            st.subheader('Resume wording suggestions — your approval required')
-            st.write('These are editable starting points, not finished resume bullets.')
-            approved = []
-            for i, item in enumerate(analysis['suggestions']):
-                st.markdown(f'**{i + 1}. {item["skill"]}**')
-                st.caption('Original evidence: ' + item['source'])
-                wording = st.text_area('Edit suggested wording', value=item['wording'], key=f'suggestion_{i}')
-                if st.checkbox('Approve this wording', key=f'approve_{i}') and wording.strip():
-                    approved.append(wording.strip())
-            approved = list(dict.fromkeys(verified_drafts + approved))
-            st.session_state.approved_suggestions = approved
-            if approved:
-                download_file_widget('Download approved wording','\n\n'.join(approved),
-                                     'approved_resume_suggestions.txt','text/plain',
-                                     'approved_resume_wording')
-            st.info('Nothing is added to your resume automatically. You approve and download only the wording you want.')
-
-elif page == 'Career Matches':
-    st.markdown(hero('Career Matches','Transferable opportunities'),unsafe_allow_html=True)
-    if not st.session_state.resume_text.strip():
-        st.warning('First upload your resume on the My Resume page.')
-    else:
-        st.write('**Actual career background:** ' + (', '.join(st.session_state.confirmed_titles) or 'Group Newspaper Publisher'))
-        st.caption('Your real title is not changed to match another industry.')
-        st.write('**Confirmed areas used in matching:**', len(verified_competencies()))
-        st.caption('Edit these in your career profile on My Resume.')
-        st.subheader('Where your experience transfers')
-        st.caption('Readiness = the share of each field\'s key skills you can show. Proven skills count fully, '
-                   'described or confirmed skills partly. Not a hiring probability.')
-        for fam in rank_families(resume_grades()):
-            with st.expander(f"{fam['label']} — {fam['score']}% ready", expanded=fam['score'] >= 75):
-                st.progress(fam['score'] / 100)
-                st.write(fam['why'])
-                if fam['strengths']:
-                    st.write('**You show:** ' + ', '.join(
-                        f"{x['area']} ({x['grade'].lower()})" for x in fam['strengths']))
-                weak = [x['area'] for x in fam['strengths'] if x['grade'] not in ('Proven',)]
-                if fam['gaps']:
-                    st.write('**Gaps for this field:** ' + ', '.join(x['area'] for x in fam['gaps']))
-                if weak:
-                    st.caption('Add numbers to: ' + ', '.join(weak[:3]) + ' to raise this score.')
-        st.caption('Use the Role family filter on Find Jobs to focus on any of these.')
-        st.divider()
-        if st.button('Compare My Career Skills', type='primary'):
-            st.session_state.career_matches = get_career_matches(st.session_state.resume_text)
-        if 'career_matches' in st.session_state:
-            results = st.session_state.career_matches
-            industry_options = ['All industries'] + sorted({r['industry'] for r in results})
-            industry = st.selectbox('Filter by industry', industry_options)
-            visible = [r for r in results if industry == 'All industries' or r['industry'] == industry]
-            st.caption('Overlap scores combine resume phrases and your confirmed responsibilities, weighted by career path. They are not hiring probabilities.')
-            for r in visible:
-                with st.expander(f"{r['title']} — {r['score']}% documented competency overlap", expanded=False):
-                    st.write('**Industry:**', r['industry'])
-                    st.progress(r['score'] / 100)
-                    st.write('**Matched competency areas:**')
-                    if r['matched']:
-                        for skill in r['matched']:
-                            st.markdown('**' + skill + '**')
-                            if skill in r['evidence']:
-                                st.caption('Resume phrase: ' + ' | '.join(r['evidence'][skill][:2]))
-                            if skill in r['verified']:
-                                st.caption('Confirmed in your career profile')
-                    else:
-                        st.write('None from this starter competency list.')
-                    st.write('**Responsibilities to confirm or document:**')
-                    if r['unconfirmed']:
-                        for skill in r['unconfirmed']:
-                            st.write('• ' + skill)
-                    else:
-                        st.write('All mapped areas had phrase matches; verify that the duties were actually performed.')
-                    st.write('**Resume tailoring idea:**', r['focus'])
-                    st.caption('Only add achievements, responsibilities and numbers you can substantiate. Use Career Analysis to edit and approve suggested wording.')
-            download_file_widget(
-                'Download career matches CSV',
-                pd.DataFrame([{'Career':r['title'], 'Industry':r['industry'],
-                    'Documented overlap (%)':r['score'],
-                    'Matched areas':'; '.join(r['matched']),
-                    'User-confirmed areas':'; '.join(r['verified']),
-                    'Areas to verify':'; '.join(r['unconfirmed']),
-                    'Resume focus':r['focus']} for r in visible]).to_csv(index=False),
-                'career_matches.csv','text/csv','career_matches_export')
 
 elif page == 'Find Jobs':
     st.markdown(hero('Find Jobs','Nationwide · 45-day listings'),unsafe_allow_html=True)
@@ -1967,6 +1690,8 @@ elif page == 'Find Jobs':
             settings={'code':code,'work':chosen_work,'query':search_text,
                 'resume':st.session_state.resume_text,'confirmed':tuple(sorted(verified_competencies())),
                 'excluded':tuple(sorted(excluded_competencies())),
+                'family_readiness':({f['label']:f['score'] for f in rank_families(resume_grades())}
+                                    if st.session_state.resume_text.strip() else {}),
                 'employer_cap':3 if chosen_employer_scope.startswith('Compact') else None,
                 'preferences':preferences,'listing_scope':chosen_listing_scope,
                 'scope':chosen_state,'employer_scope':chosen_employer_scope,
@@ -2069,7 +1794,7 @@ elif page == 'Find Jobs':
             OTHER_FAMILY='Other matching roles'
             family_view=st.multiselect('Role family',[*ROLE_FAMILY_LABELS,OTHER_FAMILY],
                 default=[*ROLE_FAMILY_LABELS,OTHER_FAMILY],key='role_family_filter',
-                help='Fields where publisher experience transfers. See Career Matches for your readiness in each.')
+                help='Fields where publisher experience transfers. My Resume shows how ready you are for each.')
             description_view=st.checkbox('Show detailed descriptions only',
                 value=False,key='full_description_filter',
                 help='Shows provider posting details and official full bulletins. Excludes summaries, unverified RSS text and unknown provenance.')
@@ -2143,7 +1868,8 @@ elif page == 'Find Jobs':
                             transfer=explain_job(job['title'],qualification,True)
                             parts=[]
                             if transfer['family']:
-                                parts.append(transfer['family'])
+                                ready=job.get('family_readiness')
+                                parts.append(transfer['family']+(f' ({ready}% ready)' if ready is not None else ''))
                             if transfer['transfers']:
                                 parts.append('you show '+', '.join(a.lower() for a in transfer['transfers']))
                             if transfer['confirmed']:

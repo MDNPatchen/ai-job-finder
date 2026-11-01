@@ -83,8 +83,13 @@ class NavigationAndDownloadsTests(unittest.TestCase):
         self.assertIn("download_file_widget(",self.source)
         self.assertIn("'tracker_full_backup'",self.source)
         self.assertIn("'tracker_applications_csv'",self.source)
-        self.assertIn("'career_matches_export'",self.source)
-        self.assertIn("'approved_resume_wording'",self.source)
+
+    def test_career_pages_replaced_by_background_analysis(self):
+        self.assertIn("['Dashboard','Find Jobs','Job Tracker','My Resume']",self.source)
+        self.assertNotIn("page == 'Career Analysis'",self.source)
+        self.assertNotIn("page == 'Career Matches'",self.source)
+        self.assertIn("render_resume_interpretation(text)",self.source)
+        self.assertIn("'family_readiness'",self.source)
 
     def test_dark_appearance_preserves_native_downloads(self):
         self.assertIn("#303338",APP_CSS)

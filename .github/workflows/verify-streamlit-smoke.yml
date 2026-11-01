@@ -78,10 +78,14 @@ jobs:
           assert not app.exception, [e.message for e in app.exception]
           app.radio(key="top_navigation").set_value("My Resume").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          app.radio(key="top_navigation").set_value("Career Analysis").run(timeout=60)
+          # Resume analysis runs in the background: an uploaded resume must
+          # render its analysis and profile on My Resume without errors.
+          app.session_state["resume_text"]=("PROFESSIONAL EXPERIENCE\n"
+              "- Oversee budgets for five newspapers totaling $14 million.\n"
+              "- Serve as spokesperson and lead crisis communications.")
+          app.radio(key="top_navigation").set_value("My Resume").run(timeout=60)
           assert not app.exception, [e.message for e in app.exception]
-          app.radio(key="top_navigation").set_value("Career Matches").run(timeout=60)
-          assert not app.exception, [e.message for e in app.exception]
+          assert any("Fields your experience fits best" in x.value for x in app.markdown)
           print("Sidebar navigation and no-resume ranked downloads smoke passed")
           PY
       - name: Reproduce missing remote-policy export from cached helper module
