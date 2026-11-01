@@ -140,15 +140,17 @@ def main():
         print(line)
     passed = sum(r['status'] == 'PASS' for r in results)
     print(f'SUMMARY {passed}/{len(results)} passed')
-    # GitHub limits annotations per step, so pack results into a few notices.
-    chunk, size = [], 0
-    chunks = []
-    for line in lines:
-        if size + len(line) > 45000:  # GitHub caps notices per job; keep them few
+    # GitHub keeps only ~10 notices per job and cuts each near 4 KB, so annotate
+    # just the actionable rows: passing candidates, and catalog boards that fail.
+    actionable = [r for r in results if (r['status'] == 'PASS') == (label != 'job_sources')]
+    short = [f"{r['status'][0]}|{r['provider']}|{r['id']}|{r['postings']}|{r['detail'][:60]}" for r in actionable]
+    chunks, chunk, size = [], [], 0
+    for line in short:
+        if size + len(line) > 3500:
             chunks.append(chunk)
             chunk, size = [], 0
         chunk.append(line)
-        size += len(line) + 1
+        size += len(line) + 3
     if chunk:
         chunks.append(chunk)
     for n, part in enumerate(chunks, 1):
