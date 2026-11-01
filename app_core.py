@@ -568,32 +568,43 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
             if job:
                 job['government_agency_slug']=token
                 jobs.append(job)
-        return jobs, len(jobs)
+        return jobs
+    def one_agency_cached(agency):
+        # Same 15-minute public cache as the JSON sources: a second search in a
+        # session (e.g. a saved search) skips the slow government host.
+        from public_cache import public_json
+        records = public_json.get('neogov-rss:' + agency[0], lambda: fetch_agency(agency))
+        return records, len(records)
+    fetch_agency = one_agency
     jobs, failures, counts = [], [], {}
     # All agency feeds live on one host, which slows down and times out when
     # hit with many parallel requests. Query it gently, then give feeds that
     # timed out one more try while the search still has time left.
-    agencies = [a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter]
-    retry = []
-    for attempt, (batch, workers) in enumerate(((agencies, 6), (retry, 3))):
-        if not batch:
-            continue
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            tasks = {pool.submit(one_agency, a): a for a in batch}
-            for task in as_completed(tasks):
-                agency = tasks[task]
-                token, employer, state = agency
-                try:
-                    records, count = task.result()
-                    jobs.extend(records)
-                    counts[f'{employer} ({state})'] = count
-                except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
-                    timed_out = isinstance(exc, (URLError, TimeoutError, OSError)) and 'timed out' in str(exc).lower()
-                    if attempt == 0 and timed_out:
-                        retry.append(agency)
-                        continue
-                    failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
-                    counts[f'{employer} ({state})'] = 0
+    # The government host is the slowest source. Cap its share of a search
+    # so a few slow agencies cannot hold every search to the overall limit;
+    # agencies still pending are reported in Source status.
+    with request_budget(55):
+        agencies = [a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter]
+        retry = []
+        for attempt, (batch, workers) in enumerate(((agencies, 6), (retry, 3))):
+            if not batch:
+                continue
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                tasks = {pool.submit(one_agency_cached, a): a for a in batch}
+                for task in as_completed(tasks):
+                    agency = tasks[task]
+                    token, employer, state = agency
+                    try:
+                        records, count = task.result()
+                        jobs.extend(records)
+                        counts[f'{employer} ({state})'] = count
+                    except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
+                        timed_out = isinstance(exc, (URLError, TimeoutError, OSError)) and 'timed out' in str(exc).lower()
+                        if attempt == 0 and timed_out:
+                            retry.append(agency)
+                            continue
+                        failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
+                        counts[f'{employer} ({state})'] = 0
     return jobs, failures, counts
 
 

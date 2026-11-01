@@ -43,4 +43,5 @@ class PublicJSONCache:
                 self.inflight.discard(key);self.condition.notify_all()
 
 
-public_json=PublicJSONCache()
+# 64 MB: government agency feeds are cached too, and a nationwide set is large.
+public_json=PublicJSONCache(max_bytes=64_000_000)

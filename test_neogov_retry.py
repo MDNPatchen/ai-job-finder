@@ -23,7 +23,8 @@ def load_function(calls, failures_by_slug):
         item = ET.fromstring(f'<item><title>Director</title><link>https://www.governmentjobs.com/careers/{slug}/jobs/1234567/x</link></item>')
         yield item
 
-    env = {'ThreadPoolExecutor': ThreadPoolExecutor, 'as_completed': as_completed, 'urlencode': urlencode,
+    from source_http import request_budget
+    env = {'ThreadPoolExecutor': ThreadPoolExecutor, 'request_budget': request_budget, 'as_completed': as_completed, 'urlencode': urlencode,
            'Request': Request, 'iter_public_rss': iter_public_rss, 'HTTPError': HTTPError, 'URLError': URLError,
            'ET': ET, 'belongs_to_configured_agency': lambda link, token, source: f'/careers/{token}/' in link,
            'standard_job': lambda title, company, url, *a, **k: {'title': title, 'company': company, 'url': url},
@@ -34,6 +35,26 @@ def load_function(calls, failures_by_slug):
 
 
 class NeogovRetryTests(unittest.TestCase):
+    def setUp(self):
+        from public_cache import public_json
+        public_json.entries.clear(); public_json.bytes = 0   # each test starts uncached
+
+    def test_results_are_cached_between_searches(self):
+        calls = []
+        load = load_function(calls, {})
+        load()
+        load()
+        self.assertEqual(sorted(calls), ['aa', 'bb', 'cc'])   # second search served from cache
+
+    def test_failures_are_not_cached(self):
+        calls = []
+        load = load_function(calls, {'bb': [ValueError('Unexpected RSS response root: error')]})
+        _, failures, _ = load()
+        self.assertEqual(len(failures), 1)
+        _, failures, _ = load()
+        self.assertEqual(failures, [])
+        self.assertEqual(calls.count('bb'), 2)
+
     def test_timeout_is_retried_once_and_recovers(self):
         calls = []
         load = load_function(calls, {'aa': [URLError('timed out')]})

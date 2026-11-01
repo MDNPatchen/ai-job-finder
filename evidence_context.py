@@ -4,6 +4,7 @@ These rules avoid known false positives. They are not a semantic credential
 verifier; unfamiliar wording still requires review.
 """
 import re
+from functools import lru_cache
 
 _NEGATIVE=re.compile(r"\b(?:no|without|lack(?:ing)?|never|not|haven['’]t|have not|don['’]t|do not)\b",re.I)
 _NONEXPERIENCE=re.compile(r'\b(?:seeking|aspir(?:ing|e)|interested in|hope to|want to|wish to|learning about|'
@@ -33,6 +34,10 @@ def affirmative_match(patterns,text):
     return None
 
 
+@lru_cache(maxsize=8)
 def affirmative_resume_text(text):
-    """Prevent negative/aspirational clauses supporting downstream minimums."""
+    """Prevent negative/aspirational clauses supporting downstream minimums.
+
+    Cached: a search checks the same resume against thousands of postings.
+    """
     return '\n'.join(c for c in clauses(text) if is_affirmative(c))
