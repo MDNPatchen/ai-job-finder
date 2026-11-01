@@ -25,6 +25,7 @@ EXPECTED = {
         'NBCUniversal3', 'RedBull',
     },
 }
+ORIGINAL_IDS = {"neogov": ["CGA", "LOUISIANA", "Pittsburgh", "alabama", "alachua", "alaska", "boiseid", "boston", "brokenarrowok", "broward", "burlingtonvt", "cabq", "centennial", "charlevoix", "charlottecountyfl", "clarkcounty", "cleveland", "colorado", "colubbocktx", "columbusoh", "concordnh", "countyofdane", "dakota", "deschutes", "desmoines", "duluthmn", "dupageco", "durhamnc", "eauclaire", "erieco", "fairfaxcounty", "fargond", "flaglercounty", "greenvillesc", "gwinnett", "harriscountytx", "hennepin", "honolulu", "hopkinsvilleky", "indianapolis", "iowa", "juneauwi", "kingcounty", "lacounty", "lakecountyil", "lincolnne", "littlerock", "livingstoncounty", "madisonmt", "madisonwi", "miamifl", "minneapolismn", "mississippi", "mohavecountyaz", "montgomerycountymd", "nashville", "nassaucountyny", "nccde", "newjersey", "neworleans", "njjudiciary", "oc", "olmsted", "pinalcounty", "polkia", "portlandor", "raleighnc", "rhodeisland", "riverside", "saccity", "saginawmi", "sandiego", "santaclara", "sdcounty", "seattle", "seminolecountyfl", "sheboygancounty", "siouxfallssd", "stlouis", "utah", "volusiaco", "washington", "waynecountyny", "wichita", "wv", "wyoming"], "neoed": ["cccd", "duvalschools", "ggusd", "laneedu", "palmdalesd", "pasadenaedu", "sdlancaster", "sewanee", "venturausd"], "greenhouse": ["aksengineeringforestryllc", "amn", "axios", "boldbusiness", "brph", "clear", "courtyardinc", "energyprojectsolutionsllc", "forbes", "imaginepediatrics", "industrialelectricmanufacturing", "nationalpublicradioinc", "powerdigitalmarketing", "propublica", "riseamg", "sbusa", "semafor", "spsnorthamerica", "unitedveincenters", "voxmedia", "winnerscirclegroupoftexas1", "wpp"], "ashby": ["alternativepayments", "cardless", "claylabs", "ember-life-sciences", "encord", "imprint", "partly.com", "rain", "redesign health", "remodelboom", "talkiatry", "tensec"], "smartrecruiters": ["Bertelsmann-Jobs", "CityAndCountyOfSanFrancisco1", "CityofPhiladelphia", "Dexterra", "InformaGroupPlc", "InternationalDairyQueen", "KIPP", "MadeByFernLLC", "NBCUniversal3", "PSICRO", "RedBull", "prosidianconsulting"], "lever": ["billboarder", "kcasbio", "momentshospice-2", "morningbrew", "networkconnex", "standtogether"], "workable": ["agcp", "atria-health", "futureplc", "hoa-talent", "johnson-mark-pc", "keller-executive-search", "lv-petroleum", "nakedmd", "pj-fitz", "the-common-market", "yugo"], "mayo": ["mayo-clinic"]}
 PROVIDERS = (
     'neogov', 'neoed', 'greenhouse', 'ashby', 'smartrecruiters',
     'lever', 'workable', 'mayo',
@@ -35,9 +36,9 @@ class CareerCatalogTests(unittest.TestCase):
     def setUp(self):
         self.catalog=json.loads(BASE.read_text(encoding='utf-8'))
 
-    def test_schema_and_exactly_12_additional_verified_boards(self):
+    def test_schema_and_previously_verified_boards_present(self):
         self.assertEqual(self.catalog['schema_version'],1)
-        self.assertEqual(sum(len(self.catalog[x]) for x in PROVIDERS),159)
+        self.assertGreaterEqual(sum(len(self.catalog[x]) for x in PROVIDERS),212)
         for group,ids in EXPECTED.items():
             current={record['id'] for record in self.catalog[group]}
             self.assertTrue(ids.issubset(current),f'{group}: {ids-current}')
@@ -63,15 +64,54 @@ class CareerCatalogTests(unittest.TestCase):
                     if provider=='smartrecruiters':
                         self.assertIs(type(record['government']),bool)
 
-    def test_original_board_counts_retained(self):
-        self.assertEqual(len(self.catalog['neogov']),86)
+    def test_original_boards_retained(self):
+        # Boards are never deleted; a dead board is kept with enabled: false.
+        for provider,ids in ORIGINAL_IDS.items():
+            current={x['id'] for x in self.catalog[provider]}
+            self.assertTrue(set(ids).issubset(current),f'{provider}: {set(ids)-current}')
         self.assertIn('nccde',{x['id'] for x in self.catalog['neogov']})
-        self.assertEqual(len({x['state'] for x in self.catalog['neogov']+
-                             self.catalog['neoed']}),49)
-        self.assertEqual(len(self.catalog['neoed']),9)
+        self.assertGreaterEqual(len({x['state'] for x in self.catalog['neogov']+
+                                     self.catalog['neoed']}),49)
         self.assertEqual(len(self.catalog['mayo']),1)
-        self.assertEqual(len(self.catalog['workable']),11)
-        self.assertEqual(len(self.catalog['ashby']),12)
+
+    def test_disabled_boards_explain_why(self):
+        for provider in PROVIDERS:
+            for record in self.catalog[provider]:
+                if record.get('enabled',True) is False:
+                    self.assertTrue(record.get('note','').strip(),f"{provider}/{record['id']}")
+
+    def test_added_boards_are_live_verified_and_well_formed(self):
+        pages={'neogov':'https://www.governmentjobs.com/careers/',
+               'greenhouse':'https://job-boards.greenhouse.io/',
+               'lever':'https://jobs.lever.co/','ashby':'https://jobs.ashbyhq.com/',
+               'smartrecruiters':'https://jobs.smartrecruiters.com/',
+               'workable':'https://apply.workable.com/'}
+        added=0
+        for provider,prefix in pages.items():
+            for record in self.catalog[provider]:
+                if 'verified' not in record:
+                    continue
+                added+=1
+                self.assertRegex(record['verified'],r'^\d{4}-\d{2}-\d{2}$')
+                self.assertEqual(record['career_page'],prefix+record['id'])
+                if provider=='neogov':
+                    self.assertRegex(record['state'],r'^[A-Z]{2}$')
+                if provider=='smartrecruiters':
+                    self.assertIs(type(record['government']),bool)
+        self.assertGreaterEqual(added,53)
+
+    def test_app_loader_accepts_catalog(self):
+        tree=ast.parse(Path(__file__).with_name('app.py').read_text(encoding='utf-8'))
+        wanted={'read_job_sources','VALID_SOURCE_GROUPS','US_STATES'}
+        body=[n for n in tree.body if (isinstance(n,ast.FunctionDef) and n.name in wanted) or
+              (isinstance(n,ast.Assign) and any(getattr(t,'id',None) in wanted for t in n.targets))]
+        import re as _re
+        env={'json':json,'re':_re,'Path':Path,'SOURCE_CATALOG_FILE':BASE}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=body,type_ignores=[])),'app.py','exec'),env)
+        loaded=env['read_job_sources'](BASE)
+        enabled=sum(record.get('enabled',True) is not False for record in self.catalog['neogov'])
+        self.assertEqual(len(loaded['neogov']),enabled)
+        self.assertNotIn('boldbusiness',{token for token,_ in loaded['greenhouse']})
 
 
 class SmartRecruitersDetailTests(unittest.TestCase):

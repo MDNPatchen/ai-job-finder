@@ -372,7 +372,9 @@
       "id": "newjersey",
       "name": "New Jersey Civil Service Commission",
       "state": "NJ",
-      "career_page": "https://www.governmentjobs.com/careers/newjersey"
+      "career_page": "https://www.governmentjobs.com/careers/newjersey",
+      "enabled": false,
+      "note": "Feed returns no postings (live check 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "njjudiciary",
@@ -517,6 +519,174 @@
       "name": "Wayne County",
       "state": "NY",
       "career_page": "https://www.governmentjobs.com/careers/waynecountyny"
+    },
+    {
+      "id": "bismarcknd",
+      "name": "City of Bismarck",
+      "state": "ND",
+      "career_page": "https://www.governmentjobs.com/careers/bismarcknd",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "pennington",
+      "name": "Pennington County",
+      "state": "SD",
+      "career_page": "https://www.governmentjobs.com/careers/pennington",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "stcloud",
+      "name": "City of St. Cloud",
+      "state": "MN",
+      "career_page": "https://www.governmentjobs.com/careers/stcloud",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "billingsmt",
+      "name": "City of Billings",
+      "state": "MT",
+      "career_page": "https://www.governmentjobs.com/careers/billingsmt",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "bozeman",
+      "name": "City of Bozeman",
+      "state": "MT",
+      "career_page": "https://www.governmentjobs.com/careers/bozeman",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "casperwy",
+      "name": "City of Casper",
+      "state": "WY",
+      "career_page": "https://www.governmentjobs.com/careers/casperwy",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "laramiecounty",
+      "name": "Laramie County",
+      "state": "WY",
+      "career_page": "https://www.governmentjobs.com/careers/laramiecounty",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "cedarrapids",
+      "name": "City of Cedar Rapids",
+      "state": "IA",
+      "career_page": "https://www.governmentjobs.com/careers/cedarrapids",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "greenbaywi",
+      "name": "City of Green Bay",
+      "state": "WI",
+      "career_page": "https://www.governmentjobs.com/careers/greenbaywi",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "spokanecity",
+      "name": "City of Spokane",
+      "state": "WA",
+      "career_page": "https://www.governmentjobs.com/careers/spokanecity",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "tacoma",
+      "name": "City of Tacoma",
+      "state": "WA",
+      "career_page": "https://www.governmentjobs.com/careers/tacoma",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "eugene",
+      "name": "City of Eugene",
+      "state": "OR",
+      "career_page": "https://www.governmentjobs.com/careers/eugene",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "hawaii",
+      "name": "State of Hawaii",
+      "state": "HI",
+      "career_page": "https://www.governmentjobs.com/careers/hawaii",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "michigan",
+      "name": "State of Michigan",
+      "state": "MI",
+      "career_page": "https://www.governmentjobs.com/careers/michigan",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "sc",
+      "name": "State of South Carolina",
+      "state": "SC",
+      "career_page": "https://www.governmentjobs.com/careers/sc",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "columbiasc",
+      "name": "City of Columbia",
+      "state": "SC",
+      "career_page": "https://www.governmentjobs.com/careers/columbiasc",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "springfieldmo",
+      "name": "City of Springfield",
+      "state": "MO",
+      "career_page": "https://www.governmentjobs.com/careers/springfieldmo",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "louisvilleky",
+      "name": "Louisville Metro",
+      "state": "KY",
+      "career_page": "https://www.governmentjobs.com/careers/louisvilleky",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "lasvegas",
+      "name": "City of Las Vegas",
+      "state": "NV",
+      "career_page": "https://www.governmentjobs.com/careers/lasvegas",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "reno",
+      "name": "City of Reno",
+      "state": "NV",
+      "career_page": "https://www.governmentjobs.com/careers/reno",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "mesaaz",
+      "name": "City of Mesa",
+      "state": "AZ",
+      "career_page": "https://www.governmentjobs.com/careers/mesaaz",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "sanjoseca",
+      "name": "City of San Jose",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/sanjoseca",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "sacramento",
+      "name": "City of Sacramento",
+      "state": "CA",
+      "career_page": "https://www.governmentjobs.com/careers/sacramento",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "cincinnati",
+      "name": "City of Cincinnati",
+      "state": "OH",
+      "career_page": "https://www.governmentjobs.com/careers/cincinnati",
+      "verified": "2026-11-01"
     }
   ],
   "neoed": [
@@ -548,13 +718,17 @@
       "id": "venturausd",
       "name": "Ventura Unified School District",
       "state": "CA",
-      "career_page": "https://www.schooljobs.com/careers/venturausd"
+      "career_page": "https://www.schooljobs.com/careers/venturausd",
+      "enabled": false,
+      "note": "Feed returns no postings (live check 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "duvalschools",
       "name": "Duval County Public Schools",
       "state": "FL",
-      "career_page": "https://www.schooljobs.com/careers/duvalschools"
+      "career_page": "https://www.schooljobs.com/careers/duvalschools",
+      "enabled": false,
+      "note": "Feed returns no postings (live check 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "laneedu",
@@ -591,7 +765,9 @@
     },
     {
       "id": "boldbusiness",
-      "name": "Bold Business"
+      "name": "Bold Business",
+      "enabled": false,
+      "note": "Board returns 404 (live check 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "brph",
@@ -669,6 +845,120 @@
     {
       "id": "wpp",
       "name": "WPP"
+    },
+    {
+      "id": "thenewyorktimes",
+      "name": "The New York Times",
+      "career_page": "https://job-boards.greenhouse.io/thenewyorktimes",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "medium",
+      "name": "Medium",
+      "career_page": "https://job-boards.greenhouse.io/medium",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "wikimedia",
+      "name": "Wikimedia Foundation",
+      "career_page": "https://job-boards.greenhouse.io/wikimedia",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "mozilla",
+      "name": "Mozilla",
+      "career_page": "https://job-boards.greenhouse.io/mozilla",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "khanacademy",
+      "name": "Khan Academy",
+      "career_page": "https://job-boards.greenhouse.io/khanacademy",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "codeforamerica",
+      "name": "Code for America",
+      "career_page": "https://job-boards.greenhouse.io/codeforamerica",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "donorschoose",
+      "name": "DonorsChoose",
+      "career_page": "https://job-boards.greenhouse.io/donorschoose",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "sweetgreen",
+      "name": "Sweetgreen",
+      "career_page": "https://job-boards.greenhouse.io/sweetgreen",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "glossier",
+      "name": "Glossier",
+      "career_page": "https://job-boards.greenhouse.io/glossier",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "oscar",
+      "name": "Oscar Health",
+      "career_page": "https://job-boards.greenhouse.io/oscar",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "onemedical",
+      "name": "One Medical",
+      "career_page": "https://job-boards.greenhouse.io/onemedical",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "flexport",
+      "name": "Flexport",
+      "career_page": "https://job-boards.greenhouse.io/flexport",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "instacart",
+      "name": "Instacart",
+      "career_page": "https://job-boards.greenhouse.io/instacart",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "stitchfix",
+      "name": "Stitch Fix",
+      "career_page": "https://job-boards.greenhouse.io/stitchfix",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "peloton",
+      "name": "Peloton",
+      "career_page": "https://job-boards.greenhouse.io/peloton",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "squarespace",
+      "name": "Squarespace",
+      "career_page": "https://job-boards.greenhouse.io/squarespace",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo",
+      "career_page": "https://job-boards.greenhouse.io/duolingo",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "everlane",
+      "name": "Everlane",
+      "career_page": "https://job-boards.greenhouse.io/everlane",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "bombas",
+      "name": "Bombas",
+      "career_page": "https://job-boards.greenhouse.io/bombas",
+      "verified": "2026-11-01"
     }
   ],
   "ashby": [
@@ -719,6 +1009,24 @@
     {
       "id": "tensec",
       "name": "Tensec"
+    },
+    {
+      "id": "ramp",
+      "name": "Ramp",
+      "career_page": "https://jobs.ashbyhq.com/ramp",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "career_page": "https://jobs.ashbyhq.com/notion",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "substack",
+      "name": "Substack",
+      "career_page": "https://jobs.ashbyhq.com/substack",
+      "verified": "2026-11-01"
     }
   ],
   "smartrecruiters": [
@@ -762,7 +1070,9 @@
     {
       "id": "MadeByFernLLC",
       "name": "Made by Fern",
-      "government": false
+      "government": false,
+      "enabled": false,
+      "note": "No public postings (live check 2026-11-01); re-enable if it recovers."
     },
     {
       "id": "NBCUniversal3",
@@ -785,6 +1095,34 @@
       "name": "Red Bull North America",
       "government": false,
       "career_page": "https://jobs.smartrecruiters.com/RedBull"
+    },
+    {
+      "id": "BoschGroup",
+      "name": "Bosch",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/BoschGroup",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "Equinox",
+      "name": "Equinox",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/Equinox",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "LinkedIn3",
+      "name": "LinkedIn",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/LinkedIn3",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "AbbVie",
+      "name": "AbbVie",
+      "government": false,
+      "career_page": "https://jobs.smartrecruiters.com/AbbVie",
+      "verified": "2026-11-01"
     }
   ],
   "lever": [
@@ -813,6 +1151,18 @@
       "id": "standtogether",
       "name": "Stand Together",
       "career_page": "https://jobs.lever.co/standtogether"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "career_page": "https://jobs.lever.co/spotify",
+      "verified": "2026-11-01"
+    },
+    {
+      "id": "wealthfront",
+      "name": "Wealthfront",
+      "career_page": "https://jobs.lever.co/wealthfront",
+      "verified": "2026-11-01"
     }
   ],
   "workable": [
@@ -859,6 +1209,12 @@
     {
       "id": "yugo",
       "name": "Yugo"
+    },
+    {
+      "id": "huckberry",
+      "name": "Huckberry",
+      "career_page": "https://apply.workable.com/huckberry",
+      "verified": "2026-11-01"
     }
   ],
   "mayo": [

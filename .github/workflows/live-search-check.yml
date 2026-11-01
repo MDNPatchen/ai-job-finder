@@ -1,0 +1,31 @@
+name: Live search check
+# Runs one real nationwide search on this branch and on main, for comparison.
+# Manual or when the source catalog changes; job sites can be briefly down.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "job_sources.json"
+      - "scripts/live_search_check.py"
+      - ".github/workflows/live-search-check.yml"
+permissions:
+  contents: read
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: baseline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Search with this branch's sources
+        run: python scripts/live_search_check.py branch app.py
+      - name: Search with main (currently live) for comparison
+        if: always()
+        run: python scripts/live_search_check.py main baseline/app.py
