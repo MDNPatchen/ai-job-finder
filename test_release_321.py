@@ -59,8 +59,9 @@ class ReviewReliabilityTests(unittest.TestCase):
         app=AppTest.from_file('scripts/browser_fixture.py').run()
         app.radio(key='top_navigation').set_value('Find Jobs').run()
         self.assertFalse(app.exception)
-        self.assertEqual(app.selectbox(key='review_order').value,'Leadership priorities')
-        app.selectbox(key='review_order').set_value('Highest fit index').run()
+        # Default is strict fit order so the top match is always first.
+        self.assertEqual(app.selectbox(key='review_order').value,'Highest fit index')
+        app.selectbox(key='review_order').set_value('Leadership priorities').run()
         self.assertFalse(app.exception)
         self.assertTrue(any('Fit is provisional' in c.value for c in app.caption))
         self.assertFalse(app.warning)

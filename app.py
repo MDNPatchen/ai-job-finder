@@ -1923,12 +1923,17 @@ elif page == 'Find Jobs':
             st.warning('No recent openings matched those choices. Try All states, On-site + Hybrid, or a different keyword. Strict work-arrangement filters require explicit employer labels.')
         else:
             if st.session_state.resume_text.strip():
-                review_order=st.selectbox('Review order',
-                    ['Leadership priorities','Highest fit index'],key='review_order')
+                # Default is strict best-to-worst by the fit score shown on each card,
+                # so the top match is always first.
+                review_order=st.selectbox('Sort results by',
+                    ['Highest fit index','Leadership priorities'],key='review_order')
                 all_results=order_for_review(all_results,review_order)
-                st.caption('Leadership priorities balances fit with director/executive scope and description quality. '
-                    'Management and specialist roles receive a review-order adjustment; incomplete descriptions receive a 15-point adjustment. '
-                    'Displayed fit scores are unchanged. Choose Highest fit index for strict score order.')
+                if review_order=='Highest fit index':
+                    st.caption('Best match first, by the fit index shown on each listing.')
+                else:
+                    st.caption('Leadership priorities moves director/executive roles up: management and specialist titles '
+                        'are lowered 8–18 points and incomplete descriptions 15 points for ordering only, so listings may '
+                        'not appear in fit-index order. Displayed fit scores are unchanged.')
             # Export controls are no longer hidden behind résumé upload.
             # The fragment keeps data stable when the user clicks Download.
             ranked_exports(all_results,stats.get('run_id',''))
