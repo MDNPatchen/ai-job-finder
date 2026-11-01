@@ -199,3 +199,22 @@ class RoleClassificationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DocumentedDutyPrecheckTests(unittest.TestCase):
+    """The cheap pre-check must equal the full assessment's description-origin count."""
+    def test_precheck_matches_full_assessment(self):
+        from qualification_matcher import assess_job_qualifications, documented_duty_count
+        profile = compile_resume_profile(RESUME)
+        texts = [
+            'Manage budgets and forecasts; lead crisis communications and media relations; oversee distribution routes.',
+            'Coordinate volunteers.',
+            'Oversee fundraising, donor relations and sponsorships. Mentor staff. Negotiate vendor contracts. '
+            'Grow digital audience and web traffic. Lead strategic planning with the board.' * 3,
+            '',
+        ]
+        for text in texts:
+            job = {'title': 'Partner Experience Lead', 'description': text, 'company': 'X', 'location': 'Fargo, ND'}
+            full = assess_job_qualifications(job, profile, RESUME)
+            expected = sum(1 for m in full['resume_matches'] if m.get('match_origin') != 'Job title only')
+            self.assertEqual(documented_duty_count(job, profile), expected, text[:40])

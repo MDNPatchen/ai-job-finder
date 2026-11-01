@@ -9,7 +9,7 @@ import re
 import unittest
 from pathlib import Path
 
-from qualification_matcher import compile_resume_profile, assess_job_qualifications
+from qualification_matcher import documented_duty_count, compile_resume_profile, assess_job_qualifications
 from ranked_breakdowns import evidence_index
 from transfer_fit import transfer_fit, supported_transfer_areas
 
@@ -111,6 +111,7 @@ class TransferabilityTests(unittest.TestCase):
             'role_classification':lambda title:None,
             'SPECIALIST_EXCLUSIONS':re.compile('engineering director|nurse|physician',re.I),
             'compile_resume_profile':compile_resume_profile,
+            'documented_duty_count':documented_duty_count,
             'verified_competencies':lambda:set(),
             'assess_job_qualifications':assess_job_qualifications,
             'evidence_index':evidence_index,

@@ -116,6 +116,30 @@ class RankedBreakdownTests(unittest.TestCase):
         self.assertEqual(reports[0]["evidence_match_index"],80)
         self.assertTrue(reports[0]["formal_requirements_to_verify"])
 
+    def test_repeat_ranking_in_one_search_reuses_outcomes(self):
+        jobs=[make_job(title="Operations Director "+str(i),documented=i%5,total=5,rank=10+i) for i in range(6)]
+        jobs.append(dict(make_job(title="Old posting"),date="2020-01-01"))
+        func=extracted_filter()
+        calls=[]
+        scorer=func.__globals__['score_job']
+        func.__globals__['score_job']=lambda job,resume,query,profile: calls.append(1) or dict(job)
+        func.__globals__['is_recent_posting']=lambda j: j['date']>'2026-01-01'
+        try:
+            cache={}
+            first,excluded1=func(jobs,None,"On-site + Hybrid","","resume",scoring_cache=cache)
+            scored_once=len(calls)
+            second,excluded2=func(jobs,None,"On-site + Hybrid","","resume",scoring_cache=cache)
+            self.assertEqual(len(calls),scored_once)                # nothing re-scored
+            self.assertEqual([j["title"] for j in first],[j["title"] for j in second])
+            self.assertEqual(excluded1,excluded2)                  # counts rebuilt identically
+            self.assertEqual(excluded2['old'],1)
+            more=jobs+[make_job(title="New arrival",documented=4,total=5)]
+            third,_=func(more,None,"On-site + Hybrid","","resume",scoring_cache=cache)
+            self.assertEqual(len(calls),scored_once+1)              # only the new job
+            self.assertIn("New arrival",[j["title"] for j in third])
+        finally:
+            func.__globals__['score_job']=scorer
+
     def test_filter_preserves_descending_order_across_sectors(self):
         jobs=[
             make_job(title="Low employer match",documented=1,total=5,rank=99),

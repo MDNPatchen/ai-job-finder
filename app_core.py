@@ -46,7 +46,7 @@ from employer_ui import render_employer_checker
 from employer_postings import posting_quality
 from official_bulletins import enrich_priority_government_jobs
 from government_feed_identity import belongs_to_configured_agency, dedupe_vacancy_urls
-from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications
+from qualification_matcher import CAPABILITIES, compile_resume_profile, assess_job_qualifications, documented_duty_count
 from posting_requirements import _clean as clean_posting_text
 from ui_theme import APP_CSS, brand, hero, listing_head
 from career_profile import (PROFILE_QUESTIONS, YN_CHOICES, LEGACY_DEFAULT_ANSWERS,
@@ -568,32 +568,43 @@ def load_neogov_feeds(state_filter=None, catalog_version=None):
             if job:
                 job['government_agency_slug']=token
                 jobs.append(job)
-        return jobs, len(jobs)
+        return jobs
+    def one_agency_cached(agency):
+        # Same 15-minute public cache as the JSON sources: a second search in a
+        # session (e.g. a saved search) skips the slow government host.
+        from public_cache import public_json
+        records = public_json.get('neogov-rss:' + agency[0], lambda: fetch_agency(agency))
+        return records, len(records)
+    fetch_agency = one_agency
     jobs, failures, counts = [], [], {}
     # All agency feeds live on one host, which slows down and times out when
     # hit with many parallel requests. Query it gently, then give feeds that
     # timed out one more try while the search still has time left.
-    agencies = [a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter]
-    retry = []
-    for attempt, (batch, workers) in enumerate(((agencies, 6), (retry, 3))):
-        if not batch:
-            continue
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            tasks = {pool.submit(one_agency, a): a for a in batch}
-            for task in as_completed(tasks):
-                agency = tasks[task]
-                token, employer, state = agency
-                try:
-                    records, count = task.result()
-                    jobs.extend(records)
-                    counts[f'{employer} ({state})'] = count
-                except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
-                    timed_out = isinstance(exc, (URLError, TimeoutError, OSError)) and 'timed out' in str(exc).lower()
-                    if attempt == 0 and timed_out:
-                        retry.append(agency)
-                        continue
-                    failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
-                    counts[f'{employer} ({state})'] = 0
+    # The government host is the slowest source. Cap its share of a search
+    # so a few slow agencies cannot hold every search to the overall limit;
+    # agencies still pending are reported in Source status.
+    with request_budget(55):
+        agencies = [a for a in GOVERNMENT_AGENCIES if state_filter is None or a[2] == state_filter]
+        retry = []
+        for attempt, (batch, workers) in enumerate(((agencies, 6), (retry, 3))):
+            if not batch:
+                continue
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                tasks = {pool.submit(one_agency_cached, a): a for a in batch}
+                for task in as_completed(tasks):
+                    agency = tasks[task]
+                    token, employer, state = agency
+                    try:
+                        records, count = task.result()
+                        jobs.extend(records)
+                        counts[f'{employer} ({state})'] = count
+                    except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError, OSError) as exc:
+                        timed_out = isinstance(exc, (URLError, TimeoutError, OSError)) and 'timed out' in str(exc).lower()
+                        if attempt == 0 and timed_out:
+                            retry.append(agency)
+                            continue
+                        failures.append(f'{employer} ({state}): {type(exc).__name__}: {str(exc)[:105]}')
+                        counts[f'{employer} ({state})'] = 0
     return jobs, failures, counts
 
 
@@ -999,7 +1010,7 @@ def load_workday_boards(catalog_version=None):
     def fetch(board):
         return fetch_board(board, post_json, fetch_json, standard_job, role_classification,
                            parse_posted_date, MAX_POSTING_AGE_DAYS, date.today())
-    return retrieve_boards(WORKDAY_BOARDS, fetch, max_workers=4)
+    return retrieve_boards(WORKDAY_BOARDS, fetch, max_workers=8)
 
 
 def load_schooljobs_feeds(state_filter=None, catalog_version=None):
@@ -1258,6 +1269,10 @@ def score_job(job, resume, words='', qualification_profile=None):
         query_rank_bonus+=4 if in_title else 1
     profile = qualification_profile or compile_resume_profile(
         resume, tuple(sorted(verified_competencies())))
+    # Unclassified titles need 3+ resume-backed duties in the description to
+    # qualify (checked below); count them cheaply before the full assessment.
+    if classified is None and documented_duty_count(job, profile) < 3:
+        return None
     qualification = assess_job_qualifications(job, profile, resume)
     if classified is None:
         # A strong actual-duty match can qualify unconventional job titles.
@@ -1300,8 +1315,8 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
               'location':0,'employer_limit':0,'preferences':0,
               'recruiter':0,'directory_link':0,'indirect_source':0,
               'foreign_location':0}
-    for cached_job in dedupe_vacancy_urls(jobs):
-        check_cancelled()
+    def _outcome(cached_job):
+        """(exclusion reason, None) or (None, (ranked job, identity key))."""
         # Cached provider entries may predate the latest work-style parser.
         # Repair inconsistent provenance before screening and exporting.
         job=reconcile_workplace_record(cached_job)
@@ -1314,19 +1329,15 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
                        belongs_to_configured_agency(
                            job.get('url'),slug,job.get('source'))
                        for slug,name,_state in catalog):
-                excluded['eligibility']+=1
-                continue
+                return 'eligibility',None
         if not job.get('date'):
-            excluded['undated']+=1
-            continue
+            return 'undated',None
         if not is_recent_posting(job):
-            excluded['old']+=1
-            continue
+            return 'old',None
         if not job.get('eligible'):
-            excluded['eligibility']+=1
-            continue
+            return 'eligibility',None
         if 'spacex' in job['company'].casefold():
-            continue
+            return '',None
         # Remote exceptions are Mayo Clinic and verified government
         # postings. On-site-only and Hybrid-only filters remain strict.
         # Unknown workplaces remain labeled for verification.
@@ -1340,36 +1351,27 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
             job['remote']=True
             job['arrangement_source']='Vacancy title explicitly states remote-only work'
         if arrangement == 'Remote' and not permitted_remote_source(job):
-            excluded['location']+=1
-            continue
+            return 'location',None
         quality=posting_quality(job)
         if quality['foreign_location']:
-            excluded['foreign_location']+=1
-            continue
+            return 'foreign_location',None
         if listing_scope != 'All sources (including directory links)':
             if not quality['individual_url']:
-                excluded['directory_link']+=1
-                continue
+                return 'directory_link',None
             if not quality['direct_source']:
-                excluded['indirect_source']+=1
-                continue
+                return 'indirect_source',None
             if (listing_scope == 'Direct employers only (recommended)'
                     and quality['recruiter']):
-                excluded['recruiter']+=1
-                continue
+                return 'recruiter',None
         if work_style == 'On-site only' and arrangement != 'On-site':
-            excluded['location']+=1
-            continue
+            return 'location',None
         if work_style == 'Hybrid only' and arrangement != 'Hybrid':
-            excluded['location']+=1
-            continue
+            return 'location',None
         state_ids=states_in_location(job['location'])
         if state_code and state_code not in state_ids:
-            excluded['location']+=1
-            continue
+            return 'location',None
         if not preferences_allow(job,state_ids,preferences):
-            excluded['preferences']+=1
-            continue
+            return 'preferences',None
         cache_key=hashlib.sha256(json.dumps(job,sort_keys=True,default=str).encode()).hexdigest()
         if scoring_cache is not None and cache_key in scoring_cache:
             ranked=scoring_cache[cache_key]
@@ -1377,9 +1379,27 @@ def filter_and_rank_jobs(jobs, state_code, work_style, query, resume,
             ranked=score_job(job,resume,query,qualification_profile)
             if scoring_cache is not None: scoring_cache[cache_key]=ranked
         if ranked is None:
-            excluded['irrelevant']+=1
+            return 'irrelevant',None
+        return None,(ranked,normalized_key(job))
+
+    # Within one search the same job objects are ranked again each time a
+    # source finishes; remember each job's outcome so only new jobs are
+    # screened and scored. (The memo holds the job, so its id stays unique.)
+    memo=scoring_cache.setdefault('__outcomes__',{}) if scoring_cache is not None else None
+    for cached_job in dedupe_vacancy_urls(jobs):
+        check_cancelled()
+        hit=memo.get(id(cached_job)) if memo is not None else None
+        if hit is not None and hit[0] is cached_job:
+            reason,result=hit[1],hit[2]
+        else:
+            reason,result=_outcome(cached_job)
+            if memo is not None:
+                memo[id(cached_job)]=(cached_job,reason,result)
+        if reason is not None:
+            if reason:
+                excluded[reason]+=1
             continue
-        key=normalized_key(job)
+        ranked,key=result
         # Keep the stronger *qualification* match when multiple feeds list
         # the same title and employer, instead of using broad title rank only.
         if (key not in unique or
@@ -1468,18 +1488,39 @@ def search_fingerprint():
 
 def run_search_task(task,settings):
     """All inputs are captured on the UI thread; no session state in workers."""
+    import time as _time
     cache={}
+    started=_time.monotonic()
+    timing={'source_done':{},'rank_seconds':0.0,'rank_calls':0}
+    last_ranked=[None]
+    RERANK_EVERY=8.0  # seconds between interim re-rankings while sources finish
     base={'preferences':settings['preferences'],'run_id':datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
           'matching_version':MATCHING_ENGINE_VERSION,'scope':settings['scope'],
           'work':settings['work'],'listing_scope':settings['listing_scope'],
           'employer_scope':settings['employer_scope'],'searched':datetime.now().strftime('%b %d, %Y %I:%M %p')}
     def rank(raw):
+        t=_time.monotonic()
+        try:
+            return _rank(raw)
+        finally:
+            timing['rank_seconds']+=_time.monotonic()-t
+            timing['rank_calls']+=1
+    def _rank(raw):
         return filter_and_rank_jobs(raw,settings['code'],settings['work'],settings['query'],
             settings['resume'],settings['employer_cap'],settings['preferences'],
             settings['listing_scope'],confirmed=settings['confirmed'],scoring_cache=cache,
             excluded=settings.get('excluded',()))
-    def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None):
+    def publish(raw,errors,counts,health,completed=0,total=0,bulletin=None,final=False):
+        now=_time.monotonic()
+        for label in counts:
+            timing['source_done'].setdefault(label,round(now-started,1))
+        # Show the first results at once, then refresh at most every few
+        # seconds; ranking inside the collection loop holds up other sources.
+        if not final and last_ranked[0] is not None and now-last_ranked[0]<RERANK_EVERY:
+            task.publish(message=f'{len(health)} sources reported · ranking soon')
+            return
         matches,excluded=rank(raw)
+        last_ranked[0]=_time.monotonic()
         readiness=settings.get('family_readiness') or {}
         for job in matches:
             family=family_for_title(job.get('title'))
@@ -1492,17 +1533,25 @@ def run_search_task(task,settings):
         stats={**base,'fetched':len(raw),'sources':dict(counts),'errors':list(errors),
             'board_health':with_recovery_links(health),'excluded':excluded,'new_count':0,'had_baseline':False,
             'government':sum(bool(x['government']) for x in matches),
-            'bulletin_diagnostics':bulletin or {},'search_status':'running'}
+            'bulletin_diagnostics':bulletin or {},'search_status':'running',
+            'timing':{**timing,'rank_seconds':round(timing['rank_seconds'],1),
+                      'elapsed':round(_time.monotonic()-started,1)}}
         task.publish({'matches':matches,'stats':stats},
             f'{len(health)} sources reported · {len(matches)} matches so far')
     raw,errors,counts,health=fetch_all_free_jobs((settings['query'],),settings['code'],
         progress=publish,credentials=settings['credentials'])
+    timing['fetch_done']=round(_time.monotonic()-started,1)
     if settings['resume'].strip():
         task.publish(message='Checking full government descriptions; current results remain available')
         preview,_=rank(raw)
-        raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
+        t=_time.monotonic()
+        # Bulletins come from the slow government host: give them at most 15 s;
+        # postings not reached keep their summary text, as before on failure.
+        with request_budget(15):
+            raw,bulletin=enrich_priority_government_jobs(raw,preview,limit=40)
+        timing['bulletin_seconds']=round(_time.monotonic()-t,1)
     else: bulletin={}
-    publish(raw,errors,counts,health,bulletin=bulletin)
+    publish(raw,errors,counts,health,bulletin=bulletin,final=True)
 
 
 def consume_search_update():
